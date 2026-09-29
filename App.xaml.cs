@@ -50,6 +50,7 @@ public partial class App : Application
             ex.Handled = true;
         };
         base.OnStartup(e);
+        UpdateService.CleanupOldFiles(); // restos de la actualización anterior
         new MainWindow().Show();
     }
 

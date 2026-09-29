@@ -27,7 +27,11 @@ public sealed class AppSettings
     /// <summary>Último tema oscuro elegido: al que vuelve el interruptor claro/oscuro.</summary>
     public string DarkTheme { get; set; } = "dark";
     public bool Animations { get; set; } = true;
+    /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
+    public bool AutoUpdate { get; set; } = true;
     public double SidebarWidth { get; set; } = 260;
+    /// <summary>Zoom de la interfaz (Ctrl + / Ctrl − / Ctrl+0): 1 = 100 %.</summary>
+    public double Zoom { get; set; } = 1.0;
     public bool ShowRightPanel { get; set; } = true;
     public string RightPanelTab { get; set; } = "queue";
     public double Width { get; set; } = 1440;

@@ -188,6 +188,68 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     // ======================================================================
+    // Actualizaciones (GitHub Releases, al abrir la app)
+    // ======================================================================
+
+    public string VersionText => $"Echoplex {UpdateService.CurrentVersion}";
+
+    [ObservableProperty] private string? _updateStatus;
+    [ObservableProperty] private bool _isCheckingUpdates;
+    /// <summary>Versión ya instalada que espera un reinicio (muestra el botón "Reiniciar para actualizar").</summary>
+    [ObservableProperty] private string? _updateReady;
+
+    public UpdateService Updates { get; set; } = new();
+
+    public bool AutoUpdate
+    {
+        get => Settings.AutoUpdate;
+        set
+        {
+            if (Settings.AutoUpdate == value) return;
+            Settings.AutoUpdate = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Al abrir: si está activado, busca e instala en segundo plano sin molestar.</summary>
+    public async Task CheckForUpdatesOnStartupAsync()
+    {
+        if (!Settings.AutoUpdate) return;
+        await Task.Delay(TimeSpan.FromSeconds(4)); // que la biblioteca cargue antes
+        await CheckForUpdatesAsync(manual: false);
+    }
+
+    public async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (IsCheckingUpdates || UpdateReady != null) return;
+        IsCheckingUpdates = true;
+        UpdateStatus = "Buscando actualizaciones…";
+        var result = await Task.Run(() => Updates.CheckAndInstallAsync());
+        IsCheckingUpdates = false;
+        UpdateStatus = result.Message;
+        switch (result.State)
+        {
+            case UpdateState.Installed:
+                UpdateReady = result.Version?.ToString();
+                ShowToast($"Echoplex {UpdateReady} está listo: reinicia para usarlo", 8);
+                break;
+            case UpdateState.Failed when manual || result.Version != null:
+                // sin conexión al abrir no se avisa; un fallo con una versión nueva delante, sí
+                ShowToast(result.Message, 8);
+                break;
+            case UpdateState.UpToDate when manual:
+                ShowToast(result.Message, 4);
+                break;
+        }
+    }
+
+    /// <summary>Lo pide la ventana: cierra guardando todo y arranca la versión nueva.</summary>
+    public event Action? RestartRequested;
+
+    public void RestartToUpdate() => RestartRequested?.Invoke();
+
+    // ======================================================================
     // Carpetas de música: añadir/quitar en caliente, reescaneo y vigilancia
     // ======================================================================
 
@@ -351,6 +413,18 @@ public sealed partial class MainViewModel : ObservableObject
         Player.Remap(Library.Find);
         UpdateActiveContext();
         StartWatcher();
+
+        if (Library.Songs.Count == 0)
+        {
+            // carpeta vacía (p. ej. la carpeta Música de Windows la primera vez): pantalla de "añade tu carpeta"
+            CurrentPage = null;
+            NeedsFolder = true;
+            IsLoading = true;
+            StatusText = Library.PresentRoots.Count == 0
+                ? "Elige la carpeta donde tienes tu música."
+                : "No hay canciones en " + string.Join(", ", Library.PresentRoots.Select(Path.GetFileName)) + ".\nAñade la carpeta donde tienes tu música.";
+            return;
+        }
 
         NeedsFolder = false;
         IsLoading = false;
@@ -829,41 +903,113 @@ public sealed partial class MainViewModel : ObservableObject
             : first != null ? await Covers.GetSongCoverAsync(first, 400, priority: true) : null;
     }
 
-    private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first)
+    private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first) =>
+        page.Cover = await FolderArtAsync(path, 400, allowDownload: true, priority: true);
+
+    /// <summary>
+    /// Portada de una carpeta. Si tiene imagen propia, esa. Si no, y tiene varias subcarpetas, un mosaico con
+    /// sus portadas distintas: 2 o 3 en franjas diagonales, 4 o más en cuadrícula 2×2 (no pasa de 4).
+    /// </summary>
+    private async Task<BitmapSource?> FolderArtAsync(string path, int size, bool allowDownload, bool priority)
     {
-        var own = await Task.Run(() => Covers.FindCoverFile(path));
-        if (own != null || children.Count == 0)
-        {
-            page.Cover = await Covers.GetFolderCoverAsync(path, page.Songs, 400, priority: true);
-            return;
-        }
+        var children = Library.GetChildren(path);
+        if (children.Count < 2 || await Task.Run(() => Covers.FindCoverFile(path)) != null)
+            return await Covers.GetFolderCoverAsync(path, Library.SongsUnder(path), size, allowDownload, priority);
+
         var imgs = new List<BitmapSource>();
+        var prints = new List<byte[]>();
         foreach (var child in children.Take(12))
         {
-            var img = await Covers.GetFolderCoverAsync(child, Library.SongsUnder(child), 240, priority: true);
-            if (img != null) imgs.Add(img);
+            var img = await Covers.GetFolderCoverAsync(child, Library.SongsUnder(child), size, allowDownload, priority);
+            if (img == null) continue;
+            var print = Fingerprint(img);
+            if (prints.Any(p => SameArt(p, print))) continue; // Disc 1 y Disc 2 con la misma carátula cuentan como una
+            imgs.Add(img);
+            prints.Add(print);
             if (imgs.Count == 4) break;
         }
-        page.Cover = imgs.Count == 4 ? Mosaic(imgs) : imgs.FirstOrDefault();
+        return imgs.Count switch
+        {
+            0 => await Covers.GetFolderCoverAsync(path, Library.SongsUnder(path), size, allowDownload, priority),
+            1 => imgs[0],
+            _ => Mosaic(imgs, size),
+        };
     }
 
-    /// <summary>Portada 2×2 con las portadas de cuatro subcarpetas.</summary>
-    private static BitmapSource Mosaic(IList<BitmapSource> imgs)
+    /// <summary>Huella de 8×8 en grises para reconocer carátulas repetidas aunque vengan de archivos distintos.</summary>
+    private static byte[] Fingerprint(BitmapSource img)
     {
-        const int size = 400, half = size / 2;
+        var small = new TransformedBitmap(img, new System.Windows.Media.ScaleTransform(8.0 / img.PixelWidth, 8.0 / img.PixelHeight));
+        var gray = new FormatConvertedBitmap(small, System.Windows.Media.PixelFormats.Gray8, null, 0);
+        int w = gray.PixelWidth, h = gray.PixelHeight;
+        var px = new byte[w * h];
+        gray.CopyPixels(px, w, 0);
+        return px;
+    }
+
+    private static bool SameArt(byte[] a, byte[] b) =>
+        a.Length == b.Length && a.Zip(b, (x, y) => Math.Abs(x - y)).Average() < 14;
+
+    /// <summary>Mosaico cuadrado: 2 o 3 portadas en franjas diagonales con una línea entre ellas, 4 en cuadrícula.</summary>
+    private static BitmapSource Mosaic(IList<BitmapSource> imgs, int size)
+    {
+        double s = size;
+        var full = new System.Windows.Rect(0, 0, s, s);
+        System.Windows.Media.ImageBrush Brush(BitmapSource img) => new(img) { Stretch = System.Windows.Media.Stretch.UniformToFill };
         var dv = new System.Windows.Media.DrawingVisual();
         using (var dc = dv.RenderOpen())
         {
-            for (int i = 0; i < 4; i++)
+            if (imgs.Count >= 4)
             {
-                var brush = new System.Windows.Media.ImageBrush(imgs[i]) { Stretch = System.Windows.Media.Stretch.UniformToFill };
-                dc.DrawRectangle(brush, null, new System.Windows.Rect(i % 2 * half, i / 2 * half, half, half));
+                double half = s / 2;
+                for (int i = 0; i < 4; i++)
+                    dc.DrawRectangle(Brush(imgs[i]), null, new System.Windows.Rect(i % 2 * half, i / 2 * half, half, half));
+            }
+            else
+            {
+                // cortes a 45° (rectas x + y = c, de arriba-derecha a abajo-izquierda) que dejan franjas de igual superficie
+                double t = s * Math.Sqrt(2.0 / 3.0);
+                var cuts = imgs.Count == 2 ? new[] { s } : new[] { t, 2 * s - t };
+                double from = 0;
+                for (int i = 0; i < imgs.Count; i++)
+                {
+                    double to = i < cuts.Length ? cuts[i] : 2 * s;
+                    dc.PushClip(Band(from, to, s));
+                    dc.DrawRectangle(Brush(imgs[i]), null, full);
+                    dc.Pop();
+                    from = to;
+                }
+                var pen = new System.Windows.Media.Pen(new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(235, 255, 255, 255)),
+                    s < 128 ? s / 21 : s / 110); // en miniatura (árbol) más gruesa, para que se vea a 22 px
+                foreach (var c in cuts)
+                {
+                    var (a, b) = c <= s
+                        ? (new System.Windows.Point(c, 0), new System.Windows.Point(0, c))
+                        : (new System.Windows.Point(s, c - s), new System.Windows.Point(c - s, s));
+                    dc.DrawLine(pen, a, b);
+                }
             }
         }
         var bmp = new RenderTargetBitmap(size, size, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
         bmp.Render(dv);
         bmp.Freeze();
         return bmp;
+    }
+
+    /// <summary>La parte del cuadrado entre las rectas x + y = from y x + y = to.</summary>
+    private static System.Windows.Media.Geometry Band(double from, double to, double s)
+    {
+        const double m = 10000;
+        var strip = new System.Windows.Media.StreamGeometry();
+        using (var g = strip.Open())
+        {
+            g.BeginFigure(new System.Windows.Point(from + m, -m), true, true);
+            g.LineTo(new System.Windows.Point(to + m, -m), false, false);
+            g.LineTo(new System.Windows.Point(-m, to + m), false, false);
+            g.LineTo(new System.Windows.Point(-m, from + m), false, false);
+        }
+        return new System.Windows.Media.CombinedGeometry(System.Windows.Media.GeometryCombineMode.Intersect,
+            new System.Windows.Media.RectangleGeometry(new System.Windows.Rect(0, 0, s, s)), strip);
     }
 
     public async void EnsureGroupCover(GroupHeader group)
@@ -889,8 +1035,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (node.CoverRequested || node.IsRoot) return;
         node.CoverRequested = true;
-        // Primera imagen válida de dentro o, si no hay, la portada incrustada del primer disco.
-        node.Cover = await Covers.GetFolderCoverAsync(node.Path, Library.SongsUnder(node.Path), 64);
+        // Misma regla que la cabecera: imagen propia, o mosaico de sus discos (diagonal / cuadrícula), o la del primer disco.
+        node.Cover = await FolderArtAsync(node.Path, 64, allowDownload: true, priority: false);
     }
 
     public async void EnsureCover(CardVm card)
@@ -899,7 +1045,7 @@ public sealed partial class MainViewModel : ObservableObject
         card.CoverRequested = true;
         card.Cover = card.Kind switch
         {
-            CardKind.Folder => await Covers.GetFolderCoverAsync(card.Key, Library.SongsUnder(card.Key), 300, allowDownload: card.AllowDownload),
+            CardKind.Folder => await FolderArtAsync(card.Key, 300, card.AllowDownload, priority: false),
             CardKind.Playlist => Playlists.FirstOrDefault(p => p.Id == card.Key) is { Songs.Count: > 0 } pl && Library.Find(pl.Songs[0]) is { } s
                 ? await Covers.GetSongCoverAsync(s, 300, allowDownload: false) : null,
             _ when card.Song != null => await Covers.GetSongCoverAsync(card.Song, 300, allowDownload: false),

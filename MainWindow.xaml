@@ -947,7 +947,7 @@
             <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
                     <Button DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="40" Margin="6,8,6,4" Click="Workspace_Click"
-                            ToolTip="Tema claro/oscuro y atajos">
+                            ToolTip="Tema claro/oscuro, atajos y ajustes">
                         <DockPanel>
                             <Border DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="5" Background="{DynamicResource TextBrush}">
                                 <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource BgBrush}"
@@ -972,6 +972,16 @@
                         </Button>
                         </DockPanel>
                     </Border>
+
+                    <!-- actualización descargada e instalada: falta reiniciar -->
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource PrimaryButton}" Margin="10,0,10,8" Click="RestartUpdate_Click"
+                            Visibility="{Binding UpdateReady, Converter={StaticResource NullVis}}"
+                            ToolTip="La versión nueva ya está instalada; se abre al reiniciar">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE777;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding UpdateReady, StringFormat=Reiniciar para usar la {0}}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                         <StackPanel Margin="0,2,0,16">

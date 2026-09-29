@@ -41,6 +41,13 @@ public partial class MainWindow : Window
         Height = Math.Max(MinHeight, s.Height);
         if (s.Maximized) WindowState = WindowState.Maximized;
         SidebarCol.Width = new GridLength(Math.Clamp(s.SidebarWidth, SidebarCol.MinWidth, SidebarCol.MaxWidth));
+        ApplyZoom(s.Zoom, announce: false);
+        PreviewMouseWheel += (o, e) =>
+        {
+            if (Keyboard.Modifiers != ModifierKeys.Control) return;
+            ApplyZoom(_vm.Settings.Zoom + (e.Delta > 0 ? ZoomStep : -ZoomStep));
+            e.Handled = true;
+        };
 
         _vm.Player.PropertyChanged += Player_PropertyChanged;
         _vm.PropertyChanged += Vm_PropertyChanged;
@@ -70,7 +77,18 @@ public partial class MainWindow : Window
         };
     }
 
-    private async void Window_Loaded(object sender, RoutedEventArgs e) => await _vm.InitializeAsync();
+    private async void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        _vm.RestartRequested += () =>
+        {
+            Close(); // guarda ajustes, cola y posición como siempre
+            UpdateService.Restart();
+        };
+        await _vm.InitializeAsync();
+        await _vm.CheckForUpdatesOnStartupAsync();
+    }
+
+    private void RestartUpdate_Click(object sender, RoutedEventArgs e) => _vm.RestartToUpdate();
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
@@ -272,6 +290,9 @@ public partial class MainWindow : Window
         else if (ctrl && key == Key.D) _vm.ToggleTheme();
         else if (ctrl && key == Key.E) _vm.ToggleAnimations();
         else if (ctrl && key == Key.OemComma) ShowSettings();
+        else if (ctrl && key is Key.OemPlus or Key.Add) ApplyZoom(_vm.Settings.Zoom + ZoomStep);
+        else if (ctrl && key is Key.OemMinus or Key.Subtract) ApplyZoom(_vm.Settings.Zoom - ZoomStep);
+        else if (ctrl && key is Key.D0 or Key.NumPad0) ApplyZoom(1.0);
         else if (ctrl && key == Key.N) NewPlaylist(null);
         else if ((ctrl && key == Key.OemQuestion) || key == Key.F1) ShowShortcuts();
         else if (mods == ModifierKeys.Alt && key == Key.Left) _vm.GoBack();
@@ -285,6 +306,21 @@ public partial class MainWindow : Window
         else handled = false;
 
         if (handled) e.Handled = true;
+    }
+
+    private const double ZoomStep = 0.1, MinZoom = 0.7, MaxZoom = 2.0;
+
+    /// <summary>Zoom de toda la ventana, como en un navegador (se guarda en los ajustes).</summary>
+    private void ApplyZoom(double zoom, bool announce = true)
+    {
+        zoom = Math.Round(Math.Clamp(zoom, MinZoom, MaxZoom), 1);
+        if (Content is FrameworkElement root)
+            root.LayoutTransform = Math.Abs(zoom - 1) < 0.001 ? Transform.Identity : new ScaleTransform(zoom, zoom);
+        if (!announce) return;
+        bool changed = Math.Abs(zoom - _vm.Settings.Zoom) > 0.001;
+        _vm.Settings.Zoom = zoom;
+        if (changed) SettingsStore.Save(_vm.Settings);
+        _vm.ShowToast($"Zoom {zoom * 100:0} %" + (zoom >= MaxZoom ? " (máximo)" : zoom <= MinZoom ? " (mínimo)" : ""), 1.6);
     }
 
     private void FocusFilterOrSearch()
@@ -315,6 +351,7 @@ public partial class MainWindow : Window
         "Ctrl+D\tTema claro / oscuro\n" +
         "Ctrl+E\tAnimaciones sí / no\n" +
         "Ctrl+,\tAjustes\n" +
+        "Ctrl + / Ctrl −\tZoom (Ctrl+0: 100 %)\n" +
         "Alt+← / Alt+→\tAtrás / adelante\n" +
         "Supr\tQuitar de la playlist\n" +
         "Enter\tReproducir la canción seleccionada");
@@ -376,6 +413,7 @@ public partial class MainWindow : Window
         var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = PlacementMode.Bottom };
         menu.Items.Add(Item(_vm.IsDark ? "Tema claro" : "Tema oscuro", _vm.IsDark ? "\uE706" : "\uE708", _vm.ToggleTheme, "Ctrl+D"));
         menu.Items.Add(Item("Atajos de teclado", "\uE765", ShowShortcuts, "F1"));
+        menu.Items.Add(Item("Ajustes", "\uE713", ShowSettings, "Ctrl+,"));
         menu.IsOpen = true;
     }
 

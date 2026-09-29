@@ -28,6 +28,7 @@ public partial class SettingsWindow : Window
         _vm = vm;
         _main = owner;
         Owner = owner;
+        DataContext = vm;
         _themes = Themes.All.Select(t => new ThemeOption(t) { IsSelected = t.Key == vm.ThemeKey }).ToList();
         ThemeList.ItemsSource = _themes;
         AnimationsBox.IsChecked = vm.AnimationsOn;
@@ -84,6 +85,14 @@ public partial class SettingsWindow : Window
     {
         Close();
         _main.OpenMiniPlayer();
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e) => await _vm.CheckForUpdatesAsync(manual: true);
+
+    private void RestartUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+        _vm.RestartToUpdate();
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
