@@ -1,0 +1,566 @@
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using Echoplex.Services;
+using Echoplex.ViewModels;
+
+namespace Echoplex;
+
+/// <summary>
+/// Animaciones de la zona principal: caóticas pero elegantes. Solo se animan transformaciones,
+/// opacidades, colores y desenfoques temporales (se quitan al terminar) para que el coste sea bajo.
+/// </summary>
+public partial class MainWindow
+{
+    private enum TransitionStyle { Diffuse, Vortex, Shatter }
+
+    private static readonly IEasingFunction Ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+    private static readonly IEasingFunction EaseIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+    private static readonly IEasingFunction Silk = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
+    private static readonly IEasingFunction Drift = new SineEase { EasingMode = EasingMode.EaseOut };
+    private static readonly IEasingFunction Pop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.45 };
+    private static readonly IEasingFunction SoftPop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 };
+
+    private readonly Stopwatch _cardClock = Stopwatch.StartNew();
+    private readonly Stopwatch _pageClock = Stopwatch.StartNew();
+    private int _cardStagger;
+
+    private TransitionStyle _style;
+    private TransitionStyle _lastStyle = TransitionStyle.Shatter;
+    private Vector _transitionDir;
+    private double _transitionBlur;
+    private double _transitionSpin;
+    private bool _crossfadePending;
+
+    private readonly List<GradientStop[]> _auroraStops = new();
+    private INotifyPropertyChanged? _watchedPage;
+
+    /// <summary>El ajuste del usuario (Ctrl+E) y la opción de Windows "Mostrar animaciones".</summary>
+    private bool AnimationsEnabled => _vm.AnimationsOn && SystemParameters.ClientAreaAnimation;
+
+    private static Random Rnd => Random.Shared;
+
+    private void InitAnimations()
+    {
+        Anim.SetEnabled(this, AnimationsEnabled);
+        BuildAurora();
+        _vm.PropertyChanged += (s, e) =>
+        {
+            if (!Dispatcher.CheckAccess()) return; // la vista solo reacciona en su propio hilo
+            switch (e.PropertyName)
+            {
+                case nameof(MainViewModel.AnimationsOn):
+                    // las de XAML leen la propiedad heredada; la aurora se rehace quieta o en movimiento
+                    Anim.SetEnabled(this, AnimationsEnabled);
+                    Aurora.Children.Clear();
+                    _auroraStops.Clear();
+                    BuildAurora();
+                    break;
+                case nameof(MainViewModel.CurrentPage):
+                    WatchPageCover();
+                    RefreshAurora();
+                    break;
+                case nameof(MainViewModel.NowPlayingCover):
+                    if (_vm.NowPlayingCover != null) FlipPlayerCover();
+                    if ((_vm.CurrentPage as SongListPage)?.Cover == null) RefreshAurora();
+                    break;
+            }
+        };
+        _vm.ThemeChanged += RefreshAurora;
+    }
+
+    // ======================================================================
+    // Transiciones entre páginas: difusa, vórtice o estallido (al azar)
+    // ======================================================================
+
+    private void OnPageChanging(PageBase? next, bool refresh)
+    {
+        _crossfadePending = false;
+        if (refresh || next == null || _vm.CurrentPage == null || !AnimationsEnabled || !IsVisible) return;
+        double w = PageHost.ActualWidth, h = PageHost.ActualHeight;
+        if (w < 20 || h < 20) return;
+
+        RenderTargetBitmap shot;
+        try
+        {
+            // a media resolución: va desenfocada o hecha pedazos, no hace falta más
+            shot = new RenderTargetBitmap((int)(w / 2), (int)(h / 2), 48, 48, PixelFormats.Pbgra32);
+            shot.Render(PageHost);
+            shot.Freeze();
+        }
+        catch
+        {
+            return;
+        }
+
+        // estilo al azar, nunca el mismo dos veces seguidas
+        var options = Enum.GetValues<TransitionStyle>().Where(s => s != _lastStyle).ToArray();
+        _style = options[Rnd.Next(options.Length)];
+        _lastStyle = _style;
+
+        double angle = Rnd.NextDouble() * Math.PI * 2;
+        double reach = 14 + Rnd.NextDouble() * 14;
+        _transitionDir = new Vector(Math.Cos(angle) * reach, Math.Sin(angle) * reach * 0.7);
+        _transitionBlur = 26 + Rnd.NextDouble() * 14;
+        _transitionSpin = (Rnd.Next(2) == 0 ? -1 : 1) * (9 + Rnd.NextDouble() * 9);
+        _crossfadePending = true;
+
+        switch (_style)
+        {
+            case TransitionStyle.Shatter: Shatter(shot, w, h); break;
+            case TransitionStyle.Vortex: Vortex(shot); break;
+            default: Diffuse(shot); break;
+        }
+    }
+
+    /// <summary>La página se disuelve con un desenfoque gaussiano fuerte, un leve zoom, deriva y giro.</summary>
+    private void Diffuse(BitmapSource shot)
+    {
+        var (scale, rotate, move, blur) = PrepareShot(shot);
+        var t = TimeSpan.FromMilliseconds(440);
+        double grow = 1.035 + Rnd.NextDouble() * 0.03;
+        FadeShotOut(shot, t, Drift);
+        blur.BeginAnimation(BlurEffect.RadiusProperty, new DoubleAnimation(0, _transitionBlur, t) { EasingFunction = Drift });
+        Animate(scale, ScaleTransform.ScaleXProperty, 1, grow, t, Drift);
+        Animate(scale, ScaleTransform.ScaleYProperty, 1, grow, t, Drift);
+        Animate(rotate, RotateTransform.AngleProperty, 0, (Rnd.NextDouble() - 0.5) * 1.6, t, Drift);
+        Animate(move, TranslateTransform.XProperty, 0, _transitionDir.X, t, Drift);
+        Animate(move, TranslateTransform.YProperty, 0, _transitionDir.Y, t, Drift);
+    }
+
+    /// <summary>La página se hunde girando hacia el centro, desenfocándose.</summary>
+    private void Vortex(BitmapSource shot)
+    {
+        var (scale, rotate, _, blur) = PrepareShot(shot);
+        var t = TimeSpan.FromMilliseconds(520);
+        FadeShotOut(shot, t, EaseIn);
+        blur.BeginAnimation(BlurEffect.RadiusProperty, new DoubleAnimation(0, _transitionBlur, t) { EasingFunction = EaseIn });
+        Animate(scale, ScaleTransform.ScaleXProperty, 1, 0.58, t, EaseIn);
+        Animate(scale, ScaleTransform.ScaleYProperty, 1, 0.58, t, EaseIn);
+        Animate(rotate, RotateTransform.AngleProperty, 0, _transitionSpin, t, EaseIn);
+    }
+
+    /// <summary>La página estalla en teselas que salen despedidas girando y se difuminan.</summary>
+    private void Shatter(BitmapSource shot, double w, double h)
+    {
+        Shards.Children.Clear();
+        Shards.Visibility = Visibility.Visible;
+        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
+        Shards.Effect = blur;
+
+        const int cols = 7, rows = 5;
+        double tw = w / cols, th = h / rows;
+        var origin = new Point(w * (0.3 + Rnd.NextDouble() * 0.4), h * (0.25 + Rnd.NextDouble() * 0.4));
+        double longest = 0;
+
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                var tile = new Rectangle
+                {
+                    Width = tw + 1,
+                    Height = th + 1,
+                    RenderTransformOrigin = new Point(0.5, 0.5),
+                    Fill = new ImageBrush(shot)
+                    {
+                        Viewbox = new Rect((double)c / cols, (double)r / rows, 1.0 / cols, 1.0 / rows),
+                        ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+                        Stretch = Stretch.Fill,
+                    },
+                };
+                Canvas.SetLeft(tile, c * tw);
+                Canvas.SetTop(tile, r * th);
+                var scale = new ScaleTransform(1, 1);
+                var rotate = new RotateTransform(0);
+                var move = new TranslateTransform(0, 0);
+                tile.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
+                Shards.Children.Add(tile);
+
+                // salen desde el punto de impacto, con algo de azar y un poco de "gravedad"
+                var center = new Point(c * tw + tw / 2, r * th + th / 2);
+                var dir = center - origin;
+                double distanceToOrigin = dir.Length;
+                if (dir.Length < 1) dir = new Vector(0, -1);
+                dir.Normalize();
+                dir += new Vector((Rnd.NextDouble() - 0.5) * 0.7, (Rnd.NextDouble() - 0.5) * 0.7);
+                double dist = 90 + Rnd.NextDouble() * 230;
+                var delay = TimeSpan.FromMilliseconds(distanceToOrigin / Math.Max(w, h) * 140 + Rnd.NextDouble() * 50);
+                var t = TimeSpan.FromMilliseconds(560 + Rnd.NextDouble() * 220);
+                longest = Math.Max(longest, (delay + t).TotalMilliseconds);
+
+                move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, dir.X * dist, t) { BeginTime = delay, EasingFunction = Ease });
+                move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, dir.Y * dist + 60, t) { BeginTime = delay, EasingFunction = Ease });
+                rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, (Rnd.NextDouble() - 0.5) * 90, t) { BeginTime = delay, EasingFunction = Ease });
+                double shrink = 0.45 + Rnd.NextDouble() * 0.35;
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, shrink, t) { BeginTime = delay, EasingFunction = Ease });
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, shrink, t) { BeginTime = delay, EasingFunction = Ease });
+                tile.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, t) { BeginTime = delay, EasingFunction = EaseIn });
+            }
+        }
+
+        var cleanup = new DoubleAnimation(0, 10, TimeSpan.FromMilliseconds(longest)) { EasingFunction = EaseIn };
+        cleanup.Completed += (s, e) =>
+        {
+            if (Shards.Effect != blur) return; // ya empezó otro estallido
+            Shards.Children.Clear();
+            Shards.Visibility = Visibility.Collapsed;
+            Shards.Effect = null;
+        };
+        blur.BeginAnimation(BlurEffect.RadiusProperty, cleanup);
+    }
+
+    private (ScaleTransform, RotateTransform, TranslateTransform, BlurEffect) PrepareShot(BitmapSource shot)
+    {
+        var scale = new ScaleTransform(1, 1);
+        var rotate = new RotateTransform(0);
+        var move = new TranslateTransform(0, 0);
+        TransitionShot.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
+        var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
+        TransitionShot.Effect = blur;
+        TransitionShot.Source = shot;
+        TransitionShot.Visibility = Visibility.Visible;
+        return (scale, rotate, move, blur);
+    }
+
+    private void FadeShotOut(BitmapSource shot, TimeSpan t, IEasingFunction easing)
+    {
+        var fade = new DoubleAnimation(1, 0, t) { EasingFunction = easing };
+        fade.Completed += (s, e) =>
+        {
+            if (TransitionShot.Source != shot) return; // ya empezó otra transición
+            TransitionShot.Visibility = Visibility.Collapsed;
+            TransitionShot.Source = null;
+            TransitionShot.Effect = null;
+        };
+        TransitionShot.BeginAnimation(OpacityProperty, fade);
+    }
+
+    /// <summary>
+    /// La página nueva sale de un desenfoque gaussiano intenso y se asienta con un frenado suave;
+    /// cada estilo le da su propio gesto (deriva, giro inverso o subida desde abajo).
+    /// </summary>
+    private void AnimatePageIn()
+    {
+        _cardStagger = 0;
+        _pageClock.Restart();
+        if (!AnimationsEnabled) return;
+
+        bool cross = _crossfadePending;
+        _crossfadePending = false;
+        double startBlur = cross ? _transitionBlur * 0.85 : 8;
+        Vector from;
+        double startScale, startAngle = 0;
+        if (!cross)
+        {
+            from = new Vector(0, 12);
+            startScale = 1;
+        }
+        else
+        {
+            switch (_style)
+            {
+                case TransitionStyle.Vortex:
+                    from = new Vector(0, 0);
+                    startScale = 1.1;
+                    startAngle = -_transitionSpin * 0.35;
+                    break;
+                case TransitionStyle.Shatter:
+                    from = new Vector(0, 46);
+                    startScale = 0.93;
+                    break;
+                default:
+                    from = -_transitionDir * 0.6 + new Vector(0, 8);
+                    startScale = 0.965;
+                    break;
+            }
+        }
+        var inTime = TimeSpan.FromMilliseconds(cross ? 620 : 300);
+        var delay = TimeSpan.FromMilliseconds(cross ? (_style == TransitionStyle.Shatter ? 120 : 50) : 0);
+
+        var blur = new BlurEffect { Radius = startBlur, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
+        var scale = new ScaleTransform(startScale, startScale);
+        var rotate = new RotateTransform(startAngle);
+        var move = new TranslateTransform(from.X, from.Y);
+        PageHost.Effect = blur;
+        PageHost.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
+        PageHost.Opacity = 0;
+
+        // el enfoque frena más despacio que el movimiento: el cruce difuso entre páginas se aprecia
+        var sharpen = new DoubleAnimation(startBlur, 0, cross ? TimeSpan.FromMilliseconds(680) : inTime) { BeginTime = delay, EasingFunction = cross ? Ease : Silk };
+        // el desenfoque se quita al acabar para que no cueste nada al desplazarse por la página
+        sharpen.Completed += (s, e) => { if (PageHost.Effect == blur) PageHost.Effect = null; };
+        PageHost.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(cross ? 460 : 260)) { BeginTime = delay, EasingFunction = Drift });
+        blur.BeginAnimation(BlurEffect.RadiusProperty, sharpen);
+        var settle = _style == TransitionStyle.Shatter && cross ? SoftPop : Silk;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(startScale, 1, inTime) { BeginTime = delay, EasingFunction = settle });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(startScale, 1, inTime) { BeginTime = delay, EasingFunction = settle });
+        rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(startAngle, 0, inTime) { BeginTime = delay, EasingFunction = Silk });
+        move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(from.X, 0, inTime) { BeginTime = delay, EasingFunction = Silk });
+        move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(from.Y, 0, inTime) { BeginTime = delay, EasingFunction = settle });
+    }
+
+    // ======================================================================
+    // Portadas
+    // ======================================================================
+
+    /// <summary>La portada de la cabecera entra girando y rebotando, y lanza un destello de sí misma.</summary>
+    private void HeaderCover_VisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not true || sender is not Border cover) return;
+        // solo al abrir la página, no al volver a ella desplazándose
+        if (!AnimationsEnabled || _pageClock.ElapsedMilliseconds > 2500) return;
+
+        var scale = new ScaleTransform(0.35, 0.35);
+        var rotate = new RotateTransform((Rnd.Next(2) == 0 ? -1 : 1) * (14 + Rnd.NextDouble() * 16));
+        cover.RenderTransform = new TransformGroup { Children = { scale, rotate } };
+        var t = TimeSpan.FromMilliseconds(780);
+        cover.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)));
+        Animate(scale, ScaleTransform.ScaleXProperty, 0.35, 1, t, Pop);
+        Animate(scale, ScaleTransform.ScaleYProperty, 0.35, 1, t, Pop);
+        Animate(rotate, RotateTransform.AngleProperty, rotate.Angle, 0, t, Pop);
+
+        if ((cover.Background as ImageBrush)?.ImageSource is { } image)
+            Dispatcher.BeginInvoke(() => BloomFrom(cover, image), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Destello: la portada, muy difuminada, crece y se desvanece desde su posición.</summary>
+    private void BloomFrom(FrameworkElement anchor, ImageSource image)
+    {
+        if (!anchor.IsVisible) return;
+        Point center;
+        try
+        {
+            center = anchor.TranslatePoint(new Point(anchor.ActualWidth / 2, anchor.ActualHeight / 2), Stage);
+        }
+        catch
+        {
+            return;
+        }
+        Bloom.Source = image;
+        Bloom.Margin = new Thickness(center.X - Bloom.Width / 2, center.Y - Bloom.Height / 2, 0, 0);
+        var scale = new ScaleTransform(0.4, 0.4);
+        Bloom.RenderTransform = scale;
+        Bloom.Effect = new BlurEffect { Radius = 45, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
+        Bloom.Visibility = Visibility.Visible;
+
+        var t = TimeSpan.FromMilliseconds(1100);
+        var glow = new DoubleAnimationUsingKeyFrames { Duration = t };
+        glow.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(0)));
+        glow.KeyFrames.Add(new EasingDoubleKeyFrame(0.55, KeyTime.FromPercent(0.18)) { EasingFunction = Ease });
+        glow.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1)) { EasingFunction = Drift });
+        glow.Completed += (s, e) =>
+        {
+            if (Bloom.Source != image) return;
+            Bloom.Visibility = Visibility.Collapsed;
+            Bloom.Source = null;
+            Bloom.Effect = null;
+        };
+        Bloom.BeginAnimation(OpacityProperty, glow);
+        Animate(scale, ScaleTransform.ScaleXProperty, 0.4, 3.4, t, Silk);
+        Animate(scale, ScaleTransform.ScaleYProperty, 0.4, 3.4, t, Silk);
+    }
+
+    /// <summary>Al cambiar de canción, la portada de la barra da la vuelta como una carta y emite un anillo de luz.</summary>
+    private void FlipPlayerCover()
+    {
+        if (!AnimationsEnabled || !PlayerCover.IsVisible) return;
+        var flip = new ScaleTransform(0, 1);
+        PlayerCover.RenderTransform = flip;
+        Animate(flip, ScaleTransform.ScaleXProperty, 0, 1, TimeSpan.FromMilliseconds(520), Pop);
+
+        var ring = new ScaleTransform(1, 1);
+        CoverGlow.RenderTransform = ring;
+        var t = TimeSpan.FromMilliseconds(800);
+        CoverGlow.BeginAnimation(OpacityProperty, new DoubleAnimation(0.9, 0, t) { EasingFunction = Ease });
+        Animate(ring, ScaleTransform.ScaleXProperty, 1, 1.7, t, Ease);
+        Animate(ring, ScaleTransform.ScaleYProperty, 1, 1.7, t, Ease);
+    }
+
+    // ======================================================================
+    // Tarjetas
+    // ======================================================================
+
+    /// <summary>Las tarjetas entran volando desde posiciones y giros al azar, escalonadas.</summary>
+    private void AnimateCardIn(FrameworkElement card)
+    {
+        var scale = new ScaleTransform(1, 1);
+        var rotate = new RotateTransform(0);
+        var move = new TranslateTransform(0, 0);
+        card.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
+        if (!AnimationsEnabled) return;
+
+        // si hace rato que no entra ninguna (p. ej. al desplazar una galería), la cascada vuelve a empezar
+        if (_cardClock.ElapsedMilliseconds > 250) _cardStagger = 0;
+        _cardClock.Restart();
+        var delay = TimeSpan.FromMilliseconds(Math.Min(_cardStagger++, 12) * 32);
+        var t = TimeSpan.FromMilliseconds(640);
+
+        double fromX = (Rnd.NextDouble() - 0.5) * 90, fromY = 40 + Rnd.NextDouble() * 50;
+        double fromAngle = (Rnd.NextDouble() - 0.5) * 28, fromScale = 0.78 + Rnd.NextDouble() * 0.1;
+        card.Opacity = 0;
+        card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(320)) { BeginTime = delay, EasingFunction = Ease });
+        move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(fromX, 0, t) { BeginTime = delay, EasingFunction = Silk });
+        move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(fromY, 0, t) { BeginTime = delay, EasingFunction = Pop });
+        rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(fromAngle, 0, t) { BeginTime = delay, EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
+    }
+
+    /// <summary>Al pasar el ratón, la tarjeta se inclina hacia un lado al azar y crece un poco.</summary>
+    private void Card_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!AnimationsEnabled || CardTransforms(sender) is not var (scale, rotate)) return;
+        var t = TimeSpan.FromMilliseconds(340);
+        double tilt = (Rnd.Next(2) == 0 ? -1 : 1) * (1.5 + Rnd.NextDouble() * 2.5);
+        rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(tilt, t) { EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1.045, t) { EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1.045, t) { EasingFunction = Pop });
+    }
+
+    private void Card_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (CardTransforms(sender) is not var (scale, rotate)) return;
+        var t = TimeSpan.FromMilliseconds(380);
+        rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, t) { EasingFunction = Ease });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, t) { EasingFunction = Ease });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, t) { EasingFunction = Ease });
+    }
+
+    private static (ScaleTransform, RotateTransform)? CardTransforms(object sender) =>
+        (sender as FrameworkElement)?.RenderTransform is TransformGroup { Children.Count: 3 } g
+        && g.Children[0] is ScaleTransform s && g.Children[1] is RotateTransform r ? (s, r) : null;
+
+    // ======================================================================
+    // Saludo letra a letra
+    // ======================================================================
+
+    private void GreetChar_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (!AnimationsEnabled || sender is not TextBlock letter || letter.DataContext is not GreetChar ch) return;
+        var scale = new ScaleTransform(1, 1);
+        var rotate = new RotateTransform(0);
+        var move = new TranslateTransform(0, 0);
+        letter.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
+        var delay = TimeSpan.FromMilliseconds(120 + ch.Index * 38);
+        var t = TimeSpan.FromMilliseconds(700);
+        double fromY = (Rnd.NextDouble() - 0.5) * 80, fromAngle = (Rnd.NextDouble() - 0.5) * 70, fromScale = 1.5 + Rnd.NextDouble() * 0.6;
+        letter.Opacity = 0;
+        letter.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300)) { BeginTime = delay });
+        move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(fromY, 0, t) { BeginTime = delay, EasingFunction = Pop });
+        rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(fromAngle, 0, t) { BeginTime = delay, EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
+    }
+
+    // ======================================================================
+    // Aurora: luces de color de la portada que flotan detrás del contenido
+    // ======================================================================
+
+    private void BuildAurora()
+    {
+        var layout = new (HorizontalAlignment h, VerticalAlignment v, double w, double hgt, Thickness margin, double dx, double dy, double secs)[]
+        {
+            (HorizontalAlignment.Left, VerticalAlignment.Top, 820, 600, new Thickness(-240, -220, 0, 0), 140, 90, 17),
+            (HorizontalAlignment.Right, VerticalAlignment.Top, 720, 560, new Thickness(0, -120, -260, 0), -120, 130, 21),
+            (HorizontalAlignment.Center, VerticalAlignment.Bottom, 900, 560, new Thickness(0, 0, 0, -300), 110, -100, 26),
+        };
+        foreach (var l in layout)
+        {
+            var stops = new[] { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Transparent, 0.45), new GradientStop(Colors.Transparent, 1) };
+            var brush = new RadialGradientBrush { GradientStops = new GradientStopCollection(stops) };
+            var move = new TranslateTransform();
+            var scale = new ScaleTransform(1, 1);
+            var blob = new Ellipse
+            {
+                Width = l.w,
+                Height = l.hgt,
+                HorizontalAlignment = l.h,
+                VerticalAlignment = l.v,
+                Margin = l.margin,
+                Fill = brush,
+                RenderTransformOrigin = new Point(0.5, 0.5),
+                RenderTransform = new TransformGroup { Children = { scale, move } },
+            };
+            Aurora.Children.Add(blob);
+            _auroraStops.Add(stops);
+            if (!AnimationsEnabled) continue;
+
+            // deriva lenta e infinita, a 30 fps: suficiente para algo tan suave
+            var t = TimeSpan.FromSeconds(l.secs);
+            move.BeginAnimation(TranslateTransform.XProperty, Forever(0, l.dx, t));
+            move.BeginAnimation(TranslateTransform.YProperty, Forever(0, l.dy, TimeSpan.FromSeconds(l.secs * 0.77)));
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, Forever(0.9, 1.18, TimeSpan.FromSeconds(l.secs * 1.3)));
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, Forever(1.12, 0.92, TimeSpan.FromSeconds(l.secs * 1.1)));
+        }
+        RefreshAurora();
+    }
+
+    private static DoubleAnimation Forever(double from, double to, TimeSpan t)
+    {
+        var a = new DoubleAnimation(from, to, t) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
+        Timeline.SetDesiredFrameRate(a, 30);
+        return a;
+    }
+
+    /// <summary>Colores de la portada de la página (o de lo que suena), con un fundido de color.</summary>
+    private void RefreshAurora()
+    {
+        if (_auroraStops.Count == 0) return;
+        var source = (_vm.CurrentPage as SongListPage)?.Cover ?? _vm.NowPlayingCover;
+        var colors = Palette.Extract(source);
+        byte alpha = (byte)(_vm.IsDark ? 92 : 58);
+        for (int i = 0; i < _auroraStops.Count; i++)
+        {
+            var c = colors[i % colors.Length];
+            var stops = _auroraStops[i];
+            AnimateStop(stops[0], Color.FromArgb(alpha, c.R, c.G, c.B));
+            AnimateStop(stops[1], Color.FromArgb((byte)(alpha * 0.45), c.R, c.G, c.B));
+            AnimateStop(stops[2], Color.FromArgb(0, c.R, c.G, c.B));
+        }
+    }
+
+    private void AnimateStop(GradientStop stop, Color to)
+    {
+        if (!AnimationsEnabled)
+        {
+            stop.BeginAnimation(GradientStop.ColorProperty, null);
+            stop.Color = to;
+            return;
+        }
+        stop.BeginAnimation(GradientStop.ColorProperty, new ColorAnimation(to, TimeSpan.FromMilliseconds(1400)) { EasingFunction = Drift });
+    }
+
+    /// <summary>Cuando la portada de la página llega (se carga después), la aurora cambia a sus colores.</summary>
+    private void WatchPageCover()
+    {
+        if (_watchedPage != null) _watchedPage.PropertyChanged -= OnWatchedPageChanged;
+        _watchedPage = _vm.CurrentPage as SongListPage;
+        if (_watchedPage != null) _watchedPage.PropertyChanged += OnWatchedPageChanged;
+    }
+
+    private void OnWatchedPageChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // el aviso puede llegar desde un hilo de fondo: la aurora (y el resto de oyentes) no deben romperse
+        if (e.PropertyName == nameof(SongListPage.Cover)) Dispatcher.BeginInvoke(RefreshAurora);
+    }
+
+    private static void Animate(Animatable target, DependencyProperty property, double from, double to, TimeSpan t, IEasingFunction easing) =>
+        target.BeginAnimation(property, new DoubleAnimation(from, to, t) { EasingFunction = easing });
+}
+
+/// <summary>Interruptor de animaciones que heredan todos los elementos de la ventana (lo leen los estilos XAML).</summary>
+public static class Anim
+{
+    public static readonly DependencyProperty EnabledProperty = DependencyProperty.RegisterAttached(
+        "Enabled", typeof(bool), typeof(Anim), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.Inherits));
+
+    public static bool GetEnabled(DependencyObject d) => (bool)d.GetValue(EnabledProperty);
+    public static void SetEnabled(DependencyObject d, bool value) => d.SetValue(EnabledProperty, value);
+}

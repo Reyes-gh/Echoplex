@@ -1,0 +1,8 @@
+# compilación
+bin/
+obj/
+*.user
+.vs/
+
+# releases generadas por publish.ps1 (se suben como archivos de GitHub Releases, no al repositorio)
+app/

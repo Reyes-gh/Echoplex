@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Sin la proyección del SDK de Windows (~24 MB): los controles multimedia se llaman por su ABI (MediaControls.cs). -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Echoplex</AssemblyName>
+    <RootNamespace>Echoplex</RootNamespace>
+    <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
+    <Product>Echoplex</Product>
+    <Description>Reproductor de música local al estilo Spotify</Description>
+    <Version>1.0.0</Version>
+    <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
+    <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="TagLibSharp" Version="2.3.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\echoplex.ico" />
+  </ItemGroup>
+
+</Project>
