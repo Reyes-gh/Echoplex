@@ -96,19 +96,36 @@
             <Setter Property="FontSize" Value="14" />
         </Style>
 
+        <!-- borde arrastrable entre columnas de la tabla -->
+        <Style x:Key="ColumnGrip" TargetType="Thumb">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Width" Value="9" />
+            <Setter Property="Margin" Value="0,4,-5,4" />
+            <Setter Property="Cursor" Value="SizeWE" />
+            <Setter Property="Panel.ZIndex" Value="2" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ToolTip" Value="Arrastra para cambiar el ancho" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="Transparent">
+                            <Border x:Name="Bar" Width="2" HorizontalAlignment="Center" Background="Transparent" CornerRadius="1" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bar" Property="Background" Value="{DynamicResource Text3Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Bar" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- ================= Fila de canción (tabla estilo Notion) ================= -->
         <DataTemplate DataType="{x:Type vm:SongRow}">
-            <Grid Height="36">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="44" />
-                    <ColumnDefinition Width="4*" />
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="76" />
-                    <ColumnDefinition Width="36" />
-                    <ColumnDefinition Width="62" />
-                </Grid.ColumnDefinitions>
+            <Grid Height="36" local:SongColumns.Host="True">
 
                 <Border Style="{StaticResource CellBorder}" Padding="0">
                     <Grid>
@@ -141,7 +158,7 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="1" Style="{StaticResource CellBorder}">
+                <Border local:SongColumns.Key="title" Style="{StaticResource CellBorder}">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right" Text="&#xE753;" FontFamily="{StaticResource IconFont}" FontSize="12"
                                    Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" Margin="6,0,0,0"
@@ -151,7 +168,7 @@
                     </DockPanel>
                 </Border>
 
-                <Border Grid.Column="2" Style="{StaticResource CellBorder}">
+                <Border local:SongColumns.Key="artist" Style="{StaticResource CellBorder}">
                     <TextBlock Text="{Binding Song.Artist}" FontSize="14" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis" HorizontalAlignment="Left">
                         <TextBlock.Style>
@@ -163,7 +180,7 @@
                     </TextBlock>
                 </Border>
 
-                <Border Grid.Column="3" Style="{StaticResource CellBorder}">
+                <Border local:SongColumns.Key="album" Style="{StaticResource CellBorder}">
                     <TextBlock Text="{Binding Song.Album}" FontSize="14" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis" HorizontalAlignment="Left">
                         <TextBlock.Style>
@@ -175,24 +192,24 @@
                     </TextBlock>
                 </Border>
 
-                <Border Grid.Column="4" Style="{StaticResource CellBorder}" Width="130"
+                <Border local:SongColumns.Key="extra" Style="{StaticResource CellBorder}"
                         Visibility="{Binding DataContext.ShowExtra, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource BoolVis}}">
                     <TextBlock Style="{StaticResource CellText}" Text="{Binding Extra}" Foreground="{DynamicResource Text2Brush}" FontSize="13" />
                 </Border>
 
-                <Border Grid.Column="5" Style="{StaticResource CellBorder}">
+                <Border local:SongColumns.Key="format" Style="{StaticResource CellBorder}">
                     <Border DataContext="{Binding Song}" Style="{StaticResource FormatTag}">
                         <TextBlock Text="{Binding Format}" FontSize="12" />
                     </Border>
                 </Border>
 
-                <Border Grid.Column="6" Style="{StaticResource CellBorder}" Padding="0">
+                <Border local:SongColumns.Key="fav" Style="{StaticResource CellBorder}" Padding="0">
                     <Button x:Name="Heart" Style="{StaticResource HeartButton}" FontSize="13" Width="26" Height="26"
                             Content="{Binding Song.IsFavorite, Converter={StaticResource HeartGlyph}}" Tag="{Binding Song.IsFavorite}"
                             Click="RowHeart_Click" Visibility="Hidden" ToolTip="Favorita" />
                 </Border>
 
-                <TextBlock Grid.Column="7" Text="{Binding Song.DurationText}" FontSize="13" Foreground="{DynamicResource Text2Brush}"
+                <TextBlock local:SongColumns.Key="duration" Text="{Binding Song.DurationText}" FontSize="13" Foreground="{DynamicResource Text2Brush}"
                            VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0" />
             </Grid>
             <DataTemplate.Triggers>
@@ -453,56 +470,57 @@
 
                 <Border Margin="56,0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,1" Height="34"
                         Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="44" />
-                            <ColumnDefinition Width="4*" />
-                            <ColumnDefinition Width="3*" />
-                            <ColumnDefinition Width="3*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="76" />
-                            <ColumnDefinition Width="36" />
-                            <ColumnDefinition Width="62" />
-                        </Grid.ColumnDefinitions>
+                    <Grid x:Name="ColumnHeaderGrid" local:SongColumns.Host="True" Background="Transparent" AllowDrop="True"
+                          DragOver="ColumnHeader_DragOver" DragLeave="ColumnHeader_DragLeave" Drop="ColumnHeader_Drop" MouseRightButtonUp="ColumnHeader_RightClick">
                         <Border Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="" Click="Sort_Click" HorizontalContentAlignment="Center"
                                     ToolTip="Orden original">
                                 <TextBlock Text="#" />
                             </Button>
                         </Border>
-                        <Border Grid.Column="1" Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="title" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="title" Click="Sort_Click">
                                 <TextBlock><Run Text="Aa" FontWeight="SemiBold" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Título" /><Run Text="{Binding Page.TitleSort, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
-                        <Border Grid.Column="2" Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="artist" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="artist" Click="Sort_Click">
                                 <TextBlock><Run Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Artista" /><Run Text="{Binding Page.ArtistSort, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
-                        <Border Grid.Column="3" Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="album" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="album" Click="Sort_Click">
                                 <TextBlock><Run Text="&#xE93C;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Álbum" /><Run Text="{Binding Page.AlbumSort, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
-                        <Border Grid.Column="4" Style="{StaticResource CellBorder}" Padding="0" Width="130"
+                        <Border local:SongColumns.Key="extra" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0"
                                 Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="extra" Click="Sort_Click">
                                 <TextBlock><Run Text="&#xE787;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  " /><Run Text="{Binding Page.ExtraHeader, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
-                        <Border Grid.Column="5" Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="format" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="format" Click="Sort_Click">
                                 <TextBlock><Run Text="Tipo" /><Run Text="{Binding Page.FormatSort, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
-                        <Border Grid.Column="6" Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="fav" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource Text3Brush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <Button Grid.Column="7" Style="{StaticResource ColumnHeaderButton}" Tag="duration" Click="Sort_Click" HorizontalContentAlignment="Right">
+                        <Button local:SongColumns.Key="duration" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource ColumnHeaderButton}" Tag="duration" Click="Sort_Click" HorizontalContentAlignment="Right">
                             <TextBlock><Run Text="{Binding Page.DurationSort, Mode=OneWay}" /><Run Text="&#xE823;" FontFamily="{StaticResource IconFont}" FontSize="12" /></TextBlock>
                         </Button>
+                        <!-- bordes para cambiar el ancho; arrastrar una cabecera la cambia de sitio -->
+                        <Thumb local:SongColumns.Key="title" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="artist" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="album" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="extra" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}" />
+                        <Thumb local:SongColumns.Key="format" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="fav" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="duration" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Rectangle x:Name="ColumnDropLine" Grid.ColumnSpan="99" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource AccentBrush}"
+                                   Visibility="Collapsed" IsHitTestVisible="False" Panel.ZIndex="3" />
                     </Grid>
                 </Border>
 
@@ -1239,12 +1257,34 @@
             </Grid>
 
             <!-- ======================= PANEL DERECHO ======================= -->
-            <Border Grid.Column="2" Width="330" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0"
+            <!-- tirador del panel derecho: arrastrar cambia el ancho, doble clic lo devuelve al de siempre -->
+            <Thumb x:Name="RightResizer" Grid.Column="2" Panel.ZIndex="1" HorizontalAlignment="Left" Width="6" Margin="-3,0,0,0" Cursor="SizeWE"
+                   Focusable="False" DragDelta="RightResizer_DragDelta" MouseDoubleClick="RightResizer_DoubleClick" ToolTip="Arrastra para cambiar el ancho"
+                   Visibility="{Binding ShowRightPanel, Converter={StaticResource BoolVis}}">
+                <Thumb.Template>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="Line" Background="Transparent" Width="6">
+                            <Border x:Name="Bar" Width="2" Background="Transparent" HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bar" Property="Background" Value="{DynamicResource DividerBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Bar" Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Thumb.Template>
+            </Thumb>
+            <Border x:Name="RightPanel" Grid.Column="2" Width="330" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0"
                     Visibility="{Binding ShowRightPanel, Converter={StaticResource BoolVis}}">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Height="46" Margin="10,0,8,0">
                         <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="11" Click="CloseRight_Click"
                                 VerticalAlignment="Center" ToolTip="Cerrar panel" />
+                        <!-- con el panel estrecho, las pestañas se encogen en vez de cortarse -->
+                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource GhostButton}" Content="A continuación" CommandParameter="queue" Click="Tab_Click" FontSize="14"
                                     Tag="{Binding RightTab, Converter={StaticResource Eq}, ConverterParameter=queue}" />
@@ -1253,6 +1293,7 @@
                             <Button Style="{StaticResource GhostButton}" Content="Detalles" CommandParameter="info" Click="Tab_Click" FontSize="14"
                                     Tag="{Binding RightTab, Converter={StaticResource Eq}, ConverterParameter=info}" />
                         </StackPanel>
+                        </Viewbox>
                     </DockPanel>
                     <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource DividerBrush}" />
 
@@ -1301,7 +1342,9 @@
                                 <ItemsControl ItemsSource="{Binding Player.ContextNext}" ItemTemplate="{StaticResource ContextItemTemplate}" />
 
                                 <CheckBox IsChecked="{Binding Player.AutoRadio}" Margin="8,16,8,0" Foreground="{DynamicResource Text2Brush}" FontSize="13"
-                                          Focusable="False" Content="Radio automática al acabar la lista" />
+                                          Focusable="False">
+                                    <TextBlock Text="Radio automática al acabar la lista" TextWrapping="Wrap" />
+                                </CheckBox>
                             </StackPanel>
                         </ScrollViewer>
 
@@ -1403,7 +1446,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*" MinWidth="220" />
                     <ColumnDefinition Width="4*" MaxWidth="720" />
-                    <ColumnDefinition Width="3*" MinWidth="220" />
+                    <ColumnDefinition x:Name="PlayerRightCol" Width="3*" MinWidth="220" />
                 </Grid.ColumnDefinitions>
 
                 <DockPanel VerticalAlignment="Center" Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
@@ -1463,7 +1506,8 @@
                     </Grid>
                 </StackPanel>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <!-- Bit a bit, mini reproductor y volumen siempre a la vista; temporizador, letra, cola y detalles (PlayerExtras) pasan a un menú con flecha si no caben -->
+                <StackPanel x:Name="PlayerRight" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Style="{StaticResource PillButton}" Tag="{Binding Player.ExclusiveMode}" Click="BitPerfect_Click" Margin="0,0,10,0"
                             ToolTip="{Binding Player.OutputInfo}">
                         <StackPanel Orientation="Horizontal">
@@ -1471,22 +1515,34 @@
                             <TextBlock Text="Bit a bit" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <TextBlock Text="{Binding SleepText}" FontSize="11" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,2,0"
-                               Visibility="{Binding SleepText, Converter={StaticResource NullVis}}" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE708;" Tag="{Binding SleepActive}" Click="Sleep_Click"
-                            ToolTip="Temporizador de apagado" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE8BD;" Tag="{Binding LyricsTabActive}" Click="LyricsToggle_Click"
-                            ToolTip="Letra" Margin="2,0,0,0" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE8FD;" Tag="{Binding QueueTabActive}" Click="QueueToggle_Click"
-                            ToolTip="Cola (Ctrl+Q)" Margin="2,0,0,0" />
-                    <Button Style="{StaticResource IconButton}" Content="&#xE946;" Tag="{Binding InfoTabActive}" Click="InfoToggle_Click"
-                            ToolTip="Detalles" Margin="2,0,0,0" />
+                    <Border x:Name="ExtrasInline">
+                        <StackPanel x:Name="PlayerExtras" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding SleepText}" FontSize="11" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="6,0,2,0"
+                                       Visibility="{Binding SleepText, Converter={StaticResource NullVis}}" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE708;" Tag="{Binding SleepActive}" Click="Sleep_Click"
+                                    ToolTip="Temporizador de apagado" Margin="2,0,0,0" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE8BD;" Tag="{Binding LyricsTabActive}" Click="LyricsToggle_Click"
+                                    ToolTip="Letra" Margin="2,0,0,0" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE8FD;" Tag="{Binding QueueTabActive}" Click="QueueToggle_Click"
+                                    ToolTip="Cola (Ctrl+Q)" Margin="2,0,0,0" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE946;" Tag="{Binding InfoTabActive}" Click="InfoToggle_Click"
+                                    ToolTip="Detalles" Margin="2,0,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ToggleButton x:Name="ExtrasToggle" Style="{StaticResource IconButton}" Content="&#xE70E;" Margin="2,0,0,0" Visibility="Collapsed"
+                                  ToolTip="Temporizador, letra, cola y detalles" Checked="ExtrasToggle_Checked" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" Click="Mini_Click" ToolTip="Mini reproductor (Ctrl+M)" Margin="2,0,0,0" />
+                    <!-- el volumen siempre en la barra -->
                     <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar"
                             Margin="8,0,0,0" />
                     <Slider x:Name="VolumeSlider" Style="{StaticResource ThinSlider}" Width="96" Minimum="0" Maximum="1" Margin="4,0,0,0"
                             Value="{Binding Player.Volume, Mode=TwoWay}" />
                 </StackPanel>
+                <Popup x:Name="ExtrasPopup" PlacementTarget="{Binding ElementName=ExtrasToggle}" Placement="Top" VerticalOffset="-6"
+                       StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Closed="ExtrasPopup_Closed">
+                    <Border x:Name="ExtrasPopupHost" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="10" Effect="{StaticResource PopupShadow}" />
+                </Popup>
             </Grid>
         </Border>
     </Grid>

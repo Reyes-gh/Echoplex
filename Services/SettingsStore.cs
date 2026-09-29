@@ -30,6 +30,12 @@ public sealed class AppSettings
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
     public double SidebarWidth { get; set; } = 260;
+    /// <summary>Orden de las columnas de la tabla de canciones (claves de SongColumns).</summary>
+    public List<string>? ColumnOrder { get; set; }
+    /// <summary>Ancho de cada columna: peso si es proporcional, píxeles si es fija.</summary>
+    public Dictionary<string, double>? ColumnSizes { get; set; }
+    /// <summary>Ancho del panel derecho (cola, letra, detalles).</summary>
+    public double RightPanelWidth { get; set; } = 330;
     /// <summary>Zoom de la interfaz (Ctrl + / Ctrl − / Ctrl+0): 1 = 100 %.</summary>
     public double Zoom { get; set; } = 1.0;
     public bool ShowRightPanel { get; set; } = true;

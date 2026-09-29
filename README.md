@@ -49,6 +49,11 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 
 ## Versiones
 
+### 1.0.6
+- **Columnas de la tabla de canciones**: arrastra el borde entre dos cabeceras para cambiar su ancho y arrastra una cabecera para cambiarla de sitio. Clic derecho en la cabecera → *Restablecer columnas*. Se recuerda entre sesiones.
+- El **panel derecho** (cola, letra, detalles) se puede **ensanchar o estrechar** arrastrando su borde izquierdo (de 180 a 640 px); doble clic lo devuelve a su ancho. Se recuerda entre sesiones.
+- **Pantallas pequeñas**: si los iconos de la barra de reproducción no caben, el temporizador, la letra, la cola y los detalles pasan a un menú con flecha (↑). *Bit a bit*, el mini reproductor y el volumen siguen siempre a la vista.
+
 ### 1.0.5
 - **Vista previa de la portada**: al pasar el ratón por la portada de la cabecera (carpetas, álbumes, playlists…), se pone en blanco y negro, aparece una flecha y la portada se muestra en grande y a color a la derecha.
 - Portadas de cabecera con más resolución.

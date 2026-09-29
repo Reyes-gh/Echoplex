@@ -33,6 +33,14 @@ public partial class MainWindow : Window
     {
         _vm = new MainViewModel(Dispatcher);
         App.ApplyTheme(_vm.ThemeKey);
+        // orden y ancho de las columnas de la tabla, antes de que se pinte ninguna fila
+        SongColumns.Load(_vm.Settings.ColumnOrder, _vm.Settings.ColumnSizes);
+        SongColumns.Committed += () =>
+        {
+            _vm.Settings.ColumnOrder = SongColumns.Order;
+            _vm.Settings.ColumnSizes = SongColumns.Sizes;
+            SettingsStore.Save(_vm.Settings);
+        };
         InitializeComponent();
         DataContext = _vm;
 
@@ -41,6 +49,10 @@ public partial class MainWindow : Window
         Height = Math.Max(MinHeight, s.Height);
         if (s.Maximized) WindowState = WindowState.Maximized;
         SidebarCol.Width = new GridLength(Math.Clamp(s.SidebarWidth, SidebarCol.MinWidth, SidebarCol.MaxWidth));
+        RightPanel.Width = Math.Clamp(s.RightPanelWidth, RightMin, RightMax);
+        ((FrameworkElement)PlayerRight.Parent).SizeChanged += (o, e) => UpdatePlayerExtras();
+        PlayerExtras.SizeChanged += (o, e) => UpdatePlayerExtras(); // p. ej. aparece el texto del temporizador
+        ExtrasPopup.Opened += (o, e) => ExtrasToggle.IsHitTestVisible = false;
         ApplyZoom(s.Zoom, announce: false);
         PreviewMouseWheel += (o, e) =>
         {
@@ -97,6 +109,7 @@ public partial class MainWindow : Window
         var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
         if (bounds.Width > 0) { s.Width = bounds.Width; s.Height = bounds.Height; }
         s.SidebarWidth = SidebarCol.ActualWidth;
+        s.RightPanelWidth = RightPanel.Width;
         _mini?.Close();
         _vm.Shutdown();
     }
@@ -307,6 +320,139 @@ public partial class MainWindow : Window
 
         if (handled) e.Handled = true;
     }
+
+    // ---------- columnas de la tabla: ancho (bordes) y orden (arrastrar cabeceras) ----------
+
+    private const string ColumnFormat = "Echoplex.Column";
+    private Point _colDragStart;
+    private string? _colDragKey;
+
+    private void ColumnGrip_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        if (sender is FrameworkElement { Parent: Grid header } grip && SongColumns.GetKey(grip) is { } key)
+            SongColumns.Resize(header, key, e.HorizontalChange);
+    }
+
+    private void ColumnGrip_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) => SongColumns.CommitResize();
+
+    private void ColumnHeader_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _colDragKey = sender is DependencyObject d ? SongColumns.GetKey(d) : null;
+        _colDragStart = e.GetPosition(this);
+    }
+
+    private void ColumnHeader_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_colDragKey == null || e.LeftButton != MouseButtonState.Pressed) return;
+        if (Math.Abs(e.GetPosition(this).X - _colDragStart.X) < 8) return; // un clic normal sigue ordenando
+        var key = _colDragKey;
+        _colDragKey = null;
+        DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(ColumnFormat, key), DragDropEffects.Move);
+        if (sender is FrameworkElement { Parent: Grid header }) HideDropLine(header);
+    }
+
+    private static System.Windows.Shapes.Rectangle? DropLine(Grid header) => header.Children.OfType<System.Windows.Shapes.Rectangle>().FirstOrDefault(r => r.Name == "ColumnDropLine");
+
+    private static void HideDropLine(Grid header)
+    {
+        if (DropLine(header) is { } line) line.Visibility = Visibility.Collapsed;
+    }
+
+    private void ColumnHeader_DragOver(object sender, DragEventArgs e)
+    {
+        if (sender is not Grid header || !e.Data.GetDataPresent(ColumnFormat)) return;
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        var (_, x) = SongColumns.DropTarget(header, e.GetPosition(header).X);
+        if (DropLine(header) is { } line)
+        {
+            line.Margin = new Thickness(x - 1, 2, 0, 2);
+            line.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void ColumnHeader_DragLeave(object sender, DragEventArgs e)
+    {
+        if (sender is Grid header) HideDropLine(header);
+    }
+
+    private void ColumnHeader_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is not Grid header || e.Data.GetData(ColumnFormat) is not string key) return;
+        HideDropLine(header);
+        var (index, _) = SongColumns.DropTarget(header, e.GetPosition(header).X);
+        SongColumns.Move(key, index);
+        e.Handled = true;
+    }
+
+    private void ColumnHeader_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = PlacementMode.MousePoint };
+        menu.Items.Add(Item("Restablecer columnas", "", SongColumns.Reset));
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    // ---------- iconos de la barra de reproducción: en línea o tras la flecha ----------
+
+    private bool _extrasCompact;
+    private double _extrasWidth;
+
+    /// <summary>
+    /// Si los iconos de la derecha (temporizador, letra, cola, detalles) no caben, pasan a un menú con flecha;
+    /// Bit a bit, el mini reproductor y el volumen se quedan siempre a la vista. Vuelven a su sitio cuando hay hueco.
+    /// </summary>
+    private void UpdatePlayerExtras()
+    {
+        double avail = PlayerRightCol.ActualWidth;
+        if (avail <= 0) return;
+        // lo que ocuparía todo en línea (los hijos de un StackPanel horizontal se miden sin límite de ancho)
+        double others = PlayerRight.Children.OfType<FrameworkElement>()
+            .Where(c => c != ExtrasInline && c != ExtrasToggle && c.Visibility == Visibility.Visible)
+            .Sum(c => c.DesiredSize.Width);
+        if (!_extrasCompact)
+        {
+            double extras = ExtrasInline.DesiredSize.Width;
+            if (others + extras <= avail + 0.5) return;
+            _extrasWidth = PlayerExtras.DesiredSize.Width;
+            _extrasCompact = true;
+            ExtrasInline.Child = null;
+            ExtrasPopupHost.Child = PlayerExtras;
+            ExtrasToggle.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            if (others + _extrasWidth > avail - 12) return; // margen para no parpadear en el límite
+            _extrasCompact = false;
+            ExtrasPopup.IsOpen = false;
+            ExtrasPopupHost.Child = null;
+            ExtrasInline.Child = PlayerExtras;
+            ExtrasToggle.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void ExtrasToggle_Checked(object sender, RoutedEventArgs e) => ExtrasPopup.IsOpen = true;
+
+    private void ExtrasPopup_Closed(object? sender, EventArgs e)
+    {
+        ExtrasToggle.IsChecked = false;
+        // el mismo clic que cierra el menú no debe volver a abrirlo
+        Dispatcher.BeginInvoke(() => ExtrasToggle.IsHitTestVisible = true, DispatcherPriority.Input);
+    }
+
+    // ---------- ancho del panel derecho ----------
+
+    private const double RightMin = 180, RightMax = 640, RightDefault = 330;
+
+    private void RightResizer_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        // hacia la izquierda ensancha; el contenido central no baja de su mínimo
+        const double centerMin = 480; // MinWidth de la columna central
+        double room = MainArea.ActualWidth - centerMin + RightPanel.Width;
+        RightPanel.Width = Math.Clamp(RightPanel.Width - e.HorizontalChange, RightMin, Math.Max(RightMin, Math.Min(RightMax, room)));
+    }
+
+    private void RightResizer_DoubleClick(object sender, MouseButtonEventArgs e) => RightPanel.Width = RightDefault;
 
     private const double ZoomStep = 0.1, MinZoom = 0.7, MaxZoom = 2.0;
 
