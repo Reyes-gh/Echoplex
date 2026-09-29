@@ -33,9 +33,67 @@ public partial class SettingsWindow : Window
         ThemeList.ItemsSource = _themes;
         AnimationsBox.IsChecked = vm.AnimationsOn;
         FolderList.ItemsSource = vm.MusicFolders;
+        BuildColumnSwitches();
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
         OnFoldersChanged(null, null);
         Closed += (s, e) => vm.MusicFolders.CollectionChanged -= OnFoldersChanged;
+    }
+
+    /// <summary>Icono de cada columna, el mismo que en la cabecera de la tabla (null = texto propio).</summary>
+    private static readonly Dictionary<string, (string glyph, bool iconFont)> ColumnIcons = new()
+    {
+        [SongColumns.NumberKey] = ("#", false),
+        ["title"] = ("Aa", false),
+        ["artist"] = ("", true),
+        ["album"] = ("", true),
+        ["format"] = ("", true),
+        ["fav"] = ("", true),
+        ["duration"] = ("", true),
+    };
+
+    /// <summary>Un chip por columna, en el orden de la tabla (el número siempre primero).</summary>
+    private void BuildColumnSwitches()
+    {
+        ColumnSwitches.Children.Clear();
+        var names = SongColumns.Toggleable.ToDictionary(t => t.Key, t => t.Name);
+        names[SongColumns.NumberKey] = "Número";
+        var order = new[] { SongColumns.NumberKey }.Concat(SongColumns.Order).Where(names.ContainsKey);
+        foreach (var key in order)
+        {
+            var (glyph, iconFont) = ColumnIcons[key];
+            var icon = new System.Windows.Controls.TextBlock
+            {
+                Text = glyph,
+                FontSize = iconFont ? 12 : 13,
+                FontWeight = iconFont ? FontWeights.Normal : FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 7, 0),
+                Opacity = 0.8,
+            };
+            if (iconFont) icon.FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont");
+            var content = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            content.Children.Add(icon);
+            content.Children.Add(new System.Windows.Controls.TextBlock { Text = names[key], FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+            var chip = new System.Windows.Controls.Primitives.ToggleButton
+            {
+                Style = (Style)FindResource("ColumnChip"),
+                Content = content,
+                IsChecked = SongColumns.IsVisible(key),
+                ToolTip = "Mostrar u ocultar la columna",
+            };
+            chip.Click += (s, e) =>
+            {
+                // no se puede ocultar la última columna visible
+                if (!SongColumns.SetVisible(key, chip.IsChecked == true)) chip.IsChecked = true;
+            };
+            ColumnSwitches.Children.Add(chip);
+        }
+    }
+
+    private void ResetColumns_Click(object sender, RoutedEventArgs e)
+    {
+        SongColumns.Reset();
+        BuildColumnSwitches();
     }
 
     private void OnFoldersChanged(object? sender, EventArgs? e) =>

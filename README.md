@@ -49,6 +49,14 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 
 ## Versiones
 
+### 1.0.7
+- **Títulos por nombre de archivo**: nueva opción en Ajustes para mostrar el nombre del archivo (sin extensión) en lugar del título de los metadatos y ordenar por él; los álbumes siguen entonces el orden de los archivos.
+- **Portada en grande con un clic**: clic en la portada de la cabecera para verla en grande a la derecha; se queda en todas las páginas hasta otro clic.
+- **Panel lateral**: *Inicio* arriba del todo, logo y nombre más grandes, y un menú fijo de iconos que aparece al bajar (al pasar el ratón muestra el nombre).
+- **Interruptores** con nuevo diseño en Ajustes y en la cola.
+- **Estructura** (Ajustes): elige qué columnas se ven en las listas de canciones (#, Título, Artista, Álbum, Tipo, Favorita, Duración).
+- **Árbol de carpetas**: se ilumina el camino completo hasta la carpeta de la canción que suena (todas las carpetas padre), con el altavoz en la carpeta de la canción.
+
 ### 1.0.6
 - **Columnas de la tabla de canciones**: arrastra el borde entre dos cabeceras para cambiar su ancho y arrastra una cabecera para cambiarla de sitio. Clic derecho en la cabecera → *Restablecer columnas*. Se recuerda entre sesiones.
 - El **panel derecho** (cola, letra, detalles) se puede **ensanchar o estrechar** arrastrando su borde izquierdo (de 180 a 640 px); doble clic lo devuelve a su ancho. Se recuerda entre sesiones.

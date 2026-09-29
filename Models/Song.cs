@@ -38,7 +38,23 @@ public sealed partial class Song : ObservableObject
     [NotifyPropertyChangedFor(nameof(PrimaryArtist))]
     private string _artist = "";
 
-    [ObservableProperty] private string _title = "";
+    private string _title = "";
+
+    /// <summary>Ajuste global: mostrar (y ordenar por) el nombre del archivo en lugar del título de los metadatos.</summary>
+    public static bool PreferFileName { get; set; }
+
+    /// <summary>Nombre del archivo sin extensión.</summary>
+    public string FileTitle => System.IO.Path.GetFileNameWithoutExtension(FileName);
+
+    /// <summary>Título que se muestra: el de los metadatos o, con <see cref="PreferFileName"/>, el nombre del archivo.</summary>
+    public string Title
+    {
+        get => PreferFileName ? FileTitle : _title;
+        set => SetProperty(ref _title, value);
+    }
+
+    /// <summary>Avisa a la interfaz de que el título mostrado cambió (al activar o desactivar la opción).</summary>
+    public void RefreshTitle() => OnPropertyChanged(nameof(Title));
     [ObservableProperty] private string _album = "";
 
     [ObservableProperty]

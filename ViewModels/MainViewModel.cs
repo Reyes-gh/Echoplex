@@ -24,7 +24,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _sleepTimer;
     private readonly Random _rng = new();
     private FolderNode? _selectedNode;
-    private FolderNode? _activeNode;
+    private readonly List<FolderNode> _activeNodes = new();
     private DateTime _sleepEnd;
     private int _coverVersion;
     private int _lyricsVersion;
@@ -36,6 +36,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ui = ui;
         Settings = SettingsStore.Load();
         _cache = new MetadataCache(Path.Combine(SettingsStore.DataDirectory, "metadata.json"));
+        Song.PreferFileName = Settings.PreferFileName; // antes de cargar: decide títulos y orden de los álbumes
         Library = new LibraryService(Settings.MusicRoots);
         UserData = new UserDataService();
 
@@ -394,7 +395,7 @@ public sealed partial class MainViewModel : ObservableObject
         // una raíz por carpeta de música, cada una con sus subcarpetas
         Folders.Clear();
         _selectedNode = null;
-        _activeNode = null;
+        _activeNodes.Clear();
         foreach (var root in Library.PresentRoots)
         {
             var node = BuildNode(root, null);
@@ -771,7 +772,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ = LoadPageCoverAsync(page, null, songs.FirstOrDefault());
     }
 
-    public void OpenAlbum(string key)
+    public void OpenAlbum(string key, bool replace = false)
     {
         var album = Library.GetAlbum(key);
         if (album == null) return;
@@ -789,7 +790,7 @@ public sealed partial class MainViewModel : ObservableObject
                 new PropertyItem("", "Carpeta", Library.DisplayPath(album.Directory)),
             },
         };
-        Navigate(page);
+        if (replace) ReplacePage(page); else Navigate(page);
         _ = LoadPageCoverAsync(page, album.Directory, album.Songs.FirstOrDefault());
     }
 
@@ -1351,6 +1352,7 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     NowPlayingCover = null;
                 }
+                UpdateActiveContext(); // el camino iluminado en el árbol sigue a la canción
                 break;
             case nameof(PlayerService.IsPlaying):
                 UpdatePagePlaying();
@@ -1380,15 +1382,33 @@ public sealed partial class MainViewModel : ObservableObject
         if (CurrentPage is SongListPage p) p.IsThisPlaying = Player.IsPlaying && Player.ContextId == p.Id;
     }
 
+    /// <summary>
+    /// Playlist activa y, en el árbol, el camino hasta la carpeta de la canción que suena: se iluminan todas
+    /// las carpetas padre y la propia carpeta lleva el altavoz.
+    /// </summary>
     private void UpdateActiveContext()
     {
-        if (_activeNode != null) _activeNode.IsActive = false;
-        _activeNode = null;
+        foreach (var n in _activeNodes)
+        {
+            n.IsActive = false;
+            n.IsPlayingHere = false;
+        }
+        _activeNodes.Clear();
         foreach (var p in Playlists) p.IsActive = p.ContextId == Player.ContextId;
-        var (kind, key) = SplitContext(Player.ContextId ?? "");
-        if (kind != "folder") return;
-        _activeNode = FindNode(key);
-        if (_activeNode != null) _activeNode.IsActive = true;
+        if (Player.Current is not { } song) return;
+        var dir = song.Directory;
+        var node = RootNodeFor(dir);
+        while (node != null)
+        {
+            node.IsActive = true;
+            _activeNodes.Add(node);
+            if (Eq(node.Path, dir))
+            {
+                node.IsPlayingHere = true;
+                break;
+            }
+            node = node.Children.FirstOrDefault(c => Eq(c.Path, dir) || dir.StartsWith(c.Path + "\\", StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     // ======================================================================
@@ -1629,6 +1649,45 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsStore.Save(Settings);
         OnPropertyChanged(nameof(ThemeKey));
         ThemeChanged?.Invoke();
+    }
+
+    /// <summary>Portada en grande en la cabecera de las páginas: se queda activada (en todas) hasta otro clic.</summary>
+    public bool ShowBigCover
+    {
+        get => Settings.ShowBigCover;
+        set
+        {
+            if (Settings.ShowBigCover == value) return;
+            Settings.ShowBigCover = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Nombre del archivo en lugar del título de los metadatos (y orden por nombre de archivo).</summary>
+    public bool PreferFileName
+    {
+        get => Settings.PreferFileName;
+        set
+        {
+            if (Settings.PreferFileName == value) return;
+            Settings.PreferFileName = value;
+            SettingsStore.Save(Settings);
+            Song.PreferFileName = value;
+            foreach (var s in Library.Songs) s.RefreshTitle();
+            // la página visible se rehace con el título y el orden nuevos
+            switch (CurrentPage)
+            {
+                case SongListPage { Kind: ListKind.Album, AlbumKey: { } album }:
+                    OpenAlbum(album, replace: true);
+                    break;
+                case SongListPage page:
+                    page.Rebuild();
+                    break;
+            }
+            OnPropertyChanged();
+            ShowToast(value ? "Títulos: nombre del archivo" : "Títulos: metadatos");
+        }
     }
 
     public void ToggleAnimations()

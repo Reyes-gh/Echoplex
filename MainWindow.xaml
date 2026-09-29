@@ -127,7 +127,7 @@
         <DataTemplate DataType="{x:Type vm:SongRow}">
             <Grid Height="36" local:SongColumns.Host="True">
 
-                <Border Style="{StaticResource CellBorder}" Padding="0">
+                <Border local:SongColumns.Key="number" Style="{StaticResource CellBorder}" Padding="0">
                     <Grid>
                         <TextBlock x:Name="Num" Text="{Binding Number}" Foreground="{DynamicResource Text3Brush}" FontSize="13"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -373,7 +373,8 @@
                         <!-- entra girando y rebotando (HeaderCover_VisibleChanged) y lanza un destello de la portada -->
                         <Border x:Name="HeaderCover" Width="124" Height="124" CornerRadius="6" BorderThickness="3" Cursor="Hand"
                                 BorderBrush="{DynamicResource BgBrush}" Effect="{StaticResource SoftShadow}" RenderTransformOrigin="0.5,0.5"
-                                IsVisibleChanged="HeaderCover_VisibleChanged">
+                                IsVisibleChanged="HeaderCover_VisibleChanged" MouseLeftButtonUp="HeaderCover_Click"
+                                ToolTip="Ver la portada en grande">
                             <Border.Background>
                                 <ImageBrush ImageSource="{Binding Page.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                             </Border.Background>
@@ -472,7 +473,7 @@
                         Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}">
                     <Grid x:Name="ColumnHeaderGrid" local:SongColumns.Host="True" Background="Transparent" AllowDrop="True"
                           DragOver="ColumnHeader_DragOver" DragLeave="ColumnHeader_DragLeave" Drop="ColumnHeader_Drop" MouseRightButtonUp="ColumnHeader_RightClick">
-                        <Border Style="{StaticResource CellBorder}" Padding="0">
+                        <Border local:SongColumns.Key="number" Style="{StaticResource CellBorder}" Padding="0">
                             <Button Style="{StaticResource ColumnHeaderButton}" Tag="" Click="Sort_Click" HorizontalContentAlignment="Center"
                                     ToolTip="Orden original">
                                 <TextBlock Text="#" />
@@ -528,9 +529,9 @@
                            Visibility="{Binding Page.IsEmpty, Converter={StaticResource BoolVis}}" />
             </StackPanel>
             <DataTemplate.Triggers>
-                <!-- portada pequeña en blanco y negro, flecha y la portada en grande a la derecha -->
-                <Trigger SourceName="HeaderCover" Property="IsMouseOver" Value="True">
-                    <Trigger.EnterActions>
+                <!-- clic en la portada: pequeña en blanco y negro, flecha y la portada en grande a la derecha (se queda hasta otro clic) -->
+                <DataTrigger Binding="{Binding DataContext.ShowBigCover, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <DataTrigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
                                 <DoubleAnimation Storyboard.TargetName="GrayLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.3"
@@ -546,8 +547,8 @@
                                                  To="1" Duration="0:0:0.4" EasingFunction="{StaticResource EaseOut}" />
                             </Storyboard>
                         </BeginStoryboard>
-                    </Trigger.EnterActions>
-                    <Trigger.ExitActions>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
                         <BeginStoryboard>
                             <Storyboard>
                                 <DoubleAnimation Storyboard.TargetName="GrayLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25" />
@@ -561,8 +562,8 @@
                                                  To="0.94" Duration="0:0:0.25" />
                             </Storyboard>
                         </BeginStoryboard>
-                    </Trigger.ExitActions>
-                </Trigger>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
 
@@ -941,9 +942,14 @@
                 <DataTrigger Binding="{Binding IsRoot}" Value="True">
                     <Setter TargetName="Ic" Property="Text" Value="&#xE8D6;" />
                 </DataTrigger>
+                <!-- camino hasta la canción que suena: todas las carpetas padre iluminadas -->
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                     <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
+                <!-- y el altavoz en la carpeta donde está la canción -->
+                <DataTrigger Binding="{Binding IsPlayingHere}" Value="True">
                     <Setter TargetName="Speaker" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Nm" Property="FontWeight" Value="SemiBold" />
                 </DataTrigger>
             </HierarchicalDataTemplate.Triggers>
         </HierarchicalDataTemplate>
@@ -1037,18 +1043,38 @@
             <!-- ======================= PANEL LATERAL ======================= -->
             <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <Button DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="40" Margin="6,8,6,4" Click="Workspace_Click"
+                    <Button DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="50" Margin="6,8,6,4" Click="Workspace_Click"
                             ToolTip="Tema claro/oscuro, atajos y ajustes">
                         <DockPanel>
-                            <Border DockPanel.Dock="Left" Width="22" Height="22" CornerRadius="5" Background="{DynamicResource TextBrush}">
-                                <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource BgBrush}"
+                            <Border DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="7" Background="{DynamicResource TextBrush}">
+                                <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource BgBrush}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
-                            <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9"
+                            <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="10"
                                        Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" />
-                            <TextBlock Text="Echoplex" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Echoplex" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" />
                         </DockPanel>
                     </Button>
+
+                    <!-- menú fijo: aparece arriba al bajar por el panel, cuando el menú de navegación queda fuera de la vista -->
+                    <Border x:Name="StickyNav" DockPanel.Dock="Top" Visibility="Collapsed" Padding="6,2,6,8" ClipToBounds="True"
+                            BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Style="{StaticResource FadeInOnShow}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE80F;" CommandParameter="Inicio" Click="Home_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=home}" />
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE721;" CommandParameter="Buscar" Click="Search_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=search}" />
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xEB52;" CommandParameter="Favoritas" Click="Favorites_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=favorites}" />
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE81C;" CommandParameter="Historial" Click="History_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=history}" />
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE710;" CommandParameter="Recientes" Click="Recent_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=recent}" />
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE9D2;" CommandParameter="Resumen" Click="Stats_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=stats}" />
+                        </StackPanel>
+                    </Border>
 
                     <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,6">
                         <DockPanel>
@@ -1074,21 +1100,22 @@
                         </StackPanel>
                     </Button>
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <ScrollViewer x:Name="SidebarScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                                  ScrollChanged="SidebarScroll_ScrollChanged">
                         <StackPanel Margin="0,2,0,16">
+                            <Button Style="{StaticResource NavButton}" Click="Home_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=home}">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE80F;" />
+                                    <TextBlock Text="Inicio" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Button>
                             <Button Style="{StaticResource NavButton}" Click="Search_Click"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=search}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE721;" />
                                     <TextBlock DockPanel.Dock="Right" Text="Ctrl+K" FontSize="11" Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" />
                                     <TextBlock Text="Buscar" VerticalAlignment="Center" />
-                                </DockPanel>
-                            </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Home_Click"
-                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=home}">
-                                <DockPanel>
-                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE80F;" />
-                                    <TextBlock Text="Inicio" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
                             <Button Style="{StaticResource NavButton}" Click="Favorites_Click"
@@ -1112,7 +1139,7 @@
                                     <TextBlock Text="Añadidas recientemente" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Stats_Click"
+                            <Button x:Name="LastNavButton" Style="{StaticResource NavButton}" Click="Stats_Click"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=stats}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE9D2;" />
@@ -1341,7 +1368,7 @@
                                            Text="{Binding Player.ContextName, StringFormat=Siguiente de {0}}" />
                                 <ItemsControl ItemsSource="{Binding Player.ContextNext}" ItemTemplate="{StaticResource ContextItemTemplate}" />
 
-                                <CheckBox IsChecked="{Binding Player.AutoRadio}" Margin="8,16,8,0" Foreground="{DynamicResource Text2Brush}" FontSize="13"
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Player.AutoRadio}" Margin="8,16,8,0" Foreground="{DynamicResource Text2Brush}" FontSize="13"
                                           Focusable="False">
                                     <TextBlock Text="Radio automática al acabar la lista" TextWrapping="Wrap" />
                                 </CheckBox>

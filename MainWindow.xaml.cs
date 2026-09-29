@@ -34,11 +34,12 @@ public partial class MainWindow : Window
         _vm = new MainViewModel(Dispatcher);
         App.ApplyTheme(_vm.ThemeKey);
         // orden y ancho de las columnas de la tabla, antes de que se pinte ninguna fila
-        SongColumns.Load(_vm.Settings.ColumnOrder, _vm.Settings.ColumnSizes);
+        SongColumns.Load(_vm.Settings.ColumnOrder, _vm.Settings.ColumnSizes, _vm.Settings.HiddenColumns);
         SongColumns.Committed += () =>
         {
             _vm.Settings.ColumnOrder = SongColumns.Order;
             _vm.Settings.ColumnSizes = SongColumns.Sizes;
+            _vm.Settings.HiddenColumns = SongColumns.Hidden;
             SettingsStore.Save(_vm.Settings);
         };
         InitializeComponent();
@@ -101,6 +102,18 @@ public partial class MainWindow : Window
     }
 
     private void RestartUpdate_Click(object sender, RoutedEventArgs e) => _vm.RestartToUpdate();
+
+    /// <summary>Al bajar por el panel lateral, el menú fijo aparece cuando el de navegación sale de la vista.</summary>
+    private void SidebarScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (!LastNavButton.IsLoaded) return;
+        double bottom = LastNavButton.TranslatePoint(new Point(0, LastNavButton.ActualHeight), SidebarScroll).Y;
+        var want = bottom <= 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (StickyNav.Visibility != want) StickyNav.Visibility = want;
+    }
+
+    /// <summary>Clic en la portada de la cabecera: muestra u oculta la portada en grande.</summary>
+    private void HeaderCover_Click(object sender, MouseButtonEventArgs e) => _vm.ShowBigCover = !_vm.ShowBigCover;
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {

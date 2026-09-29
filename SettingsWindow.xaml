@@ -59,6 +59,34 @@
             </Button>
         </DataTemplate>
 
+        <!-- chip de columna (Estructura): activada = color de acento; desactivada = apagada, solo el contorno -->
+        <Style x:Key="ColumnChip" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Margin" Value="0,0,6,8" />
+            <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="16" Padding="10,6" BorderThickness="1"
+                                Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <DataTemplate x:Key="FolderRow" DataType="{x:Type vm:MusicFolderItem}">
             <Border x:Name="Bd" CornerRadius="6" Padding="10,8" Background="Transparent">
                 <DockPanel>
@@ -107,7 +135,7 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
-                    <CheckBox x:Name="AnimationsBox" Content="Animaciones (Ctrl+E)" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,0"
+                    <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Content="Animaciones (Ctrl+E)" Margin="0,12,0,0"
                               Click="Animations_Click" />
 
                     <!-- ===== Biblioteca ===== -->
@@ -121,6 +149,16 @@
                         <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Añadir carpeta…" Click="AddFolder_Click" />
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Volver a escanear" Click="Rescan_Click" Margin="8,0,0,0" />
                     </StackPanel>
+
+                    <!-- ===== Títulos ===== -->
+                    <TextBlock Text="Títulos de las canciones" Style="{StaticResource SectionTitle}" />
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding PreferFileName}">
+                        <StackPanel>
+                            <TextBlock Text="Usar el nombre del archivo en lugar de los metadatos" />
+                            <TextBlock Text="Muestra el nombre del archivo sin la extensión y ordena por él (los álbumes siguen el orden de los archivos, no el número de pista)."
+                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
 
                     <!-- ===== Actualizaciones ===== -->
                     <TextBlock Text="Actualizaciones" Style="{StaticResource SectionTitle}" />
@@ -136,7 +174,7 @@
                                        Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,12,0" />
                         </StackPanel>
                     </DockPanel>
-                    <CheckBox Content="Buscar e instalar actualizaciones al abrir Echoplex" Foreground="{DynamicResource TextBrush}" Margin="0,10,0,0"
+                    <CheckBox Style="{StaticResource Switch}" Content="Buscar e instalar actualizaciones al abrir Echoplex" Margin="0,12,0,0"
                               IsChecked="{Binding AutoUpdate}" />
 
                     <!-- ===== Otros ===== -->
@@ -146,6 +184,14 @@
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Carpeta de datos" Click="DataFolder_Click" Margin="8,0,0,0"
                                 ToolTip="Ajustes, playlists e historial (%LocalAppData%)" />
                     </StackPanel>
+
+                    <!-- ===== Estructura ===== -->
+                    <TextBlock Text="Estructura" Style="{StaticResource SectionTitle}" />
+                    <TextBlock Text="Columnas de las listas de canciones, en el orden de tu tabla. Pulsa una para mostrarla u ocultarla; el orden y el ancho se cambian arrastrando la cabecera de la tabla."
+                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,-4,0,12" />
+                    <WrapPanel x:Name="ColumnSwitches" />
+                    <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Restablecer columnas" Click="ResetColumns_Click"
+                            HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Orden, anchos y columnas visibles de fábrica" />
                 </StackPanel>
             </ScrollViewer>
         </DockPanel>

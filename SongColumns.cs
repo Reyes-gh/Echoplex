@@ -42,7 +42,18 @@ public static class SongColumns
         new("duration", false, 62, 50),
     };
 
+    /// <summary>Clave de la columna fija del número (#), para poder ocultarla como las demás.</summary>
+    public const string NumberKey = "number";
+
+    /// <summary>Columnas que el usuario puede mostrar u ocultar desde Ajustes → Estructura, con su nombre.</summary>
+    public static readonly IReadOnlyList<(string Key, string Name)> Toggleable = new[]
+    {
+        (NumberKey, "#  Número"), ("title", "Título"), ("artist", "Artista"), ("album", "Álbum"),
+        ("format", "Tipo"), ("fav", "Favorita"), ("duration", "Duración"),
+    };
+
     private static List<SongColumn> _columns = Clone(Defaults);
+    private static HashSet<string> _hidden = new();
     private static readonly List<WeakReference<Grid>> Hosts = new();
 
     /// <summary>Tras terminar de arrastrar un borde o de mover una columna: hay que guardar.</summary>
@@ -54,8 +65,9 @@ public static class SongColumns
 
     // ---------- guardar / cargar (ajustes del usuario) ----------
 
-    public static void Load(IList<string>? order, IDictionary<string, double>? sizes)
+    public static void Load(IList<string>? order, IDictionary<string, double>? sizes, IEnumerable<string>? hidden = null)
     {
+        _hidden = new HashSet<string>((hidden ?? Enumerable.Empty<string>()).Where(k => Toggleable.Any(t => t.Key == k)));
         var cols = Clone(Defaults);
         if (order is { Count: > 0 })
         {
@@ -74,9 +86,26 @@ public static class SongColumns
 
     public static Dictionary<string, double> Sizes => _columns.ToDictionary(c => c.Key, c => Math.Round(c.Value, 3));
 
+    public static List<string> Hidden => _hidden.ToList();
+
+    public static bool IsVisible(string key) => !_hidden.Contains(key);
+
+    /// <summary>Muestra u oculta una columna. No deja ocultar la última que queda visible.</summary>
+    public static bool SetVisible(string key, bool visible)
+    {
+        if (visible == IsVisible(key)) return true;
+        if (!visible && Toggleable.Count(t => IsVisible(t.Key)) <= 1) return false;
+        if (visible) _hidden.Remove(key); else _hidden.Add(key);
+        ApplyAll();
+        Committed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Orden, anchos y columnas visibles de fábrica.</summary>
     public static void Reset()
     {
         _columns = Clone(Defaults);
+        _hidden.Clear();
         ApplyAll();
         Committed?.Invoke();
     }
@@ -126,22 +155,28 @@ public static class SongColumns
         int needed = 1 + _columns.Count;
         while (defs.Count < needed) defs.Add(new ColumnDefinition());
         while (defs.Count > needed) defs.RemoveAt(defs.Count - 1);
-        defs[0].Width = new GridLength(NumberWidth);
+        defs[0].Width = new GridLength(IsVisible(NumberKey) ? NumberWidth : 0);
         for (int i = 0; i < _columns.Count; i++)
         {
             var c = _columns[i];
             // "extra" puede estar oculta: columna Auto y el ancho en la propia celda, así oculta no ocupa nada
-            defs[i + 1].Width = c.Key == "extra" ? GridLength.Auto
+            defs[i + 1].Width = !IsVisible(c.Key) ? new GridLength(0)
+                : c.Key == "extra" ? GridLength.Auto
                 : c.Star ? new GridLength(c.Value, GridUnitType.Star) : new GridLength(c.Value);
         }
         var extra = _columns.First(c => c.Key == "extra");
         foreach (UIElement child in grid.Children)
         {
             if (GetKey(child) is not { } key) continue;
-            int idx = _columns.FindIndex(c => c.Key == key);
-            if (idx < 0) continue;
-            Grid.SetColumn(child, idx + 1);
-            if (key == "extra" && child is FrameworkElement fe && child is not System.Windows.Controls.Primitives.Thumb) fe.Width = extra.Value;
+            if (key != NumberKey)
+            {
+                int idx = _columns.FindIndex(c => c.Key == key);
+                if (idx < 0) continue;
+                Grid.SetColumn(child, idx + 1);
+                if (key == "extra" && child is FrameworkElement fe && child is not System.Windows.Controls.Primitives.Thumb) fe.Width = extra.Value;
+            }
+            // "extra" tiene su propia visibilidad (según la página): no se toca
+            if (key != "extra") child.Visibility = IsVisible(key) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 

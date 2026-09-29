@@ -28,8 +28,11 @@ public sealed partial class FolderNode : ObservableObject
     [ObservableProperty] private bool _isExpanded;
     [ObservableProperty] private bool _isSelected;
 
-    /// <summary>La cola de reproducción actual proviene de esta carpeta.</summary>
+    /// <summary>La canción que suena está en esta carpeta o en alguna de sus subcarpetas (se ilumina el camino).</summary>
     [ObservableProperty] private bool _isActive;
+
+    /// <summary>La canción que suena está justo en esta carpeta (el final del camino: lleva el altavoz).</summary>
+    [ObservableProperty] private bool _isPlayingHere;
 
     public IEnumerable<FolderNode> Descendants()
     {

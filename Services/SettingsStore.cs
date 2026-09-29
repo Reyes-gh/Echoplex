@@ -27,6 +27,10 @@ public sealed class AppSettings
     /// <summary>Último tema oscuro elegido: al que vuelve el interruptor claro/oscuro.</summary>
     public string DarkTheme { get; set; } = "dark";
     public bool Animations { get; set; } = true;
+    /// <summary>Mostrar y ordenar por el nombre del archivo (sin extensión) en lugar del título de los metadatos.</summary>
+    public bool PreferFileName { get; set; }
+    /// <summary>Portada de la cabecera en grande (se activa y desactiva con un clic en la portada pequeña).</summary>
+    public bool ShowBigCover { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
     public double SidebarWidth { get; set; } = 260;
@@ -34,6 +38,8 @@ public sealed class AppSettings
     public List<string>? ColumnOrder { get; set; }
     /// <summary>Ancho de cada columna: peso si es proporcional, píxeles si es fija.</summary>
     public Dictionary<string, double>? ColumnSizes { get; set; }
+    /// <summary>Columnas ocultas desde Ajustes → Estructura.</summary>
+    public List<string>? HiddenColumns { get; set; }
     /// <summary>Ancho del panel derecho (cola, letra, detalles).</summary>
     public double RightPanelWidth { get; set; } = 330;
     /// <summary>Zoom de la interfaz (Ctrl + / Ctrl − / Ctrl+0): 1 = 100 %.</summary>
