@@ -49,6 +49,10 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 
 ## Versiones
 
+### 1.0.5
+- **Vista previa de la portada**: al pasar el ratón por la portada de la cabecera (carpetas, álbumes, playlists…), se pone en blanco y negro, aparece una flecha y la portada se muestra en grande y a color a la derecha.
+- Portadas de cabecera con más resolución.
+
 ### 1.0.4
 - **Zoom** de toda la interfaz con `Ctrl +` / `Ctrl −` (o `Ctrl` + rueda del ratón), `Ctrl+0` para volver al 100 %. Se recuerda entre sesiones.
 - Las **miniaturas del árbol de carpetas** siguen la misma regla de mosaico que las portadas (diagonal para 2 o 3 discos, cuadrícula para 4).

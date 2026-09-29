@@ -12,6 +12,7 @@
     <BooleanToVisibilityConverter x:Key="BoolVis" />
     <local:InverseBoolToVisibilityConverter x:Key="InvBoolVis" />
     <local:NullToVisibilityConverter x:Key="NullVis" />
+    <local:GrayscaleConverter x:Key="Grayscale" />
     <local:TreeIndentConverter x:Key="TreeIndent" />
     <local:EqualsConverter x:Key="Eq" />
     <local:EqualsToVisibilityConverter x:Key="EqVis" />

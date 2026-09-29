@@ -33,6 +33,27 @@ public sealed class NullToVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>Portada → la misma en blanco y negro (para el efecto al pasar el ratón por la cabecera).</summary>
+public sealed class GrayscaleConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is not System.Windows.Media.Imaging.BitmapSource src) return null;
+        try
+        {
+            var gray = new System.Windows.Media.Imaging.FormatConvertedBitmap(src, System.Windows.Media.PixelFormats.Gray8, null, 0);
+            gray.Freeze();
+            return gray;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
 /// <summary>value.ToString() == parámetro → true.</summary>
 public sealed class EqualsConverter : IValueConverter
 {

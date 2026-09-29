@@ -899,12 +899,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         // la cabecera de la página abierta tiene prioridad sobre las miniaturas en cola
         page.Cover = dir != null
-            ? await Covers.GetFolderCoverAsync(dir, page.Songs, 400, priority: true)
-            : first != null ? await Covers.GetSongCoverAsync(first, 400, priority: true) : null;
+            ? await Covers.GetFolderCoverAsync(dir, page.Songs, 600, priority: true)
+            : first != null ? await Covers.GetSongCoverAsync(first, 600, priority: true) : null;
     }
 
     private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first) =>
-        page.Cover = await FolderArtAsync(path, 400, allowDownload: true, priority: true);
+        page.Cover = await FolderArtAsync(path, 600, allowDownload: true, priority: true);
 
     /// <summary>
     /// Portada de una carpeta. Si tiene imagen propia, esa. Si no, y tiene varias subcarpetas, un mosaico con

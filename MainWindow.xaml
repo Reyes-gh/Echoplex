@@ -331,15 +331,50 @@
                 </Grid>
                 <Border Height="48" Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}" />
 
-                <StackPanel Margin="56,0,56,0">
-                    <!-- entra girando y rebotando (HeaderCover_VisibleChanged) y lanza un destello de la portada -->
-                    <Border Width="124" Height="124" CornerRadius="6" Margin="0,-72,0,0" HorizontalAlignment="Left" BorderThickness="3"
-                            BorderBrush="{DynamicResource BgBrush}" Effect="{StaticResource SoftShadow}" RenderTransformOrigin="0.5,0.5"
-                            Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}}" IsVisibleChanged="HeaderCover_VisibleChanged">
+                <Grid Margin="56,0,56,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" MinWidth="380" />
+                    <ColumnDefinition Width="2*" MaxWidth="500" />
+                </Grid.ColumnDefinitions>
+
+                <!-- al pasar el ratón por la portada pequeña: la portada en grande, a color, en el hueco de la derecha -->
+                <Viewbox x:Name="BigCover" Grid.Column="1" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Right"
+                         VerticalAlignment="Top" Margin="32,18,0,20" Opacity="0" IsHitTestVisible="False" RenderTransformOrigin="0.9,0.1">
+                    <Viewbox.RenderTransform>
+                        <ScaleTransform ScaleX="0.94" ScaleY="0.94" />
+                    </Viewbox.RenderTransform>
+                    <Border Width="440" Height="440" CornerRadius="10" Effect="{StaticResource SoftShadow}">
                         <Border.Background>
                             <ImageBrush ImageSource="{Binding Page.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                         </Border.Background>
                     </Border>
+                </Viewbox>
+
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,-72,0,0" HorizontalAlignment="Left"
+                                Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}}">
+                        <!-- entra girando y rebotando (HeaderCover_VisibleChanged) y lanza un destello de la portada -->
+                        <Border x:Name="HeaderCover" Width="124" Height="124" CornerRadius="6" BorderThickness="3" Cursor="Hand"
+                                BorderBrush="{DynamicResource BgBrush}" Effect="{StaticResource SoftShadow}" RenderTransformOrigin="0.5,0.5"
+                                IsVisibleChanged="HeaderCover_VisibleChanged">
+                            <Border.Background>
+                                <ImageBrush ImageSource="{Binding Page.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border.Background>
+                            <!-- capa en blanco y negro que aparece al pasar el ratón -->
+                            <Border x:Name="GrayLayer" CornerRadius="3" Opacity="0">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Page.Cover, Converter={StaticResource Grayscale}}" Stretch="UniformToFill"
+                                                RenderOptions.BitmapScalingMode="HighQuality" />
+                                </Border.Background>
+                            </Border>
+                        </Border>
+                        <TextBlock x:Name="CoverArrow" Text="&#xE72A;" FontFamily="{StaticResource IconFont}" FontSize="22" Opacity="0"
+                                   Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" Margin="16,0,0,0" IsHitTestVisible="False">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform X="-10" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
+                    </StackPanel>
                     <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="60" Foreground="{DynamicResource Text3Brush}"
                                Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}" />
 
@@ -406,14 +441,15 @@
                             <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                         </Button>
                     </WrapPanel>
+                </StackPanel>
+                </Grid>
 
-                    <StackPanel Visibility="{Binding Page.HasAlbums, Converter={StaticResource BoolVis}}" Margin="0,0,0,12">
+                    <StackPanel Visibility="{Binding Page.HasAlbums, Converter={StaticResource BoolVis}}" Margin="56,0,56,12">
                         <TextBlock Text="{Binding Page.AlbumsHeader}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
                         <ItemsControl ItemsSource="{Binding Page.Albums}" ItemTemplate="{StaticResource CardTemplate}"
                                       ItemsPanel="{StaticResource WrapPanelTemplate}" />
                         <TextBlock Text="Canciones" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,8" Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}" />
                     </StackPanel>
-                </StackPanel>
 
                 <Border Margin="56,0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,1" Height="34"
                         Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}">
@@ -473,6 +509,43 @@
                 <TextBlock Text="{Binding Page.EmptyText}" Foreground="{DynamicResource Text2Brush}" Margin="56,8,56,24" TextWrapping="Wrap"
                            Visibility="{Binding Page.IsEmpty, Converter={StaticResource BoolVis}}" />
             </StackPanel>
+            <DataTemplate.Triggers>
+                <!-- portada pequeña en blanco y negro, flecha y la portada en grande a la derecha -->
+                <Trigger SourceName="HeaderCover" Property="IsMouseOver" Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="GrayLayer" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.3"
+                                                 EasingFunction="{StaticResource EaseOut}" />
+                                <DoubleAnimation Storyboard.TargetName="CoverArrow" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.22" />
+                                <DoubleAnimation Storyboard.TargetName="CoverArrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                 To="0" Duration="0:0:0.3" EasingFunction="{StaticResource EaseOut}" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.32"
+                                                 EasingFunction="{StaticResource EaseOut}" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 To="1" Duration="0:0:0.4" EasingFunction="{StaticResource EaseOut}" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 To="1" Duration="0:0:0.4" EasingFunction="{StaticResource EaseOut}" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="GrayLayer" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25" />
+                                <DoubleAnimation Storyboard.TargetName="CoverArrow" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.18" />
+                                <DoubleAnimation Storyboard.TargetName="CoverArrow" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                 To="-10" Duration="0:0:0.25" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.22" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                 To="0.94" Duration="0:0:0.25" />
+                                <DoubleAnimation Storyboard.TargetName="BigCover" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                 To="0.94" Duration="0:0:0.25" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.ExitActions>
+                </Trigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <!-- ================= Módulo (disco / subcarpeta) en mitad de la lista ================= -->
