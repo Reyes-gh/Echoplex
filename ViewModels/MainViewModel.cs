@@ -1417,6 +1417,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             n.IsActive = false;
             n.IsPlayingHere = false;
+            n.ShowsBars = false;
+            n.PropertyChanged -= OnActiveNodeChanged;
         }
         _activeNodes.Clear();
         foreach (var p in Playlists) p.IsActive = p.ContextId == Player.ContextId;
@@ -1426,6 +1428,7 @@ public sealed partial class MainViewModel : ObservableObject
         while (node != null)
         {
             node.IsActive = true;
+            node.PropertyChanged += OnActiveNodeChanged; // al plegar o desplegar, las barritas cambian de carpeta
             _activeNodes.Add(node);
             if (Eq(node.Path, dir))
             {
@@ -1434,6 +1437,27 @@ public sealed partial class MainViewModel : ObservableObject
             }
             node = node.Children.FirstOrDefault(c => Eq(c.Path, dir) || dir.StartsWith(c.Path + "\\", StringComparison.OrdinalIgnoreCase));
         }
+        UpdateBarsNode();
+    }
+
+    private void OnActiveNodeChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(FolderNode.IsExpanded)) UpdateBarsNode();
+    }
+
+    /// <summary>
+    /// Las barritas van en la carpeta más honda del camino que se ve: se baja desde la raíz mientras la carpeta
+    /// esté desplegada (con «Música» plegada, en «Música»; con todo abierto, en la carpeta de la canción).
+    /// </summary>
+    private void UpdateBarsNode()
+    {
+        FolderNode? target = null;
+        foreach (var n in _activeNodes) // de la raíz a la carpeta de la canción
+        {
+            target = n;
+            if (!n.IsExpanded) break;
+        }
+        foreach (var n in _activeNodes) n.ShowsBars = n == target;
     }
 
     // ======================================================================

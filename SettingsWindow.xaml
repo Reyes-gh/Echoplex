@@ -154,8 +154,15 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-            CornerRadius="10" Margin="24" Effect="{StaticResource PopupShadow}">
+    <!-- la tarjeta entra y sale con un fundido, creciendo o encogiendo un poco (ver SettingsWindow.xaml.cs) -->
+    <Border x:Name="Card" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+            CornerRadius="10" Margin="24" Effect="{StaticResource PopupShadow}" RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="CardScale" />
+                <TranslateTransform x:Name="CardShift" />
+            </TransformGroup>
+        </Border.RenderTransform>
         <DockPanel>
             <DockPanel DockPanel.Dock="Top" Margin="24,18,14,0" MouseLeftButtonDown="Header_MouseDown" Background="Transparent">
                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="Close_Click" ToolTip="Cerrar (Esc)" />

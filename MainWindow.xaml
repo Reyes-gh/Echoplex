@@ -954,9 +954,11 @@
         <!-- ================= Panel lateral: elementos ================= -->
 
         <HierarchicalDataTemplate DataType="{x:Type m:FolderNode}" ItemsSource="{Binding Children}">
-            <DockPanel Loaded="TreeNode_Loaded">
-                <TextBlock x:Name="Speaker" DockPanel.Dock="Right" Text="&#xE995;" FontFamily="{StaticResource IconFont}" FontSize="12"
-                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="6,0,10,0" Visibility="Collapsed" />
+            <DockPanel Loaded="TreeNode_Loaded" Background="Transparent" MouseLeftButtonUp="TreeNode_Click">
+                <!-- barritas de ecualizador en todas las carpetas del camino hasta la canción (se mueven mientras suena) -->
+                <local:EqualizerBars x:Name="Speaker" DockPanel.Dock="Right" Margin="6,0,10,0" Visibility="Collapsed"
+                                     Fill="{DynamicResource AccentBrush}"
+                                     IsAnimating="{Binding DataContext.Player.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" />
                 <Grid DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,8,0">
                     <ContentControl x:Name="Ic" Style="{StaticResource GlyphIcon}" Content="&#xE8B7;" FontSize="14" Foreground="{DynamicResource Text2Brush}" />
                     <Border CornerRadius="3" Visibility="{Binding Cover, Converter={StaticResource NullVis}}">
@@ -971,14 +973,14 @@
                 <DataTrigger Binding="{Binding IsRoot}" Value="True">
                     <Setter TargetName="Ic" Property="Content" Value="&#xE8D6;" />
                 </DataTrigger>
-                <!-- camino hasta la canción que suena: todas las carpetas padre iluminadas -->
+                <!-- camino hasta la canción que suena: carpetas iluminadas en negrita -->
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                     <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="Nm" Property="FontWeight" Value="Bold" />
                 </DataTrigger>
-                <!-- y el altavoz en la carpeta donde está la canción -->
-                <DataTrigger Binding="{Binding IsPlayingHere}" Value="True">
+                <!-- y las barritas en la más honda que se ve (ver MainViewModel.UpdateBarsNode) -->
+                <DataTrigger Binding="{Binding ShowsBars}" Value="True">
                     <Setter TargetName="Speaker" Property="Visibility" Value="Visible" />
-                    <Setter TargetName="Nm" Property="FontWeight" Value="SemiBold" />
                 </DataTrigger>
             </HierarchicalDataTemplate.Triggers>
         </HierarchicalDataTemplate>
@@ -1682,5 +1684,9 @@
                 </Popup>
             </Grid>
         </Border>
+
+        <!-- con Ajustes abierto: la app se oscurece un poco y un clic aquí cierra Ajustes -->
+        <Border x:Name="SettingsDim" Grid.RowSpan="2" Background="#000000" Opacity="0" Visibility="Collapsed" Panel.ZIndex="100"
+                MouseLeftButtonDown="SettingsDim_MouseDown" MouseRightButtonDown="SettingsDim_MouseDown" />
     </Grid>
 </Window>

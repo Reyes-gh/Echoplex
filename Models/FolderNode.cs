@@ -31,8 +31,14 @@ public sealed partial class FolderNode : ObservableObject
     /// <summary>La canción que suena está en esta carpeta o en alguna de sus subcarpetas (se ilumina el camino).</summary>
     [ObservableProperty] private bool _isActive;
 
-    /// <summary>La canción que suena está justo en esta carpeta (el final del camino: lleva el altavoz).</summary>
+    /// <summary>La canción que suena está justo en esta carpeta (el final del camino).</summary>
     [ObservableProperty] private bool _isPlayingHere;
+
+    /// <summary>
+    /// Lleva las barritas de ecualizador: la carpeta más honda del camino que se ve en el árbol (la primera
+    /// plegada del camino o, si está todo abierto, la de la canción).
+    /// </summary>
+    [ObservableProperty] private bool _showsBars;
 
     public IEnumerable<FolderNode> Descendants()
     {

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Echoplex.Services;
 using Echoplex.ViewModels;
@@ -37,8 +39,7 @@ public partial class SettingsWindow : Window
         MoreThemes.ItemsSource = _themes.Where(o => o.Info.File == null).GroupBy(o => o.Info.Group)
             .Select(g => new ThemeGroup(g.Key, g.ToList())).ToList();
         MoreThemesToggle.Tag = _themes.Count(o => o.Info.File == null).ToString();
-        // si el tema actual es de "Más temas", la lista sale ya desplegada
-        MoreThemesToggle.IsChecked = Themes.Get(vm.ThemeKey).File == null;
+        // los desplegables (Más temas, Ver cambios de la versión) salen siempre plegados al abrir Ajustes
         // Ver cambios de la versión: solo si las notas vienen en el ejecutable (siempre en las releases)
         var v = UpdateService.CurrentVersion;
         ReleaseNotesToggle.Content = $"Ver cambios de la versión {v.Major}.{v.Minor}.{v.Build}";
@@ -50,6 +51,90 @@ public partial class SettingsWindow : Window
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
         OnFoldersChanged(null, null);
         Closed += (s, e) => vm.MusicFolders.CollectionChanged -= OnFoldersChanged;
+        // la entrada empieza cuando la ventana ya está pintada: montarla lleva su tiempo y la animación se perdería
+        if (Animated) Card.Opacity = 0;
+        ContentRendered += (s, e) =>
+        {
+            Opened?.Invoke();
+            AnimateIn();
+        };
+    }
+
+    // ======================================================================
+    // Entrada y salida animadas
+    // ======================================================================
+
+    private bool _closing;
+    private bool _allowClose;
+
+    /// <summary>Ya se ve y empieza a entrar: la ventana principal oscurece el fondo a la vez.</summary>
+    public event Action? Opened;
+
+    /// <summary>Empieza a cerrarse (con o sin animación): la ventana principal quita el oscurecido a la vez.</summary>
+    public event Action? ClosingStarted;
+
+    private bool Animated => _vm.AnimationsOn && SystemParameters.ClientAreaAnimation;
+
+    private static readonly IEasingFunction EaseOut = new CubicEase { EasingMode = EasingMode.EaseOut };
+    private static readonly IEasingFunction EaseIn = new CubicEase { EasingMode = EasingMode.EaseIn };
+    private static readonly IEasingFunction Settle = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.25 };
+
+    private void AnimateIn()
+    {
+        if (!Animated)
+        {
+            Card.Opacity = 1;
+            return;
+        }
+        var t = TimeSpan.FromMilliseconds(320);
+        Card.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { EasingFunction = EaseOut });
+        CardScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, t) { EasingFunction = Settle });
+        CardScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, t) { EasingFunction = Settle });
+        CardShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(18, 0, t) { EasingFunction = EaseOut });
+    }
+
+    /// <summary>Cierra con un fundido suave (todas las vías acaban aquí: ✕, Esc, Ctrl+, o clic fuera).</summary>
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (!_allowClose)
+        {
+            e.Cancel = true;
+            BeginClose();
+            return;
+        }
+        base.OnClosing(e);
+    }
+
+    private void BeginClose()
+    {
+        if (_closing) return;
+        _closing = true;
+        ClosingStarted?.Invoke();
+        if (!Animated)
+        {
+            CloseNow();
+            return;
+        }
+        IsHitTestVisible = false;
+        var t = TimeSpan.FromMilliseconds(180);
+        var fade = new DoubleAnimation(0, t) { EasingFunction = EaseIn };
+        fade.Completed += (s, e) => CloseNow();
+        Card.BeginAnimation(OpacityProperty, fade);
+        CardScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.96, t) { EasingFunction = EaseIn });
+        CardScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.96, t) { EasingFunction = EaseIn });
+        CardShift.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, t) { EasingFunction = EaseIn });
+    }
+
+    /// <summary>Cierra ya, sin animación (al cerrar Echoplex con Ajustes abierto).</summary>
+    public void CloseNow()
+    {
+        if (!_closing)
+        {
+            _closing = true;
+            ClosingStarted?.Invoke();
+        }
+        _allowClose = true;
+        Close();
     }
 
     /// <summary>Icono de cada columna, el mismo que en la cabecera de la tabla (null = texto propio).</summary>
@@ -170,7 +255,12 @@ public partial class SettingsWindow : Window
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) Close();
+        // Esc o el mismo atajo que la abre (Ctrl+,)
+        if (e.Key == Key.Escape || (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.OemComma))
+        {
+            Close();
+            e.Handled = true;
+        }
     }
 
     private void Header_MouseDown(object sender, MouseButtonEventArgs e)

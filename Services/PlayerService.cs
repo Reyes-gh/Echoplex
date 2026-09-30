@@ -234,6 +234,21 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         _ = LoadAsync(_context[_order[_pos]], true);
     }
 
+    /// <summary>Salta a ese punto y suena, esté en pausa o sin cargar todavía (clic en una línea de la letra).</summary>
+    public void PlayFrom(double seconds)
+    {
+        if (Current == null) return;
+        seconds = Math.Max(0, seconds);
+        if (_loading || _needsLoad || !_out.IsLoaded)
+        {
+            // aún sin abrir (sesión retomada) o cargando: se abre y empieza ahí mismo
+            _ = LoadAsync(Current, true, seconds);
+            return;
+        }
+        Seek(seconds);
+        if (!IsPlaying) _ = PlayOutputAsync();
+    }
+
     public void Seek(double seconds)
     {
         if (_needsLoad) return;

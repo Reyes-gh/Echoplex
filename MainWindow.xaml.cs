@@ -168,6 +168,7 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        _settings?.CloseNow(); // Ajustes abierto: se cierra ya, sin esperar a su animación
         var s = _vm.Settings;
         s.Maximized = WindowState == WindowState.Maximized;
         var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
@@ -666,6 +667,12 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.DataContext is FolderNode node) _vm.EnsureNodeCover(node);
     }
 
+    /// <summary>Clic en una carpeta con subcarpetas: además de abrir su página, se despliega (plegar, con la flecha).</summary>
+    private void TreeNode_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is FolderNode { Children.Count: > 0 } node) node.IsExpanded = true;
+    }
+
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (!_vm.IsSyncingTree && e.NewValue is FolderNode node) _vm.OpenFolder(node.Path);
@@ -695,7 +702,57 @@ public partial class MainWindow : Window
 
     private void Settings_Click(object sender, RoutedEventArgs e) => ShowSettings();
 
-    public void ShowSettings() => new SettingsWindow(_vm, this).ShowDialog();
+    private SettingsWindow? _settings;
+
+    /// <summary>
+    /// Abre Ajustes sobre la app oscurecida; si ya está abierto, lo cierra (Ctrl+, hace de interruptor).
+    /// No es modal a la antigua: la capa oscura tapa la app y un clic en ella lo cierra.
+    /// </summary>
+    public void ShowSettings()
+    {
+        if (_settings != null)
+        {
+            _settings.Close();
+            return;
+        }
+        var w = new SettingsWindow(_vm, this);
+        _settings = w;
+        // el fondo se oscurece a la vez que entra la ventana (y la capa ya bloquea clics mientras se monta)
+        SettingsDim.Visibility = Visibility.Visible;
+        w.Opened += () => FadeSettingsDim(true);
+        w.ClosingStarted += () => FadeSettingsDim(false);
+        w.Closed += (s, e) =>
+        {
+            if (_settings == w) _settings = null;
+            Activate();
+        };
+        w.Show();
+    }
+
+    private void SettingsDim_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _settings?.Close();
+        e.Handled = true;
+    }
+
+    private void FadeSettingsDim(bool show)
+    {
+        const double dimmed = 0.25; // solo un poco
+        if (!AnimationsEnabled)
+        {
+            SettingsDim.BeginAnimation(OpacityProperty, null);
+            SettingsDim.Opacity = show ? dimmed : 0;
+            SettingsDim.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            return;
+        }
+        SettingsDim.Visibility = Visibility.Visible;
+        var fade = new DoubleAnimation(show ? dimmed : 0, TimeSpan.FromMilliseconds(show ? 260 : 180))
+        {
+            EasingFunction = new CubicEase { EasingMode = show ? EasingMode.EaseOut : EasingMode.EaseIn },
+        };
+        if (!show) fade.Completed += (s, e) => { if (_settings == null || SettingsDim.Opacity < 0.01) SettingsDim.Visibility = Visibility.Collapsed; };
+        SettingsDim.BeginAnimation(OpacityProperty, fade);
+    }
 
     public void OpenMiniPlayer() => ShowMiniPlayer();
 
@@ -1068,8 +1125,8 @@ public partial class MainWindow : Window
 
     private void Lyric_Click(object sender, MouseButtonEventArgs e)
     {
-        // con desfase, se salta al momento en que esa línea se ilumina
-        if ((sender as FrameworkElement)?.DataContext is LyricLine { Time: { } t }) _vm.Player.Seek(Math.Max(0, t.TotalSeconds - _vm.LyricsOffset));
+        // con desfase, se salta al momento en que esa línea se ilumina; y suena aunque estuviera en pausa
+        if ((sender as FrameworkElement)?.DataContext is LyricLine { Time: { } t }) _vm.Player.PlayFrom(t.TotalSeconds - _vm.LyricsOffset);
     }
 
     private void LyricsOffset_Click(object sender, RoutedEventArgs e)
