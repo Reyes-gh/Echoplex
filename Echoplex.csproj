@@ -13,7 +13,7 @@
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
     <Description>Reproductor de música local al estilo Spotify</Description>
-    <Version>1.0.9</Version>
+    <Version>1.1.0</Version>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -29,6 +29,8 @@
     <Resource Include="Assets\echoplex-logo.png" />
     <Resource Include="Assets\echoplex-logo-light.png" />
     <Resource Include="Assets\note.png" />
+    <!-- notas de cada versión (las de las releases de GitHub): Ajustes → Actualizaciones → Ver cambios de la versión -->
+    <EmbeddedResource Include=".github\notas\*.md" LogicalName="notas/%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

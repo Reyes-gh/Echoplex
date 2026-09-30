@@ -15,6 +15,9 @@ public sealed partial class ThemeOption : ObservableObject
     [ObservableProperty] private bool _isSelected;
 }
 
+/// <summary>Un grupo de "Más temas" (editores de código, naturaleza…).</summary>
+public sealed record ThemeGroup(string Name, List<ThemeOption> Themes);
+
 /// <summary>Ajustes: tema, animaciones, carpetas de música y poco más (lo rápido está en el menú de arriba).</summary>
 public partial class SettingsWindow : Window
 {
@@ -30,7 +33,17 @@ public partial class SettingsWindow : Window
         Owner = owner;
         DataContext = vm;
         _themes = Themes.All.Select(t => new ThemeOption(t) { IsSelected = t.Key == vm.ThemeKey }).ToList();
-        ThemeList.ItemsSource = _themes;
+        ThemeList.ItemsSource = _themes.Where(o => o.Info.File != null).ToList();
+        MoreThemes.ItemsSource = _themes.Where(o => o.Info.File == null).GroupBy(o => o.Info.Group)
+            .Select(g => new ThemeGroup(g.Key, g.ToList())).ToList();
+        MoreThemesToggle.Tag = _themes.Count(o => o.Info.File == null).ToString();
+        // si el tema actual es de "Más temas", la lista sale ya desplegada
+        MoreThemesToggle.IsChecked = Themes.Get(vm.ThemeKey).File == null;
+        // Ver cambios de la versión: solo si las notas vienen en el ejecutable (siempre en las releases)
+        var v = UpdateService.CurrentVersion;
+        ReleaseNotesToggle.Content = $"Ver cambios de la versión {v.Major}.{v.Minor}.{v.Build}";
+        if (ReleaseNotesView.Current() is { } notes) ReleaseNotesBox.Child = ReleaseNotesView.Render(notes);
+        else ReleaseNotesToggle.Visibility = Visibility.Collapsed;
         AnimationsBox.IsChecked = vm.AnimationsOn;
         FolderList.ItemsSource = vm.MusicFolders;
         BuildColumnSwitches();

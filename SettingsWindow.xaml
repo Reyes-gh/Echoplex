@@ -1,4 +1,4 @@
-<Window x:Class="Echoplex.SettingsWindow"
+﻿<Window x:Class="Echoplex.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Echoplex"
@@ -12,6 +12,45 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
             <Setter Property="Margin" Value="0,22,0,10" />
+        </Style>
+
+        <!-- desplegable con flecha (Más temas, Ver cambios de la versión); Tag: texto secundario al lado, como el número de temas -->
+        <Style x:Key="DisclosureToggle" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="5" Padding="8,5,10,5">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="Chevron" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                           VerticalAlignment="Center" Foreground="{DynamicResource Text2Brush}" RenderTransformOrigin="0.5,0.5">
+                                    <TextBlock.RenderTransform>
+                                        <RotateTransform Angle="0" />
+                                    </TextBlock.RenderTransform>
+                                </TextBlock>
+                                <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" TextElement.FontWeight="SemiBold" />
+                                <TextBlock Foreground="{DynamicResource Text3Brush}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                           Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- tarjeta de tema: una miniatura de la app con sus colores -->
@@ -42,7 +81,7 @@
                                     </Grid>
                                 </Border>
                             </Border>
-                            <TextBlock x:Name="Label" Text="{Binding Info.Name}" FontSize="14" Margin="2,6,0,0" Foreground="{DynamicResource Text2Brush}" />
+                            <TextBlock x:Name="Label" Text="{Binding Info.Name}" FontSize="14" Margin="2,6,0,0" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Text2Brush}" />
                         </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -135,6 +174,26 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
+                    <!-- Más temas: desplegable con el resto, por grupos -->
+                    <ToggleButton x:Name="MoreThemesToggle" Style="{StaticResource DisclosureToggle}" Content="Más temas" Margin="0,2,0,0" />
+                    <ItemsControl x:Name="MoreThemes" Margin="0,6,0,0"
+                                  Visibility="{Binding IsChecked, ElementName=MoreThemesToggle, Converter={StaticResource BoolVis}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,6,0,4">
+                                    <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{DynamicResource Text2Brush}" Margin="2,0,0,8" />
+                                    <ItemsControl ItemsSource="{Binding Themes}" ItemTemplate="{StaticResource ThemeCard}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
                     <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Content="Animaciones (Ctrl+E)" Margin="0,12,0,0"
                               Click="Animations_Click" />
 
@@ -186,6 +245,11 @@
                     </DockPanel>
                     <CheckBox Style="{StaticResource Switch}" Content="Buscar e instalar actualizaciones al abrir Echoplex" Margin="0,12,0,0"
                               IsChecked="{Binding AutoUpdate}" />
+                    <!-- notas de esta versión, las mismas de la release de GitHub -->
+                    <ToggleButton x:Name="ReleaseNotesToggle" Style="{StaticResource DisclosureToggle}" Margin="0,10,0,0" />
+                    <Border x:Name="ReleaseNotesBox" Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="0,6,0,0"
+                            Visibility="{Binding IsChecked, ElementName=ReleaseNotesToggle, Converter={StaticResource BoolVis}}" />
 
                     <!-- ===== Otros ===== -->
                     <TextBlock Text="Otros" Style="{StaticResource SectionTitle}" />

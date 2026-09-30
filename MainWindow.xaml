@@ -1639,11 +1639,19 @@
                                   ToolTip="Temporizador, letra, cola y detalles" Checked="ExtrasToggle_Checked" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" Click="Mini_Click" ToolTip="Mini reproductor (Ctrl+M)" Margin="2,0,0,0" />
                     <!-- el volumen siempre en la barra -->
-                    <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar"
-                            Margin="8,0,0,0" />
+                    <Button x:Name="VolumeButton" Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click"
+                            MouseRightButtonUp="Volume_RightClick" ToolTip="Silenciar · clic derecho: volumen avanzado" Margin="8,0,0,0" />
                     <Slider x:Name="VolumeSlider" Style="{StaticResource ThinSlider}" Width="96" Minimum="0" Maximum="1" Margin="4,0,0,0"
-                            Value="{Binding Player.Volume, Mode=TwoWay}" />
+                            Value="{Binding Player.Volume, Mode=TwoWay}" MouseRightButtonUp="Volume_RightClick" />
                 </StackPanel>
+                <!-- volumen avanzado: clic derecho en el botón o la barra de volumen -->
+                <Popup x:Name="VolumePopup" PlacementTarget="{Binding ElementName=VolumeButton}" Placement="Top" VerticalOffset="-4"
+                       HorizontalOffset="-150" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                    <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+                            CornerRadius="12" Padding="18,14,18,16" Margin="12" Effect="{StaticResource PopupShadow}">
+                        <local:VolumePanel x:Name="VolumeAdvanced" Width="320" />
+                    </Border>
+                </Popup>
                 <Popup x:Name="ExtrasPopup" PlacementTarget="{Binding ElementName=ExtrasToggle}" Placement="Top" VerticalOffset="-6"
                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Closed="ExtrasPopup_Closed">
                     <Border x:Name="ExtrasPopupHost" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}"

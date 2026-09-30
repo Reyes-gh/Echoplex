@@ -85,7 +85,9 @@ public partial class App : Application
     public static void ApplyTheme(string key)
     {
         var dicts = Current.Resources.MergedDictionaries;
-        var uri = new Uri($"pack://application:,,,/Echoplex;component/Themes/Colors.{Themes.Get(key).File}.xaml", UriKind.Absolute);
-        dicts[0] = new ResourceDictionary { Source = uri };
+        var theme = Themes.Get(key);
+        dicts[0] = theme.File is { } file
+            ? new ResourceDictionary { Source = new Uri($"pack://application:,,,/Echoplex;component/Themes/Colors.{file}.xaml", UriKind.Absolute) }
+            : ThemeFactory.Build(theme);
     }
 }

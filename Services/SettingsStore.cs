@@ -22,10 +22,12 @@ public sealed class AppSettings
     public bool AutoRadio { get; set; } = true;
     public bool ExclusiveMode { get; set; }
     public string? ExclusiveDeviceId { get; set; }
-    /// <summary>light, dark, neon, truedark o retro (ver <see cref="Themes"/>).</summary>
+    /// <summary>Clave del tema (ver <see cref="Themes"/>).</summary>
     public string Theme { get; set; } = "light";
     /// <summary>Último tema oscuro elegido: al que vuelve el interruptor claro/oscuro.</summary>
     public string DarkTheme { get; set; } = "dark";
+    /// <summary>Último tema claro elegido: al que vuelve el interruptor desde uno oscuro.</summary>
+    public string LightTheme { get; set; } = "light";
     public bool Animations { get; set; } = true;
     /// <summary>Mostrar y ordenar por el nombre del archivo (sin extensión) en lugar del título de los metadatos.</summary>
     public bool PreferFileName { get; set; }
@@ -113,6 +115,7 @@ public static class SettingsStore
         }
         if (!Themes.All.Any(t => t.Key == s.Theme)) s.Theme = "light";
         if (!Themes.All.Any(t => t.Key == s.DarkTheme && t.IsDark)) s.DarkTheme = "dark";
+        if (!Themes.All.Any(t => t.Key == s.LightTheme && !t.IsDark)) s.LightTheme = "light";
         return s;
     }
 

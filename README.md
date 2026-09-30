@@ -12,7 +12,7 @@
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
-- **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, con animaciones que se pueden desactivar.
+- **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 50 más en *Más temas* (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Actualizaciones automáticas** desde las releases de este repositorio.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
 
@@ -41,15 +41,21 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.0.10`).
-2. Escribe las notas en `.github/notas/1.0.10.md` (si no, se usa la sección `### 1.0.10` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.0.10`** con **`Echoplex-1.0.10-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.1`).
+2. Escribe las notas en `.github/notas/1.1.1.md` (si no, se usa la sección `### 1.1.1` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.1`** con **`Echoplex-1.1.1-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.0
+- **Más temas**: debajo de los cinco de siempre, un desplegable con 50 temas por grupos: editores de código (Dracula, Nord, One Dark, Monokai, Solarized, Gruvbox, Tokyo Night, Catppuccin, Rosé Pine, GitHub…), naturaleza y ambientes (Bosque, Océano, Sakura, Café…), retro y videojuegos (Synthwave '84, Matrix, MS-DOS, Commodore 64, Game Boy, Windows 95…) e intensos y alto contraste.
+- **Volumen avanzado** con clic derecho en el botón o la barra de volumen: lectura con decimales y en dB, tramos (`0–5 | 0–10 | 0–25 | 0–50 | 0–100 %`) para afinar en volúmenes bajos, pasos de 0,1 y 1 puntos, valor exacto, y rueda o flechas con paso proporcional al rango. La rueda sobre la barra pequeña también va más fina por debajo del 25 %.
+- **Ver cambios de la versión** en *Ajustes → Actualizaciones*: las notas de la versión instalada (las de `.github/notas`, incrustadas al compilar).
+- El interruptor claro/oscuro (`Ctrl+D`) vuelve también al último tema **claro** elegido, no siempre al Claro.
 
 ### 1.0.9
 - **Letras de internet (LRCLIB)**, desactivadas por defecto: si una canción no tiene `.lrc` ni letra incrustada, se busca en [lrclib.net](https://lrclib.net), con tiempos por línea para saltar con un clic. Se activa en *Ajustes → Letras* o abajo en la pestaña *Letra* del panel derecho. Solo se envían artista, título, álbum y duración; lo encontrado se guarda en `%LocalAppData%\Echoplex\lyrics` (nunca en la carpeta de música).

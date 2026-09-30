@@ -76,9 +76,13 @@ public partial class MainWindow : Window
         AttachSliderDrag(VolumeSlider, null);
         VolumeSlider.PreviewMouseWheel += (o, e) =>
         {
-            _vm.Player.Volume = Math.Clamp(_vm.Player.Volume + e.Delta / 120.0 * 0.05, 0, 1);
+            // pasos más finos en volúmenes bajos: 0,5 puntos por debajo del 10 %, 1 punto hasta el 25 %, 5 por encima
+            double v = _vm.Player.Volume, up = e.Delta > 0 ? 1 : -1;
+            double step = (up > 0 ? v : v - 1e-6) < 0.1 ? 0.005 : (up > 0 ? v : v - 1e-6) < 0.25 ? 0.01 : 0.05;
+            _vm.Player.Volume = Math.Clamp(Math.Round((v + up * step) / step) * step, 0, 1);
             e.Handled = true;
         };
+        VolumeAdvanced.CloseRequested += () => VolumePopup.IsOpen = false;
 
         // Los menús contextuales de plantillas se conectan aquí (conectarlos en XAML falla con x:Shared="False").
         EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler(AnyMenu_Opened));
@@ -1034,6 +1038,15 @@ public partial class MainWindow : Window
     private void Previous_Click(object sender, RoutedEventArgs e) => _vm.Player.Previous();
     private void Repeat_Click(object sender, RoutedEventArgs e) => _vm.Player.CycleRepeat();
     private void Mute_Click(object sender, RoutedEventArgs e) => _vm.Player.IsMuted = !_vm.Player.IsMuted;
+
+    /// <summary>Clic derecho en el volumen: panel ampliado para afinar (sobre todo en volúmenes bajos).</summary>
+    private void Volume_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        VolumeAdvanced.PrepareToShow();
+        VolumePopup.IsOpen = true;
+        VolumeAdvanced.Focus();
+        e.Handled = true;
+    }
     private void Mini_Click(object sender, RoutedEventArgs e) => ShowMiniPlayer();
     private void NowPlayingCover_Click(object sender, MouseButtonEventArgs e) => _vm.ToggleRightTab("info");
 

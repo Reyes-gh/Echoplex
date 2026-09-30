@@ -1701,8 +1701,8 @@ public sealed partial class MainViewModel : ObservableObject
         SleepText = left.TotalHours >= 1 ? left.ToString(@"h\:mm\:ss") : left.ToString(@"m\:ss");
     }
 
-    /// <summary>Interruptor claro/oscuro: vuelve al último tema oscuro elegido.</summary>
-    public void ToggleTheme() => SetTheme(IsDark ? "light" : Settings.DarkTheme);
+    /// <summary>Interruptor claro/oscuro: vuelve al último tema oscuro (o claro) elegido.</summary>
+    public void ToggleTheme() => SetTheme(IsDark ? Settings.LightTheme : Settings.DarkTheme);
 
     public string ThemeKey => Settings.Theme;
 
@@ -1710,7 +1710,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var theme = Themes.Get(key);
         Settings.Theme = theme.Key;
-        if (theme.IsDark) Settings.DarkTheme = theme.Key;
+        if (theme.IsDark) Settings.DarkTheme = theme.Key; else Settings.LightTheme = theme.Key;
         IsDark = theme.IsDark;
         App.ApplyTheme(theme.Key);
         SettingsStore.Save(Settings);
