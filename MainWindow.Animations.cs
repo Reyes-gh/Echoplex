@@ -563,4 +563,27 @@ public static class Anim
 
     public static bool GetEnabled(DependencyObject d) => (bool)d.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject d, bool value) => d.SetValue(EnabledProperty, value);
+
+    /// <summary>Opacidad que llega con un fundido cada vez que cambia (las líneas de la letra al activarse y pasar).</summary>
+    public static readonly DependencyProperty SmoothOpacityProperty = DependencyProperty.RegisterAttached(
+        "SmoothOpacity", typeof(double), typeof(Anim), new PropertyMetadata(1.0, OnSmoothOpacityChanged));
+
+    public static double GetSmoothOpacity(DependencyObject d) => (double)d.GetValue(SmoothOpacityProperty);
+    public static void SetSmoothOpacity(DependencyObject d, double value) => d.SetValue(SmoothOpacityProperty, value);
+
+    private static readonly IEasingFunction Soft = new SineEase { EasingMode = EasingMode.EaseInOut };
+
+    private static void OnSmoothOpacityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not UIElement el) return;
+        var to = (double)e.NewValue;
+        if (!GetEnabled(el) || el is FrameworkElement { IsLoaded: false })
+        {
+            el.BeginAnimation(UIElement.OpacityProperty, null);
+            el.Opacity = to;
+            return;
+        }
+        // sin From: parte del valor que tenga en ese momento, aunque otro fundido esté a medias
+        el.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(420)) { EasingFunction = Soft });
+    }
 }

@@ -83,6 +83,8 @@ public partial class MainWindow : Window
             e.Handled = true;
         };
         VolumeAdvanced.CloseRequested += () => VolumePopup.IsOpen = false;
+        // si mueves la letra con la rueda, el deslizamiento automático se aparta
+        LyricsScroll.PreviewMouseWheel += (o, e) => StopLyricsGlide();
 
         // Los menús contextuales de plantillas se conectan aquí (conectarlos en XAML falla con x:Shared="False").
         EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler(AnyMenu_Opened));
@@ -281,13 +283,53 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ScrollToActiveLyric()
+    /// <summary>Lleva la línea que suena a un tercio de la altura: deslizándose al cambiar de línea, directo al abrir la pestaña.</summary>
+    private void ScrollToActiveLyric() => ScrollToActiveLyric(smooth: true);
+
+    private void ScrollToActiveLyric(bool smooth)
     {
         if (_vm.ActiveLyric is not { } line || !LyricsScroll.IsVisible) return;
         if (LyricsList.ItemContainerGenerator.ContainerFromItem(line) is not FrameworkElement el) return;
         var pos = el.TransformToAncestor(LyricsScroll).Transform(new Point(0, 0));
-        var target = LyricsScroll.VerticalOffset + pos.Y - LyricsScroll.ViewportHeight * 0.35;
-        LyricsScroll.ScrollToVerticalOffset(Math.Max(0, target));
+        // desde donde está ahora (si hay un deslizamiento a medias, desde su punto actual)
+        var target = Math.Clamp(LyricsScroll.VerticalOffset + pos.Y - LyricsScroll.ViewportHeight * 0.35, 0, LyricsScroll.ScrollableHeight);
+        if (smooth && AnimationsEnabled) GlideLyrics(target);
+        else
+        {
+            StopLyricsGlide();
+            LyricsScroll.ScrollToVerticalOffset(target);
+        }
+    }
+
+    // deslizamiento de la letra: el ScrollViewer no anima su desplazamiento, así que se hace fotograma a fotograma
+    private double _glideFrom, _glideTo;
+    private bool _gliding;
+    private readonly System.Diagnostics.Stopwatch _glideClock = new();
+    private static readonly TimeSpan GlideDuration = TimeSpan.FromMilliseconds(550);
+
+    private void GlideLyrics(double target)
+    {
+        if (Math.Abs(target - LyricsScroll.VerticalOffset) < 0.5) return;
+        _glideFrom = LyricsScroll.VerticalOffset;
+        _glideTo = target;
+        _glideClock.Restart();
+        if (!_gliding) CompositionTarget.Rendering += OnGlideFrame;
+        _gliding = true;
+    }
+
+    private void OnGlideFrame(object? sender, EventArgs e)
+    {
+        double t = Math.Min(1, _glideClock.Elapsed.TotalMilliseconds / GlideDuration.TotalMilliseconds);
+        double eased = 1 - Math.Pow(1 - t, 3); // ease-out: arranca con decisión y se posa suave
+        LyricsScroll.ScrollToVerticalOffset(_glideFrom + (_glideTo - _glideFrom) * eased);
+        if (t >= 1) StopLyricsGlide();
+    }
+
+    private void StopLyricsGlide()
+    {
+        if (!_gliding) return;
+        CompositionTarget.Rendering -= OnGlideFrame;
+        _gliding = false;
     }
 
     private static string FormatTime(double seconds) =>
@@ -997,7 +1039,7 @@ public partial class MainWindow : Window
     private void Tab_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { CommandParameter: string tab }) _vm.RightTab = tab;
-        if (_vm.RightTab == "lyrics") Dispatcher.BeginInvoke(DispatcherPriority.Loaded, ScrollToActiveLyric);
+        if (_vm.RightTab == "lyrics") Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ScrollToActiveLyric(smooth: false));
     }
 
     private void CloseRight_Click(object sender, RoutedEventArgs e) => _vm.ShowRightPanel = false;
@@ -1007,7 +1049,7 @@ public partial class MainWindow : Window
     private void LyricsToggle_Click(object sender, RoutedEventArgs e)
     {
         _vm.ToggleRightTab("lyrics");
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, ScrollToActiveLyric);
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => ScrollToActiveLyric(smooth: false));
     }
 
     private void UpNext_Click(object sender, MouseButtonEventArgs e)
@@ -1026,8 +1068,23 @@ public partial class MainWindow : Window
 
     private void Lyric_Click(object sender, MouseButtonEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is LyricLine { Time: { } t }) _vm.Player.Seek(t.TotalSeconds);
+        // con desfase, se salta al momento en que esa línea se ilumina
+        if ((sender as FrameworkElement)?.DataContext is LyricLine { Time: { } t }) _vm.Player.Seek(Math.Max(0, t.TotalSeconds - _vm.LyricsOffset));
     }
+
+    private void LyricsOffset_Click(object sender, RoutedEventArgs e)
+    {
+        double sign = double.Parse((string)((FrameworkElement)sender).Tag, System.Globalization.CultureInfo.InvariantCulture);
+        _vm.NudgeLyricsOffset(sign * (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 0.5 : 0.1));
+    }
+
+    private void LyricsOffset_Wheel(object sender, MouseWheelEventArgs e)
+    {
+        _vm.NudgeLyricsOffset(Math.Sign(e.Delta) * (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? 0.5 : 0.1));
+        e.Handled = true;
+    }
+
+    private void LyricsOffsetReset_Click(object sender, RoutedEventArgs e) => _vm.SetLyricsOffset(0);
 
     // ======================================================================
     // Barra de reproducción

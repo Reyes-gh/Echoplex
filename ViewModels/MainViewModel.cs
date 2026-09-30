@@ -1460,9 +1460,36 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Desfase de la letra de la canción que suena, en segundos: positivo = la letra va antes (para letras que llegan
+    /// tarde), negativo = después. Se guarda por canción.
+    /// </summary>
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(LyricsOffsetText), nameof(HasLyricsOffset))] private double _lyricsOffset;
+
+    public bool HasLyricsOffset => Math.Abs(LyricsOffset) >= 0.005;
+
+    public string LyricsOffsetText => !HasLyricsOffset
+        ? "0,0 s"
+        : (LyricsOffset > 0 ? "+" : "−") + Math.Abs(LyricsOffset).ToString("0.0", Es) + " s";
+
+    partial void OnLyricsOffsetChanged(double value) => UpdateActiveLyric();
+
+    public void NudgeLyricsOffset(double seconds) => SetLyricsOffset(LyricsOffset + seconds);
+
+    public void SetLyricsOffset(double seconds)
+    {
+        if (Player.Current is not { } song) return;
+        LyricsOffset = Math.Round(Math.Clamp(seconds, -30, 30), 2);
+        Settings.LyricOffsets ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        if (Math.Abs(LyricsOffset) < 0.005) Settings.LyricOffsets.Remove(song.Path);
+        else Settings.LyricOffsets[song.Path] = LyricsOffset;
+        SettingsStore.Save(Settings);
+    }
+
     private async Task LoadLyricsAsync(Song song)
     {
         int ver = ++_lyricsVersion;
+        LyricsOffset = Settings.LyricOffsets?.GetValueOrDefault(song.Path) ?? 0;
         var lines = await Task.Run(() => LyricsService.Load(song));
         if (ver != _lyricsVersion) return;
         ShowLyrics(lines, online: false);
@@ -1498,7 +1525,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateActiveLyric()
     {
         if (!LyricsSynced || Lyrics.Count == 0) return;
-        var pos = TimeSpan.FromSeconds(Player.Position + 0.25);
+        var pos = TimeSpan.FromSeconds(Player.Position + 0.25 + LyricsOffset);
         int lo = 0, hi = Lyrics.Count - 1, found = -1;
         while (lo <= hi)
         {

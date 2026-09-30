@@ -452,6 +452,9 @@ public sealed partial class LyricLine : ObservableObject
     public TimeSpan? Time { get; }
     public string Text { get; }
 
-    [ObservableProperty] private bool _isActive;
-    [ObservableProperty] private bool _isPast;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(Emphasis))] private bool _isActive;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(Emphasis))] private bool _isPast;
+
+    /// <summary>Opacidad de la línea: la que suena entera, las ya cantadas a medias, las que vienen más apagadas.</summary>
+    public double Emphasis => IsActive ? 1 : IsPast ? 0.55 : 0.4;
 }

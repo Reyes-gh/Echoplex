@@ -38,12 +38,17 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
     private bool _loading;
     /// <summary>Si la carga en curso debe empezar a sonar al terminar (play/pausa durante la carga).</summary>
     private bool _autoplayPending;
+    /// <summary>Canción preparada en la salida para enlazar sin pausa, o null.</summary>
+    private Song? _gaplessNext;
+    /// <summary>Segundos antes del final en los que se abre la siguiente (margen para OneDrive o discos lentos).</summary>
+    private const double PrepareAheadSeconds = 12;
 
     public PlayerService(Dispatcher ui)
     {
         _ui = ui;
         _out = new AudioOutput(ui);
         _out.Ended += OnEnded;
+        _out.Advanced += OnGaplessAdvanced;
         _out.Failed += OnFailed;
         _out.PlayingChanged += playing =>
         {
@@ -153,6 +158,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         UpdateUpNext();
     }
     partial void OnRepeatChanged(RepeatMode value) => UpdateUpNext();
+    partial void OnStopAfterCurrentChanged(bool value) => CheckGapless();
     partial void OnExclusiveModeChanged(bool value) => Reroute();
     partial void OnExclusiveDeviceIdChanged(string? value)
     {
@@ -444,6 +450,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         _loading = true;
         _autoplayPending = autoplay;
         _needsLoad = false;
+        _gaplessNext = null; // la carga cierra también la pista preparada
         _listenedThisLoad = 0;
         _countedThisLoad = false;
         SetCurrent(song);
@@ -553,6 +560,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         if (_out.Duration > TimeSpan.Zero) Duration = _out.Duration.TotalSeconds;
 
         if (!IsPlaying || delta > 2) return;
+        PrepareGapless();
         _listenedThisLoad += delta;
         Listened?.Invoke(Current, delta);
         if (!_countedThisLoad && (_listenedThisLoad >= CountAfterSeconds || (Duration > 0 && _listenedThisLoad >= Duration * 0.5)))
@@ -560,6 +568,78 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
             _countedThisLoad = true;
             PlayCounted?.Invoke(Current);
         }
+    }
+
+    // ---------- sin pausas entre canciones ----------
+
+    /// <summary>
+    /// La canción que sonaría al acabar la actual, sin tocar nada; null si no se sabe de antemano
+    /// (parar al acabar, fin de la lista con radio o aleatorio, que se decide en ese momento).
+    /// </summary>
+    private Song? PeekNextAuto()
+    {
+        if (StopAfterCurrent || Current == null) return null;
+        if (Repeat == RepeatMode.One) return Current;
+        if (_userQueue.Count > 0) return _userQueue[0];
+        if (_pos + 1 < _order.Count) return _context[_order[_pos + 1]];
+        if (Repeat == RepeatMode.All && !Shuffle && _order.Count > 0) return _context[_order[0]];
+        return null;
+    }
+
+    /// <summary>En los últimos segundos de la canción, deja abierta la siguiente en la salida.</summary>
+    private void PrepareGapless()
+    {
+        if (_loading || _needsLoad || !_out.IsLoaded || Duration <= 0 || Duration - Position > PrepareAheadSeconds) return;
+        var next = PeekNextAuto();
+        if (next == null || next == _gaplessNext) return;
+        _gaplessNext = next; // aunque no se pueda (otro formato), no se reintenta en cada tic
+        int ver = _loadVersion;
+        _ = Task.Run(async () =>
+        {
+            bool ok;
+            try { ok = await _out.PrepareNextAsync(next.Path, next); } catch { ok = false; }
+            // si mientras se abría cambió la canción o la siguiente, se descarta
+            _ = _ui.BeginInvoke(() =>
+            {
+                if (ok && (ver != _loadVersion || _gaplessNext != next)) _out.CancelNext();
+            });
+        });
+    }
+
+    /// <summary>Si la siguiente ya no es la preparada (cola, aleatorio, repetición, parar al acabar…), se descarta.</summary>
+    private void CheckGapless()
+    {
+        if (_gaplessNext == null || PeekNextAuto() == _gaplessNext) return;
+        _gaplessNext = null;
+        _out.CancelNext();
+    }
+
+    /// <summary>La salida enlazó sin pausa con la canción preparada: se avanza la cola como al pasar de canción.</summary>
+    private void OnGaplessAdvanced(object tag)
+    {
+        if (tag is not Song song) return;
+        _gaplessNext = null;
+        if (!(Repeat == RepeatMode.One && song == Current))
+        {
+            if (_userQueue.Count > 0 && _userQueue[0] == song) _userQueue.RemoveAt(0);
+            else if (_pos + 1 < _order.Count && _context[_order[_pos + 1]] == song) _pos++;
+            else if (Repeat == RepeatMode.All && _order.Count > 0 && _context[_order[0]] == song) _pos = 0;
+        }
+        int ver = ++_loadVersion;
+        _listenedThisLoad = 0;
+        _countedThisLoad = false;
+        _failures = 0;
+        SetCurrent(song);
+        Position = 0;
+        if (_out.Duration > TimeSpan.Zero)
+        {
+            Duration = _out.Duration.TotalSeconds;
+            song.Duration ??= _out.Duration;
+        }
+        else Duration = song.Duration?.TotalSeconds ?? 0;
+        UpdateUpNext();
+        SongOpened?.Invoke(song);
+        _ = UpdateSystemControlsAsync(song, ver);
     }
 
     private void OnEnded()
@@ -607,6 +687,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         if (Repeat == RepeatMode.All && !Shuffle)
             for (int i = 0; i < _pos && ContextNext.Count < 50; i++)
                 ContextNext.Add(_context[_order[i]]);
+        CheckGapless();
     }
 
     private static void Log(string text)

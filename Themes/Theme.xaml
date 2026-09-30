@@ -816,12 +816,12 @@
         <Setter Property="Focusable" Value="False" />
         <Setter Property="Width" Value="20" />
         <Setter Property="Height" Value="20" />
-        <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
                     <Border x:Name="Bd" Background="Transparent" CornerRadius="4">
-                        <TextBlock x:Name="Chev" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="9"
+                        <TextBlock x:Name="Chev" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="11.5" FontWeight="Bold"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5" />
                     </Border>
                     <ControlTemplate.Triggers>

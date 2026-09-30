@@ -37,6 +37,10 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     private volatile bool _seeking;
     private TimeSpan _seekTarget;
     private int _seekVersion;
+    // siguiente pista ya abierta (sin pausas entre canciones): la lectura de audio salta a ella al acabar la actual
+    private WaveStream? _nextReader;
+    private Func<WaveStream>? _nextOpen;
+    private object? _nextTag;
 
     public AudioOutput(Dispatcher ui)
     {
@@ -45,6 +49,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     }
 
     public event Action? Ended;
+    /// <summary>La salida enlazó sin pausa con la pista preparada (su etiqueta); la anterior ya terminó.</summary>
+    public event Action<object>? Advanced;
     public event Action<string>? Failed;
     public event Action<bool>? PlayingChanged;
     /// <summary>El dispositivo desapareció (p. ej. se apagaron los cascos Bluetooth).</summary>
@@ -101,11 +107,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             return exclusive ? "el dispositivo elegido ya no está disponible" : "no hay ninguna salida de audio activa";
         }
 
-        WaveStream Open()
-        {
-            var clean = path.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ? FlacSanitizer.TryOpen(path) : null;
-            return clean != null ? new StreamMediaFoundationReader(clean) : new MediaFoundationReader(path);
-        }
+        WaveStream Open() => OpenFile(path);
 
         WaveStream reader;
         try
@@ -168,6 +170,79 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         return $"«{device.FriendlyName}» no admite {srcText} en exclusivo";
     });
 
+    private static WaveStream OpenFile(string path)
+    {
+        var clean = path.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ? FlacSanitizer.TryOpen(path) : null;
+        return clean != null ? new StreamMediaFoundationReader(clean) : new MediaFoundationReader(path);
+    }
+
+    private static bool SameFormat(WaveFormat a, WaveFormat b) =>
+        a.Encoding == b.Encoding && a.SampleRate == b.SampleRate && a.Channels == b.Channels && a.BitsPerSample == b.BitsPerSample;
+
+    /// <summary>
+    /// Abre ya la siguiente pista para enlazarla sin pausa cuando acabe la actual. Solo si decodifica al mismo
+    /// formato (frecuencia, bits, canales): la salida sigue abierta con el formato de la primera y en bit a bit no
+    /// se puede convertir sin perder la fidelidad. Devuelve false si no se puede (se cambiará de pista como siempre).
+    /// </summary>
+    public Task<bool> PrepareNextAsync(string path, object tag) => Task.Run(() =>
+    {
+        WaveFormat? current;
+        lock (_lock) current = _reader?.WaveFormat;
+        if (current == null) return false;
+        WaveStream next;
+        try
+        {
+            next = OpenFile(path);
+        }
+        catch
+        {
+            return false;
+        }
+        lock (_lock)
+        {
+            if (_reader == null || !SameFormat(next.WaveFormat, _reader.WaveFormat))
+            {
+                next.Dispose();
+                return false;
+            }
+            _nextReader?.Dispose();
+            _nextReader = next;
+            _nextOpen = () => OpenFile(path);
+            _nextTag = tag;
+        }
+        return true;
+    });
+
+    /// <summary>Descarta la pista preparada (cambió la cola, el orden, la repetición…).</summary>
+    public void CancelNext()
+    {
+        lock (_lock)
+        {
+            _nextReader?.Dispose();
+            _nextReader = null;
+            _nextOpen = null;
+            _nextTag = null;
+        }
+    }
+
+    /// <summary>Desde la lectura de audio, con el cerrojo tomado: la actual se acabó; pasa a la preparada si la hay.</summary>
+    private WaveStream? TakeNext()
+    {
+        if (_nextReader == null) return null;
+        var old = _reader;
+        var tag = _nextTag!;
+        _reader = _nextReader;
+        _open = _nextOpen;
+        _nextReader = null;
+        _nextOpen = null;
+        _nextTag = null;
+        Interlocked.Increment(ref _seekVersion);
+        _seeking = false;
+        old?.Dispose();
+        _ui.BeginInvoke(() => Advanced?.Invoke(tag));
+        return _reader;
+    }
+
     private void Commit(WaveStream reader, MMDevice device, WaveFormat format, bool exclusive)
     {
         lock (_lock)
@@ -175,7 +250,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _reader = reader;
             _device = device;
             _exclusive = exclusive;
-            _provider = new PcmProvider(reader, format, _lock);
+            _provider = new PcmProvider(reader, format, _lock, TakeNext);
         }
         try { _deviceName = device.FriendlyName; } catch { _deviceName = "dispositivo de audio"; }
     }
@@ -308,6 +383,10 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _reader = null;
             _provider = null;
             _open = null;
+            _nextReader?.Dispose();
+            _nextReader = null;
+            _nextOpen = null;
+            _nextTag = null;
         }
         FormatText = "";
     }
@@ -381,19 +460,24 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         }
     }
 
-    /// <summary>Entrega el PCM tal cual o alineado a un contenedor más ancho (relleno con ceros).</summary>
+    /// <summary>
+    /// Entrega el PCM tal cual o alineado a un contenedor más ancho (relleno con ceros). Al acabarse el lector,
+    /// sigue en la misma lectura con la pista preparada: la salida no se entera y no hay pausa entre canciones.
+    /// </summary>
     private sealed class PcmProvider : IWaveProvider
     {
         private WaveStream _source;
         private readonly object _lock;
+        private readonly Func<WaveStream?> _takeNext;
         private readonly int _inBytes;
         private readonly int _outBytes;
         private byte[] _buffer = Array.Empty<byte>();
 
-        public PcmProvider(WaveStream source, WaveFormat target, object sync)
+        public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext)
         {
             _source = source;
             _lock = sync;
+            _takeNext = takeNext;
             WaveFormat = target;
             _inBytes = source.WaveFormat.BitsPerSample / 8;
             _outBytes = target.BitsPerSample / 8;
@@ -407,6 +491,19 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         public int Read(byte[] buffer, int offset, int count)
         {
             lock (_lock)
+            {
+                int n = ReadSource(buffer, offset, count);
+                if (n == 0 && _takeNext() is { } next)
+                {
+                    _source = next;
+                    n = ReadSource(buffer, offset, count);
+                }
+                return n;
+            }
+        }
+
+        private int ReadSource(byte[] buffer, int offset, int count)
+        {
             {
                 if (_inBytes == _outBytes) return _source.Read(buffer, offset, count);
 

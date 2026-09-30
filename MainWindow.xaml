@@ -1437,10 +1437,29 @@
                         <DockPanel Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=lyrics}">
                         <!-- letras de internet (LRCLIB): siempre a mano, desactivado de serie -->
                         <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="16,10,12,10">
-                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}" FontSize="13"
-                                      ToolTip="Busca en lrclib.net las letras que no tengan tus archivos (solo envía artista, título, álbum y duración)">
-                                <TextBlock Text="Buscar letras en internet (LRCLIB)" TextWrapping="Wrap" />
-                            </CheckBox>
+                            <StackPanel>
+                                <!-- desfase de la letra de esta canción (solo con letra sincronizada); se guarda por canción -->
+                                <DockPanel Margin="0,0,0,10" Visibility="{Binding LyricsSynced, Converter={StaticResource BoolVis}}"
+                                           ToolTip="Desfase de la letra de esta canción. +: la letra va antes · −: va después. Mayús: pasos de 0,5 s">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Style="{StaticResource SecondaryButton}" Height="26" Padding="9,0" FontSize="13" Content="−" Tag="-1"
+                                                Click="LyricsOffset_Click" />
+                                        <TextBlock Text="{Binding LyricsOffsetText}" FontFamily="Consolas, Segoe UI" FontSize="13" MinWidth="54"
+                                                   TextAlignment="Center" VerticalAlignment="Center" Background="Transparent"
+                                                   MouseWheel="LyricsOffset_Wheel" />
+                                        <Button Style="{StaticResource SecondaryButton}" Height="26" Padding="9,0" FontSize="13" Content="+" Tag="1"
+                                                Click="LyricsOffset_Click" />
+                                        <Button Style="{StaticResource IconButton}" Content="&#xE777;" FontSize="12" Margin="4,0,0,0" Click="LyricsOffsetReset_Click"
+                                                ToolTip="Quitar el desfase" Visibility="{Binding HasLyricsOffset, Converter={StaticResource BoolVis}}" />
+                                    </StackPanel>
+                                    <TextBlock Text="Desfase" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}" FontSize="13"
+                                          ToolTip="Busca en lrclib.net las letras que no tengan tus archivos (solo envía artista, título, álbum y duración)">
+                                    <TextBlock Text="Buscar letras en internet (LRCLIB)" TextWrapping="Wrap" />
+                                </CheckBox>
+                            </StackPanel>
                         </Border>
                         <Grid>
                             <ScrollViewer x:Name="LyricsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
@@ -1449,22 +1468,26 @@
                                 <ItemsControl x:Name="LyricsList" ItemsSource="{Binding Lyrics}" Margin="20,24,20,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:LyricLine}">
-                                            <TextBlock x:Name="L" Text="{Binding Text}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"
-                                                       Foreground="{DynamicResource Text3Brush}" Cursor="Hand" MouseLeftButtonUp="Lyric_Click" />
-                                            <DataTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsPast}" Value="True">
-                                                    <Setter TargetName="L" Property="Foreground" Value="{DynamicResource Text2Brush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                    <Setter TargetName="L" Property="Foreground" Value="{DynamicResource TextBrush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding DataContext.LyricsSynced, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
-                                                    <Setter TargetName="L" Property="Foreground" Value="{DynamicResource TextBrush}" />
-                                                    <Setter TargetName="L" Property="FontSize" Value="16" />
-                                                    <Setter TargetName="L" Property="FontWeight" Value="Normal" />
-                                                    <Setter TargetName="L" Property="Cursor" Value="Arrow" />
-                                                </DataTrigger>
-                                            </DataTemplate.Triggers>
+                                            <!-- la línea que suena se ilumina con un fundido; las cantadas y las que vienen, más apagadas -->
+                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,5" Foreground="{DynamicResource TextBrush}"
+                                                       MouseLeftButtonUp="Lyric_Click">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="FontSize" Value="20" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                        <Setter Property="Cursor" Value="Hand" />
+                                                        <Setter Property="local:Anim.SmoothOpacity" Value="{Binding Emphasis}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.LyricsSynced, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                                <Setter Property="local:Anim.SmoothOpacity" Value="1" />
+                                                                <Setter Property="FontSize" Value="16" />
+                                                                <Setter Property="FontWeight" Value="Normal" />
+                                                                <Setter Property="Cursor" Value="Arrow" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>

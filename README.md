@@ -41,15 +41,21 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.1`).
-2. Escribe las notas en `.github/notas/1.1.1.md` (si no, se usa la sección `### 1.1.1` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.1`** con **`Echoplex-1.1.1-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.2`).
+2. Escribe las notas en `.github/notas/1.1.2.md` (si no, se usa la sección `### 1.1.2` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.2`** con **`Echoplex-1.1.2-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.1
+- **Sin pausas entre canciones** (gapless): la siguiente se abre unos segundos antes y la salida enlaza una con otra sin detenerse, si comparten formato (lo normal en un álbum). También en *Bit a bit*.
+- **Letra más suave**: se desliza hasta la línea nueva y la que suena se ilumina con un fundido.
+- **Desfase de la letra por canción** (pestaña *Letra*, abajo): adelantar o retrasar la letra en pasos de 0,1 s; se guarda para cada canción.
+- **Flechas del árbol de carpetas** más visibles.
 
 ### 1.1.0
 - **Más temas**: debajo de los cinco de siempre, un desplegable con 50 temas por grupos: editores de código (Dracula, Nord, One Dark, Monokai, Solarized, Gruvbox, Tokyo Night, Catppuccin, Rosé Pine, GitHub…), naturaleza y ambientes (Bosque, Océano, Sakura, Café…), retro y videojuegos (Synthwave '84, Matrix, MS-DOS, Commodore 64, Game Boy, Windows 95…) e intensos y alto contraste.

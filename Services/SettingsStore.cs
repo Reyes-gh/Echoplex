@@ -38,6 +38,8 @@ public sealed class AppSettings
     public Dictionary<string, bool>? FolderFileNames { get; set; }
     /// <summary>Carátulas elegidas por el usuario: ruta completa de la carpeta → nombre del archivo en %LocalAppData%\Echoplex\covers.</summary>
     public Dictionary<string, string>? CustomCovers { get; set; }
+    /// <summary>Desfase de la letra por canción (ruta completa → segundos; positivo = la letra va antes).</summary>
+    public Dictionary<string, double>? LyricOffsets { get; set; }
     /// <summary>Portada de la cabecera en grande (se activa y desactiva con un clic en la portada pequeña).</summary>
     public bool ShowBigCover { get; set; }
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
@@ -116,6 +118,7 @@ public static class SettingsStore
         if (!Themes.All.Any(t => t.Key == s.Theme)) s.Theme = "light";
         if (!Themes.All.Any(t => t.Key == s.DarkTheme && t.IsDark)) s.DarkTheme = "dark";
         if (!Themes.All.Any(t => t.Key == s.LightTheme && !t.IsDark)) s.LightTheme = "light";
+        if (s.LyricOffsets != null) s.LyricOffsets = new Dictionary<string, double>(s.LyricOffsets, StringComparer.OrdinalIgnoreCase);
         return s;
     }
 
