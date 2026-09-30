@@ -373,7 +373,7 @@
                         <!-- entra girando y rebotando (HeaderCover_VisibleChanged) y lanza un destello de la portada -->
                         <Border x:Name="HeaderCover" Width="124" Height="124" CornerRadius="6" BorderThickness="3" Cursor="Hand"
                                 BorderBrush="{DynamicResource BgBrush}" Effect="{StaticResource SoftShadow}" RenderTransformOrigin="0.5,0.5"
-                                IsVisibleChanged="HeaderCover_VisibleChanged" MouseLeftButtonUp="HeaderCover_Click"
+                                IsVisibleChanged="HeaderCover_VisibleChanged" MouseLeftButtonUp="HeaderCover_Click" MouseRightButtonUp="HeaderCover_RightClick"
                                 ToolTip="Ver la portada en grande">
                             <Border.Background>
                                 <ImageBrush ImageSource="{Binding Page.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -393,8 +393,36 @@
                             </TextBlock.RenderTransform>
                         </TextBlock>
                     </StackPanel>
-                    <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="60" Foreground="{DynamicResource Text3Brush}"
-                               Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}" />
+                    <!-- sin carátula: el icono de la página; en carpetas y álbumes, un recuadro con "+" para poner una a mano -->
+                    <Grid HorizontalAlignment="Left" Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}">
+                        <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="60" Foreground="{DynamicResource Text3Brush}"
+                                   Visibility="{Binding Page.CanSetCover, Converter={StaticResource InvBoolVis}}" />
+                        <Button Click="PageAddCover_Click" Cursor="Hand" ToolTip="Poner una carátula"
+                                Visibility="{Binding Page.CanSetCover, Converter={StaticResource BoolVis}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Box" Width="124" Height="124" CornerRadius="8" BorderThickness="1.5"
+                                            Background="{DynamicResource PlaceholderBrush}" BorderBrush="{DynamicResource CardBorderBrush}">
+                                        <Grid>
+                                            <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="46"
+                                                       Foreground="{DynamicResource Text3Brush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Border x:Name="Plus" Width="34" Height="34" CornerRadius="17" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                    Margin="0,0,8,8" Background="{DynamicResource AccentBrush}">
+                                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource OnAccentBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                            <Setter TargetName="Plus" Property="Background" Value="{DynamicResource AccentHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
 
                     <TextBlock Text="{Binding Page.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="40" FontWeight="Bold"
                                TextWrapping="Wrap" Margin="0,18,0,4" />
@@ -458,6 +486,11 @@
                         <Button Style="{StaticResource SecondaryButton}" Click="PageMore_Click" Margin="0,0,8,8" Width="32" Padding="0" ToolTip="Más opciones">
                             <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                         </Button>
+                        <!-- títulos de esta carpeta (y sus subcarpetas): nombre del archivo o metadatos -->
+                        <CheckBox Style="{StaticResource Switch}" Content="Nombres fichero" FontSize="14" Margin="10,0,0,8" VerticalAlignment="Center"
+                                  IsChecked="{Binding Page.FileNamesOn, Mode=OneWay}" Click="PageFileNames_Click"
+                                  Visibility="{Binding Page.IsRealFolder, Converter={StaticResource BoolVis}}"
+                                  ToolTip="Títulos por nombre de archivo en esta carpeta y sus subcarpetas (en vez de los metadatos)" />
                     </WrapPanel>
                 </StackPanel>
                 </Grid>
@@ -1019,6 +1052,21 @@
             </DataTemplate.Triggers>
         </DataTemplate>
 
+        <!-- valor de una fila de Detalles: a la derecha de la etiqueta o, con el panel estrecho, debajo -->
+        <Style x:Key="DetailValue" TargetType="TextBlock">
+            <Setter Property="Grid.Column" Value="2" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.DetailsCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Grid.Row" Value="1" />
+                    <Setter Property="Grid.Column" Value="1" />
+                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                    <Setter Property="Margin" Value="0,1,0,8" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="PanelLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -1046,10 +1094,19 @@
                     <Button DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="50" Margin="6,8,6,4" Click="Workspace_Click"
                             ToolTip="Tema claro/oscuro, atajos y ajustes">
                         <DockPanel>
-                            <Border DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="7" Background="{DynamicResource TextBrush}">
-                                <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource BgBrush}"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
+                            <!-- logo de Echoplex: invertido (claro) en los temas oscuros, el original en el claro -->
+                            <Image DockPanel.Dock="Left" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Source" Value="pack://application:,,,/Echoplex;component/Assets/echoplex-logo.png" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDark}" Value="True">
+                                                <Setter Property="Source" Value="pack://application:,,,/Echoplex;component/Assets/echoplex-logo-light.png" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
                             <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="10"
                                        Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" />
                             <TextBlock Text="Echoplex" FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="12,0,0,0"
@@ -1438,11 +1495,15 @@
                                                     <ColumnDefinition Width="108" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
                                                 <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="13"
                                                            Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Label}" Foreground="{DynamicResource Text2Brush}" FontSize="13"
                                                            VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="{Binding Value}" FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding Value}" Style="{StaticResource DetailValue}" />
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -1453,10 +1514,14 @@
                                         <ColumnDefinition Width="108" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <TextBlock Text="&#xE9D9;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{DynamicResource Text3Brush}"
                                                VerticalAlignment="Center" />
                                     <TextBlock Grid.Column="1" Text="Salida" Foreground="{DynamicResource Text2Brush}" FontSize="13" VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2" Text="{Binding Player.OutputInfo}" FontSize="13" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding Player.OutputInfo}" Style="{StaticResource DetailValue}" />
                                 </Grid>
                                 <TextBlock Text="Reproduce algo para ver sus detalles." Foreground="{DynamicResource Text2Brush}"
                                            Visibility="{Binding Player.Current, Converter={StaticResource NullVis}, ConverterParameter=invert}" />

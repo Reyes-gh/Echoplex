@@ -139,6 +139,16 @@ public sealed partial class SongListPage : PageBase
 
     public string? Description { get; init; }
     public string? FolderPath { get; init; }
+
+    /// <summary>Carpeta a la que pertenece la carátula de la cabecera (carpeta o álbum): se le puede poner una a mano.</summary>
+    public string? CoverFolder { get; init; }
+    public bool CanSetCover => CoverFolder != null;
+
+    /// <summary>Carpeta real (no "Toda tu música"): lleva el interruptor "Nombres fichero".</summary>
+    public bool IsRealFolder => FolderPath != null && FolderPath != Services.LibraryService.AllKey;
+
+    /// <summary>Esta carpeta muestra nombres de fichero (propio o heredado del padre / ajuste general).</summary>
+    [ObservableProperty] private bool _fileNamesOn;
     public Playlist? Playlist { get; init; }
     public string? AlbumKey { get; init; }
     public string? ArtistName { get; init; }

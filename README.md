@@ -49,6 +49,12 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 
 ## Versiones
 
+### 1.0.8
+- **Nombres de fichero por carpeta**: además del ajuste general, cada carpeta puede usar nombres de fichero o metadatos. Clic derecho en la carpeta del árbol, o el interruptor **Nombres fichero** junto a `…` en su página. Lo que se fija en una carpeta lo siguen todas sus subcarpetas; *Títulos: seguir el ajuste general* quita la excepción. Se guarda por ruta completa.
+- **Logo de Echoplex** arriba a la izquierda (invertido en los temas oscuros).
+- **Detalles** con el panel derecho estrecho: cada dato en una sola columna (etiqueta arriba, valor debajo).
+- **Carátulas a mano**: las carpetas y álbumes sin carátula muestran un recuadro con «+» para elegir una imagen; clic derecho en la carátula o en la carpeta del árbol para cambiarla o quitarla. Se guardan en `%LocalAppData%\Echoplex\covers`, sin tocar las carpetas de música.
+
 ### 1.0.7
 - **Títulos por nombre de archivo**: nueva opción en Ajustes para mostrar el nombre del archivo (sin extensión) en lugar del título de los metadatos y ordenar por él; los álbumes siguen entonces el orden de los archivos.
 - **Portada en grande con un clic**: clic en la portada de la cabecera para verla en grande a la derecha; se queda en todas las páginas hasta otro clic.

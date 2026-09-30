@@ -36,8 +36,8 @@ public sealed partial class MainViewModel : ObservableObject
         _ui = ui;
         Settings = SettingsStore.Load();
         _cache = new MetadataCache(Path.Combine(SettingsStore.DataDirectory, "metadata.json"));
-        Song.PreferFileName = Settings.PreferFileName; // antes de cargar: decide títulos y orden de los álbumes
         Library = new LibraryService(Settings.MusicRoots);
+        Covers.SetCustomCovers(CustomCoverMap());
         UserData = new UserDataService();
 
         Player = new PlayerService(ui)
@@ -109,6 +109,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string? _sleepText;
     [ObservableProperty] private bool _isDark;
     [ObservableProperty] private bool _animationsOn;
+    /// <summary>Panel derecho estrecho: en Detalles, el valor va debajo de la etiqueta.</summary>
+    [ObservableProperty] private bool _detailsCompact;
     [ObservableProperty] private bool _hasLyrics;
     [ObservableProperty] private bool _lyricsSynced;
     [ObservableProperty] private LyricLine? _activeLyric;
@@ -391,6 +393,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         foreach (var path in UserData.Favorites)
             if (Library.Find(path) is { } s) s.IsFavorite = true;
+        ApplyTitleModes(refreshPage: false);
 
         // una raíz por carpeta de música, cada una con sus subcarpetas
         Folders.Clear();
@@ -678,6 +681,8 @@ public sealed partial class MainViewModel : ObservableObject
             GroupByFolder = hasChildren,
             GroupRoot = path,
             BaseProperties = props,
+            FileNamesOn = !isAll && UsesFileNames(path),
+            CoverFolder = isAll ? null : path,
         };
         if (replace) ReplacePage(page); else Navigate(page);
         _ = LoadFolderCoverAsync(page, path, children, all.FirstOrDefault());
@@ -783,6 +788,7 @@ public sealed partial class MainViewModel : ObservableObject
             Breadcrumb = "Álbumes / " + album.Name,
             AlbumKey = key,
             FolderPath = null,
+            CoverFolder = album.Directory,
             BaseProperties =
             {
                 new PropertyItem("", "Tipo", "Álbum"),
@@ -1651,6 +1657,97 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeChanged?.Invoke();
     }
 
+    // ======================================================================
+    // Carátulas personalizadas (se guardan en %LocalAppData%\Echoplex\covers, nunca en la carpeta de música)
+    // ======================================================================
+
+    private static string CustomCoversDir => Path.Combine(SettingsStore.DataDirectory, "covers");
+
+    /// <summary>Carpeta → ruta completa de su carátula personalizada.</summary>
+    private Dictionary<string, string> CustomCoverMap() =>
+        (Settings.CustomCovers ?? new()).ToDictionary(kv => kv.Key, kv => Path.Combine(CustomCoversDir, kv.Value), StringComparer.OrdinalIgnoreCase);
+
+    public bool HasCustomCover(string folder) => Covers.HasCustomCover(folder);
+
+    /// <summary>Pone <paramref name="imageFile"/> como carátula de la carpeta (se copia a la carpeta de datos de Echoplex).</summary>
+    public async Task SetCustomCoverAsync(string folder, string imageFile)
+    {
+        string? stored = null;
+        try
+        {
+            stored = await Task.Run(() =>
+            {
+                // que sea una imagen que se pueda leer
+                var probe = new BitmapImage();
+                probe.BeginInit();
+                probe.CacheOption = BitmapCacheOption.OnLoad;
+                probe.StreamSource = new MemoryStream(File.ReadAllBytes(imageFile));
+                probe.DecodePixelWidth = 16;
+                probe.EndInit();
+
+                Directory.CreateDirectory(CustomCoversDir);
+                var id = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(folder.ToLowerInvariant())))[..16];
+                // nombre nuevo cada vez: así no se reutiliza una versión antigua en caché
+                var name = $"{id}-{DateTime.UtcNow.Ticks}{Path.GetExtension(imageFile).ToLowerInvariant()}";
+                File.Copy(imageFile, Path.Combine(CustomCoversDir, name));
+                return name;
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowToast("No se pudo usar esa imagen: " + ex.Message, 5);
+            return;
+        }
+        var map = Settings.CustomCovers is { } m ? new Dictionary<string, string>(m, StringComparer.OrdinalIgnoreCase) : new(StringComparer.OrdinalIgnoreCase);
+        if (map.TryGetValue(folder, out var old)) TryDelete(Path.Combine(CustomCoversDir, old));
+        map[folder] = stored;
+        Settings.CustomCovers = map;
+        SettingsStore.Save(Settings);
+        Covers.SetCustomCovers(CustomCoverMap());
+        RefreshCoversFor(folder);
+        ShowToast($"Carátula de «{Path.GetFileName(folder)}» cambiada");
+    }
+
+    /// <summary>Quita la carátula personalizada: vuelve la que encuentre Echoplex (imagen de la carpeta, incrustada…).</summary>
+    public void ClearCustomCover(string folder)
+    {
+        if (Settings.CustomCovers is not { } m) return;
+        var map = new Dictionary<string, string>(m, StringComparer.OrdinalIgnoreCase);
+        if (!map.Remove(folder, out var old)) return;
+        TryDelete(Path.Combine(CustomCoversDir, old));
+        Settings.CustomCovers = map.Count > 0 ? map : null;
+        SettingsStore.Save(Settings);
+        Covers.SetCustomCovers(CustomCoverMap());
+        RefreshCoversFor(folder);
+        ShowToast($"«{Path.GetFileName(folder)}» vuelve a su carátula original");
+    }
+
+    private static void TryDelete(string file)
+    {
+        try { File.Delete(file); } catch { /* no crítico */ }
+    }
+
+    /// <summary>Tras cambiar una carátula: la página visible, el árbol (la carpeta y sus padres, por los mosaicos) y lo que suena.</summary>
+    private void RefreshCoversFor(string folder)
+    {
+        switch (CurrentPage)
+        {
+            case SongListPage { Kind: ListKind.Album, AlbumKey: { } album }:
+                OpenAlbum(album, replace: true);
+                break;
+            case SongListPage { FolderPath: { } path }:
+                OpenFolder(path, replace: true);
+                break;
+        }
+        for (var node = FindNode(folder); node != null; node = node.Parent)
+        {
+            node.CoverRequested = false;
+            node.Cover = null;
+            EnsureNodeCover(node);
+        }
+        if (Player.Current is { } song) _ = LoadNowPlayingCoverAsync(song);
+    }
+
     /// <summary>Portada en grande en la cabecera de las páginas: se queda activada (en todas) hasta otro clic.</summary>
     public bool ShowBigCover
     {
@@ -1664,7 +1761,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Nombre del archivo en lugar del título de los metadatos (y orden por nombre de archivo).</summary>
+    // ======================================================================
+    // Títulos: nombre del archivo o metadatos (ajuste general + excepciones por carpeta)
+    // ======================================================================
+
+    /// <summary>Ajuste general: nombre del archivo en lugar del título de los metadatos (y orden por él).</summary>
     public bool PreferFileName
     {
         get => Settings.PreferFileName;
@@ -1673,20 +1774,71 @@ public sealed partial class MainViewModel : ObservableObject
             if (Settings.PreferFileName == value) return;
             Settings.PreferFileName = value;
             SettingsStore.Save(Settings);
-            Song.PreferFileName = value;
-            foreach (var s in Library.Songs) s.RefreshTitle();
-            // la página visible se rehace con el título y el orden nuevos
-            switch (CurrentPage)
-            {
-                case SongListPage { Kind: ListKind.Album, AlbumKey: { } album }:
-                    OpenAlbum(album, replace: true);
-                    break;
-                case SongListPage page:
-                    page.Rebuild();
-                    break;
-            }
+            ApplyTitleModes(refreshPage: true);
             OnPropertyChanged();
             ShowToast(value ? "Títulos: nombre del archivo" : "Títulos: metadatos");
+        }
+    }
+
+    private Dictionary<string, bool> FolderModes =>
+        Settings.FolderFileNames is { } d ? new Dictionary<string, bool>(d, StringComparer.OrdinalIgnoreCase) : new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>¿Esta carpeta usa nombres de fichero? La carpeta más cercana hacia arriba con ajuste propio manda; si no, el general.</summary>
+    public bool UsesFileNames(string folder) => Resolve(folder, FolderModes);
+
+    private bool Resolve(string folder, Dictionary<string, bool> modes)
+    {
+        for (var dir = folder; !string.IsNullOrEmpty(dir); dir = Path.GetDirectoryName(dir))
+            if (modes.TryGetValue(dir, out var on)) return on;
+        return Settings.PreferFileName;
+    }
+
+    /// <summary>La carpeta tiene su propio ajuste (no hereda).</summary>
+    public bool HasOwnFileNameMode(string folder) => FolderModes.ContainsKey(folder);
+
+    /// <summary>Fija el modo de una carpeta; sus subcarpetas la siguen (se quitan sus excepciones).</summary>
+    public void SetFolderFileNames(string folder, bool on)
+    {
+        var modes = FolderModes;
+        foreach (var k in modes.Keys.Where(k => k.StartsWith(folder + "\\", StringComparison.OrdinalIgnoreCase)).ToList()) modes.Remove(k);
+        modes[folder] = on;
+        Settings.FolderFileNames = modes;
+        SettingsStore.Save(Settings);
+        ApplyTitleModes(refreshPage: true);
+        ShowToast($"{Path.GetFileName(folder)}: {(on ? "nombres de fichero" : "metadatos")}");
+    }
+
+    /// <summary>Quita el ajuste propio de la carpeta: vuelve a seguir a su carpeta padre o al ajuste general.</summary>
+    public void ClearFolderFileNames(string folder)
+    {
+        var modes = FolderModes;
+        if (!modes.Remove(folder)) return;
+        Settings.FolderFileNames = modes.Count > 0 ? modes : null;
+        SettingsStore.Save(Settings);
+        ApplyTitleModes(refreshPage: true);
+        ShowToast($"{Path.GetFileName(folder)}: sigue el ajuste general");
+    }
+
+    /// <summary>Recalcula el modo de título de cada canción (y rehace la página visible si se pide).</summary>
+    private void ApplyTitleModes(bool refreshPage)
+    {
+        var modes = FolderModes;
+        var byDir = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in Library.Songs)
+        {
+            if (!byDir.TryGetValue(s.Directory, out var on)) byDir[s.Directory] = on = Resolve(s.Directory, modes);
+            s.SetUseFileName(on);
+        }
+        if (!refreshPage) return;
+        switch (CurrentPage)
+        {
+            case SongListPage { Kind: ListKind.Album, AlbumKey: { } album }:
+                OpenAlbum(album, replace: true);
+                break;
+            case SongListPage page:
+                if (page.FolderPath is { } f && !Eq(f, LibraryService.AllKey)) page.FileNamesOn = UsesFileNames(f);
+                page.Rebuild();
+                break;
         }
     }
 

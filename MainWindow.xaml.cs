@@ -51,6 +51,7 @@ public partial class MainWindow : Window
         if (s.Maximized) WindowState = WindowState.Maximized;
         SidebarCol.Width = new GridLength(Math.Clamp(s.SidebarWidth, SidebarCol.MinWidth, SidebarCol.MaxWidth));
         RightPanel.Width = Math.Clamp(s.RightPanelWidth, RightMin, RightMax);
+        RightPanel.SizeChanged += (o, e) => _vm.DetailsCompact = RightPanel.ActualWidth < 300;
         ((FrameworkElement)PlayerRight.Parent).SizeChanged += (o, e) => UpdatePlayerExtras();
         PlayerExtras.SizeChanged += (o, e) => UpdatePlayerExtras(); // p. ej. aparece el texto del temporizador
         ExtrasPopup.Opened += (o, e) => ExtrasToggle.IsHitTestVisible = false;
@@ -110,6 +111,50 @@ public partial class MainWindow : Window
         double bottom = LastNavButton.TranslatePoint(new Point(0, LastNavButton.ActualHeight), SidebarScroll).Y;
         var want = bottom <= 0 ? Visibility.Visible : Visibility.Collapsed;
         if (StickyNav.Visibility != want) StickyNav.Visibility = want;
+    }
+
+    /// <summary>Interruptor "Nombres fichero" de la página de una carpeta.</summary>
+    private void PageFileNames_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.CurrentPage is SongListPage { IsRealFolder: true, FolderPath: { } folder } && sender is CheckBox box)
+            _vm.SetFolderFileNames(folder, box.IsChecked == true);
+    }
+
+    // ---------- carátulas personalizadas ----------
+
+    /// <summary>Elige una imagen y la pone como carátula de la carpeta.</summary>
+    private async void PickCustomCover(string folder)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = $"Carátula para «{Path.GetFileName(folder)}»",
+            Filter = "Imágenes|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp;*.tif;*.tiff|Todos los archivos|*.*",
+        };
+        if (Directory.Exists(folder)) dlg.InitialDirectory = folder;
+        if (dlg.ShowDialog(this) == true) await _vm.SetCustomCoverAsync(folder, dlg.FileName);
+    }
+
+    private void AddCoverItems(ContextMenu menu, string folder)
+    {
+        menu.Items.Add(Item(_vm.HasCustomCover(folder) ? "Cambiar carátula…" : "Poner carátula…", "", () => PickCustomCover(folder)));
+        if (_vm.HasCustomCover(folder))
+            menu.Items.Add(Item("Quitar carátula personalizada", "", () => _vm.ClearCustomCover(folder)));
+    }
+
+    /// <summary>El recuadro con "+" de una página sin carátula.</summary>
+    private void PageAddCover_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.CurrentPage is SongListPage { CoverFolder: { } folder }) PickCustomCover(folder);
+    }
+
+    /// <summary>Clic derecho en la carátula de la cabecera: cambiarla o quitar la personalizada.</summary>
+    private void HeaderCover_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_vm.CurrentPage is not SongListPage { CoverFolder: { } folder }) return;
+        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = PlacementMode.MousePoint };
+        AddCoverItems(menu, folder);
+        menu.IsOpen = true;
+        e.Handled = true;
     }
 
     /// <summary>Clic en la portada de la cabecera: muestra u oculta la portada en grande.</summary>
@@ -817,6 +862,16 @@ public partial class MainWindow : Window
         menu.Items.Add(PlaylistSubmenu(() => _vm.Library.SongsUnder(path), null));
         menu.Items.Add(new Separator());
         AddOfflineItems(menu, _vm.Library.SongsUnder(path), path);
+        // carátula elegida a mano
+        menu.Items.Add(new Separator());
+        AddCoverItems(menu, path);
+        // títulos por nombre de archivo en esta carpeta y sus subcarpetas
+        menu.Items.Add(new Separator());
+        bool fileNames = _vm.UsesFileNames(path);
+        menu.Items.Add(Item(fileNames ? "Nombres de fichero: activado" : "Nombres de fichero: desactivado", fileNames ? "" : "",
+            () => _vm.SetFolderFileNames(path, !fileNames)));
+        if (_vm.HasOwnFileNameMode(path))
+            menu.Items.Add(Item("Títulos: seguir el ajuste general", "", () => _vm.ClearFolderFileNames(path)));
         if (node.IsRoot) menu.Items.Add(Item("Quitar de la biblioteca", "", () => _ = _vm.RemoveMusicRootAsync(path)));
         menu.Items.Add(Item("Abrir en el Explorador", "", () => OpenInExplorer(path, false)));
     }

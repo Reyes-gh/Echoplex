@@ -28,10 +28,23 @@ public sealed class CoverService
     private readonly ConcurrentDictionary<string, BitmapSource?> _images = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(3);
 
-    /// <summary>La mejor imagen de una carpeta (sin mirar subcarpetas de discos).</summary>
-    public string? FindCoverFile(string dir) => ImagesIn(dir).FirstOrDefault();
+    /// <summary>Carátulas elegidas por el usuario: carpeta → imagen (en %LocalAppData%\Echoplex\covers). Mandan sobre todo lo demás.</summary>
+    private Dictionary<string, string> _custom = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Olvida las portadas encontradas (al cambiar de carpeta de música).</summary>
+    public void SetCustomCovers(IDictionary<string, string>? map)
+    {
+        _custom = map == null ? new(StringComparer.OrdinalIgnoreCase) : new Dictionary<string, string>(map, StringComparer.OrdinalIgnoreCase);
+        ClearCache();
+    }
+
+    private string? CustomFor(string dir) => _custom.TryGetValue(dir, out var f) && File.Exists(f) ? f : null;
+
+    public bool HasCustomCover(string dir) => CustomFor(dir) != null;
+
+    /// <summary>La mejor imagen de una carpeta (sin mirar subcarpetas de discos); la personalizada primero.</summary>
+    public string? FindCoverFile(string dir) => CustomFor(dir) ?? ImagesIn(dir).FirstOrDefault();
+
+    /// <summary>Olvida las portadas encontradas (al cambiar de carpeta de música o de carátula personalizada).</summary>
     public void ClearCache()
     {
         _dirImages.Clear();
@@ -146,6 +159,13 @@ public sealed class CoverService
     {
         var key = $"folder:{dir}|{size}|{recurse}";
         if (_images.TryGetValue(key, out var cached) && cached != null) return cached;
+
+        // 0. la carátula que eligió el usuario para esta carpeta
+        if (CustomFor(dir) is { } custom && LoadFile(custom, size) is { } chosen)
+        {
+            _images[key] = chosen;
+            return chosen;
+        }
 
         BitmapSource? img = null;
         int attempts = 0;

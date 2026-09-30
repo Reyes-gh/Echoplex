@@ -29,6 +29,13 @@ public sealed class AppSettings
     public bool Animations { get; set; } = true;
     /// <summary>Mostrar y ordenar por el nombre del archivo (sin extensión) en lugar del título de los metadatos.</summary>
     public bool PreferFileName { get; set; }
+    /// <summary>
+    /// Excepciones por carpeta al ajuste anterior: ruta completa → true (nombres de fichero) / false (metadatos).
+    /// Se aplican a la carpeta y a todas sus subcarpetas que no tengan la suya.
+    /// </summary>
+    public Dictionary<string, bool>? FolderFileNames { get; set; }
+    /// <summary>Carátulas elegidas por el usuario: ruta completa de la carpeta → nombre del archivo en %LocalAppData%\Echoplex\covers.</summary>
+    public Dictionary<string, string>? CustomCovers { get; set; }
     /// <summary>Portada de la cabecera en grande (se activa y desactiva con un clic en la portada pequeña).</summary>
     public bool ShowBigCover { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>

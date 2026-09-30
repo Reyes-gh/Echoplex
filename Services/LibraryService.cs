@@ -163,8 +163,8 @@ public sealed partial class LibraryService
         .GroupBy(AlbumKey, StringComparer.OrdinalIgnoreCase)
         .Select(g =>
         {
-            // por número de pista de los metadatos, o por nombre de archivo si el usuario lo prefiere
-            var songs = (Song.PreferFileName
+            // por número de pista de los metadatos, o por nombre de archivo si esa carpeta usa nombres de fichero
+            var songs = (g.First().UseFileName
                 ? g.OrderBy(s => s.FileName, NaturalComparer.Instance)
                 : g.OrderBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber).ThenBy(s => s.FileName, NaturalComparer.Instance)).ToList();
             var artist = songs.GroupBy(s => s.PrimaryArtist).OrderByDescending(x => x.Count()).First().Key;
