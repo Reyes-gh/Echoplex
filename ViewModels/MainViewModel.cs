@@ -613,7 +613,7 @@ public sealed partial class MainViewModel : ObservableObject
             case GalleryPage g:
                 ClearTreeSelection();
                 g.SetColumns(GalleryColumns);
-                ActiveNav = g.Title == "Artistas" ? "artists" : "albums";
+                ActiveNav = g.Title switch { "Artistas" => "artists", "Carpetas" => "folders", _ => "albums" };
                 break;
             case SearchPage:
                 ClearTreeSelection();
@@ -808,6 +808,18 @@ public sealed partial class MainViewModel : ObservableObject
         Navigate(new GalleryPage(cards) { Title = "Artistas", Glyph = "", Breadcrumb = "Artistas" });
     }
 
+    /// <summary>Explorar → Carpetas: galería con las carpetas de primer nivel de cada carpeta de música, por nombre.</summary>
+    public void OpenFolders()
+    {
+        if (IsLoading) return;
+        var cards = Library.PresentRoots
+            .SelectMany(Library.GetChildren)
+            .OrderBy(p => Path.GetFileName(p) ?? p, NaturalComparer.Instance)
+            .Select(FolderCard)
+            .ToList();
+        Navigate(new GalleryPage(cards) { Title = "Carpetas", Glyph = "", Breadcrumb = "Carpetas" });
+    }
+
     public void OpenAlbums()
     {
         var cards = Library.GetAlbums()
@@ -907,7 +919,7 @@ public sealed partial class MainViewModel : ObservableObject
         // la cabecera de la página abierta tiene prioridad sobre las miniaturas en cola
         page.Cover = dir != null
             ? await Covers.GetFolderCoverAsync(dir, page.Songs, 600, priority: true)
-            : first != null ? await Covers.GetSongCoverAsync(first, 600, priority: true) : null;
+            : first != null ? await SongCoverAsync(first, 600, priority: true) : null;
     }
 
     private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first) =>
@@ -1046,6 +1058,13 @@ public sealed partial class MainViewModel : ObservableObject
         node.Cover = await FolderArtAsync(node.Path, 64, allowDownload: true, priority: false);
     }
 
+    /// <summary>
+    /// Portada de la carpeta de una canción. Si no hay imagen y la canción está solo en la nube, se usa la incrustada
+    /// de otra canción de la misma carpeta que sí esté en el PC (leer una de la nube la descargaría entera).
+    /// </summary>
+    private Task<BitmapSource?> SongCoverAsync(Song song, int size, bool allowDownload = true, bool priority = false) =>
+        Covers.GetAlbumCoverAsync(song.Directory, new[] { song }.Concat(Library.SongsIn(song.Directory).Where(s => s != song)), size, allowDownload, priority);
+
     public async void EnsureCover(CardVm card)
     {
         if (card.CoverRequested) return;
@@ -1054,8 +1073,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             CardKind.Folder => await FolderArtAsync(card.Key, 300, card.AllowDownload, priority: false),
             CardKind.Playlist => Playlists.FirstOrDefault(p => p.Id == card.Key) is { Songs.Count: > 0 } pl && Library.Find(pl.Songs[0]) is { } s
-                ? await Covers.GetSongCoverAsync(s, 300, allowDownload: false) : null,
-            _ when card.Song != null => await Covers.GetSongCoverAsync(card.Song, 300, allowDownload: false),
+                ? await SongCoverAsync(s, 300, allowDownload: false) : null,
+            _ when card.Song != null => await SongCoverAsync(card.Song, 300, allowDownload: false),
             _ => null,
         };
     }
@@ -1122,7 +1141,7 @@ public sealed partial class MainViewModel : ObservableObject
         int n = Library.GetCount(path);
         int sub = Library.GetChildren(path).Count;
         var songs = n == 1 ? "1 canción" : $"{n:N0} canciones";
-        return new CardVm(CardKind.Folder, path, FolderName(path), sub > 0 ? $"{sub} carpetas · {songs}" : songs) { AllowDownload = allowDownload };
+        return new CardVm(CardKind.Folder, path, FolderName(path), sub > 0 ? $"{(sub == 1 ? "1 carpeta" : $"{sub} carpetas")} · {songs}" : songs) { AllowDownload = allowDownload };
     }
 
     private static CardVm AlbumCard(AlbumInfo a) => new(CardKind.Album, a.Key, a.Name, a.Artist, "") { Song = a.Songs[0] };
@@ -1379,7 +1398,7 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task LoadNowPlayingCoverAsync(Song song)
     {
         int ver = ++_coverVersion;
-        var img = await Covers.GetSongCoverAsync(song, 640, priority: true);
+        var img = await SongCoverAsync(song, 640, priority: true);
         if (ver == _coverVersion) NowPlayingCover = img;
     }
 
@@ -1421,17 +1440,59 @@ public sealed partial class MainViewModel : ObservableObject
     // Letras y detalles
     // ======================================================================
 
+    /// <summary>Estado de la búsqueda en internet ("Buscando…", "Instrumental", "No se encontró…"), o null.</summary>
+    [ObservableProperty] private string? _lyricsStatus;
+    /// <summary>La letra visible viene de LRCLIB (se muestra la procedencia).</summary>
+    [ObservableProperty] private bool _lyricsFromOnline;
+
+    /// <summary>Buscar en LRCLIB las letras que no estén en los archivos. Desactivado de serie.</summary>
+    public bool OnlineLyrics
+    {
+        get => Settings.OnlineLyrics;
+        set
+        {
+            if (Settings.OnlineLyrics == value) return;
+            Settings.OnlineLyrics = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+            // al activarlo se busca ya la letra de lo que suena; al desactivarlo se quita la de internet
+            if (Player.Current is { } song && (value ? !HasLyrics : LyricsFromOnline)) _ = LoadLyricsAsync(song);
+        }
+    }
+
     private async Task LoadLyricsAsync(Song song)
     {
         int ver = ++_lyricsVersion;
         var lines = await Task.Run(() => LyricsService.Load(song));
         if (ver != _lyricsVersion) return;
+        ShowLyrics(lines, online: false);
+        LyricsStatus = null;
+        if (lines is { Count: > 0 } || !Settings.OnlineLyrics) return;
+
+        // 3. si el usuario lo permite, LRCLIB (con caché local)
+        LyricsStatus = "Buscando la letra en LRCLIB…";
+        var found = await OnlineLyricsService.FindAsync(song);
+        if (ver != _lyricsVersion) return;
+        if (found.Text != null)
+        {
+            ShowLyrics(LyricsService.Parse(found.Text), online: true);
+            LyricsStatus = null;
+        }
+        else
+        {
+            LyricsStatus = found.Error ?? (found.Instrumental ? "Instrumental según LRCLIB" : "LRCLIB tampoco tiene la letra de esta canción");
+        }
+    }
+
+    private void ShowLyrics(List<LyricEntry>? lines, bool online)
+    {
         Lyrics.Clear();
         ActiveLyric = null;
         if (lines != null)
             foreach (var l in lines) Lyrics.Add(new LyricLine(l.Time, l.Text));
         HasLyrics = Lyrics.Count > 0;
         LyricsSynced = Lyrics.Count > 0 && Lyrics[0].Time != null;
+        LyricsFromOnline = online && HasLyrics;
     }
 
     private void UpdateActiveLyric()

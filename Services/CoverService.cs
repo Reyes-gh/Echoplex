@@ -140,6 +140,24 @@ public sealed class CoverService
         }
     }
 
+    /// <summary>
+    /// Portada de un álbum / de la carpeta de una canción, sin mirar subcarpetas: imagen de la carpeta o, si no hay,
+    /// la incrustada en la primera de <paramref name="songs"/> que esté en el dispositivo (conviene pasar todas las de la carpeta).
+    /// </summary>
+    public async Task<BitmapSource?> GetAlbumCoverAsync(string dir, IEnumerable<Song> songs, int size, bool allowDownload = true, bool priority = false)
+    {
+        if (priority) return await Task.Run(() => FolderCover(dir, songs, size, allowDownload, recurse: false));
+        await _gate.WaitAsync();
+        try
+        {
+            return await Task.Run(() => FolderCover(dir, songs, size, allowDownload, recurse: false));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Portada de una carpeta: imagen interna válida o, si no hay, la incrustada del primer disco.</summary>
     public async Task<BitmapSource?> GetFolderCoverAsync(string dir, IEnumerable<Song> songsUnder, int size, bool allowDownload = true, bool priority = false)
     {

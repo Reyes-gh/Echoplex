@@ -14,8 +14,7 @@
             </Grid.ColumnDefinitions>
             <Grid Width="90" Height="90">
                 <Border CornerRadius="6" Background="{DynamicResource PlaceholderBrush}">
-                    <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="28" Foreground="{DynamicResource Text3Brush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Rectangle Style="{StaticResource NoteLogo}" Width="34" Height="34" />
                 </Border>
                 <Border CornerRadius="6" Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
                     <Border.Background>

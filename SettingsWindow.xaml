@@ -160,6 +160,16 @@
                         </StackPanel>
                     </CheckBox>
 
+                    <!-- ===== Letras ===== -->
+                    <TextBlock Text="Letras" Style="{StaticResource SectionTitle}" />
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}">
+                        <StackPanel>
+                            <TextBlock Text="Buscar letras en internet (LRCLIB)" />
+                            <TextBlock Text="Si una canción no tiene letra en un .lrc ni en sus etiquetas, se busca sincronizada en lrclib.net. Solo se envían artista, título, álbum y duración; lo encontrado se guarda en tu PC para no volver a pedirlo."
+                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+
                     <!-- ===== Actualizaciones ===== -->
                     <TextBlock Text="Actualizaciones" Style="{StaticResource SectionTitle}" />
                     <DockPanel>

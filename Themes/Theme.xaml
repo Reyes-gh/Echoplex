@@ -18,6 +18,47 @@
     <local:EqualsToVisibilityConverter x:Key="EqVis" />
     <local:HeartGlyphConverter x:Key="HeartGlyph" />
 
+    <!-- ===== Nota de Echoplex ===== -->
+    <!-- La imagen es blanca sobre transparente: se usa de máscara y se pinta con el color del tema (claro, oscuro, neón…) -->
+    <ImageBrush x:Key="NoteMask" ImageSource="pack://application:,,,/Echoplex;component/Assets/note.png" Stretch="Uniform" />
+
+    <Style x:Key="NoteLogo" TargetType="Rectangle">
+        <Setter Property="Fill" Value="{DynamicResource Text3Brush}" />
+        <Setter Property="OpacityMask" Value="{StaticResource NoteMask}" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+    </Style>
+
+    <!-- Icono de la fuente de iconos; si es la nota musical genérica (U+E8D6) se dibuja la nota de Echoplex -->
+    <Style x:Key="GlyphIcon" TargetType="ContentControl">
+        <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <TextBlock x:Name="Glyph" Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+                                   FontFamily="{StaticResource IconFont}" FontSize="{TemplateBinding FontSize}" Foreground="{TemplateBinding Foreground}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Rectangle x:Name="Note" Style="{StaticResource NoteLogo}" Fill="{TemplateBinding Foreground}" Visibility="Collapsed"
+                                   Width="{TemplateBinding FontSize}" Height="{TemplateBinding FontSize}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Content" Value="&#xE8D6;">
+                            <Setter TargetName="Glyph" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="Note" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- ===== Animaciones ===== -->
     <CubicEase x:Key="EaseOut" EasingMode="EaseOut" />
 

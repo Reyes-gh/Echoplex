@@ -8,7 +8,7 @@
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         FontFamily="{StaticResource UiFont}" FontSize="14" Icon="Assets/echoplex.ico"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
-        PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing" Loaded="Window_Loaded">
+        PreviewKeyDown="Window_PreviewKeyDown" PreviewMouseDown="Window_PreviewMouseDown" Closing="Window_Closing" Loaded="Window_Loaded">
 
     <Window.TaskbarItemInfo>
         <TaskbarItemInfo x:Name="Taskbar">
@@ -267,8 +267,7 @@
                 <StackPanel>
                     <Grid Height="156">
                         <Border CornerRadius="6,6,0,0" Background="{DynamicResource PlaceholderBrush}">
-                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="40" Foreground="{DynamicResource Text3Brush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <ContentControl Style="{StaticResource GlyphIcon}" Content="{Binding Glyph}" FontSize="40" />
                         </Border>
                         <Border x:Name="CoverArt" CornerRadius="6,6,0,0" Visibility="{Binding Cover, Converter={StaticResource NullVis}}"
                                 Style="{StaticResource FadeInOnShow}">
@@ -395,8 +394,8 @@
                     </StackPanel>
                     <!-- sin carátula: el icono de la página; en carpetas y álbumes, un recuadro con "+" para poner una a mano -->
                     <Grid HorizontalAlignment="Left" Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}">
-                        <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="60" Foreground="{DynamicResource Text3Brush}"
-                                   Visibility="{Binding Page.CanSetCover, Converter={StaticResource InvBoolVis}}" />
+                        <ContentControl Style="{StaticResource GlyphIcon}" Content="{Binding Page.Glyph}" FontSize="60" HorizontalAlignment="Left"
+                                        Visibility="{Binding Page.CanSetCover, Converter={StaticResource InvBoolVis}}" />
                         <Button Click="PageAddCover_Click" Cursor="Hand" ToolTip="Poner una carátula"
                                 Visibility="{Binding Page.CanSetCover, Converter={StaticResource BoolVis}}">
                             <Button.Template>
@@ -404,8 +403,7 @@
                                     <Border x:Name="Box" Width="124" Height="124" CornerRadius="8" BorderThickness="1.5"
                                             Background="{DynamicResource PlaceholderBrush}" BorderBrush="{DynamicResource CardBorderBrush}">
                                         <Grid>
-                                            <TextBlock Text="{Binding Page.Glyph}" FontFamily="{StaticResource IconFont}" FontSize="46"
-                                                       Foreground="{DynamicResource Text3Brush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <ContentControl Style="{StaticResource GlyphIcon}" Content="{Binding Page.Glyph}" FontSize="46" />
                                             <Border x:Name="Plus" Width="34" Height="34" CornerRadius="17" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                     Margin="0,0,8,8" Background="{DynamicResource AccentBrush}">
                                                 <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource OnAccentBrush}"
@@ -691,8 +689,7 @@
             <Button x:Name="Tile" Style="{StaticResource TileButton}" Height="56" Margin="0,0,10,10" Click="Card_Click">
                 <DockPanel>
                     <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="5" Margin="6,0,0,0" Background="{DynamicResource PlaceholderBrush}">
-                        <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource Text2Brush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentControl Style="{StaticResource GlyphIcon}" Content="{Binding Glyph}" FontSize="18" Foreground="{DynamicResource Text2Brush}" />
                     </Border>
                     <Button x:Name="TilePlay" DockPanel.Dock="Right" Style="{StaticResource PlayCircleButton}" Width="30" Height="30" FontSize="11"
                             Content="&#xF5B0;" Margin="0,0,12,0" Opacity="0" Click="CardPlay_Click" />
@@ -961,8 +958,7 @@
                 <TextBlock x:Name="Speaker" DockPanel.Dock="Right" Text="&#xE995;" FontFamily="{StaticResource IconFont}" FontSize="12"
                            Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="6,0,10,0" Visibility="Collapsed" />
                 <Grid DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,8,0">
-                    <TextBlock x:Name="Ic" Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="14"
-                               Foreground="{DynamicResource Text2Brush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ContentControl x:Name="Ic" Style="{StaticResource GlyphIcon}" Content="&#xE8B7;" FontSize="14" Foreground="{DynamicResource Text2Brush}" />
                     <Border CornerRadius="3" Visibility="{Binding Cover, Converter={StaticResource NullVis}}">
                         <Border.Background>
                             <ImageBrush ImageSource="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -973,7 +969,7 @@
             </DockPanel>
             <HierarchicalDataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsRoot}" Value="True">
-                    <Setter TargetName="Ic" Property="Text" Value="&#xE8D6;" />
+                    <Setter TargetName="Ic" Property="Content" Value="&#xE8D6;" />
                 </DataTrigger>
                 <!-- camino hasta la canción que suena: todas las carpetas padre iluminadas -->
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
@@ -1219,6 +1215,13 @@
                                     <TextBlock Text="Álbumes" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
+                            <Button Style="{StaticResource NavButton}" Click="Folders_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=folders}">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8B7;" />
+                                    <TextBlock Text="Carpetas" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Button>
 
                             <DockPanel Margin="0,0,10,0">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE710;" FontSize="12" Width="22" Height="22"
@@ -1284,9 +1287,9 @@
                 <DockPanel Margin="12,0,16,0">
                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource IconButton}" Content="&#xE72B;" FontSize="13" Click="Back_Click" IsEnabled="{Binding CanGoBack}"
-                                ToolTip="Atrás (Alt+←)" />
+                                ToolTip="Atrás (Alt+← o botón lateral del ratón)" />
                         <Button Style="{StaticResource IconButton}" Content="&#xE72A;" FontSize="13" Click="Forward_Click" IsEnabled="{Binding CanGoForward}"
-                                ToolTip="Adelante (Alt+→)" Margin="2,0,0,0" />
+                                ToolTip="Adelante (Alt+→ o botón lateral del ratón)" Margin="2,0,0,0" />
                     </StackPanel>
                     <TextBox x:Name="FilterBox" DockPanel.Dock="Right" Style="{StaticResource FilterBox}" Width="230" Tag="Filtrar…"
                              VerticalAlignment="Center" Text="{Binding CurrentPage.Filter, UpdateSourceTrigger=PropertyChanged}"
@@ -1316,8 +1319,7 @@
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}">
-                    <TextBlock Text="&#xEC4F;" FontFamily="{StaticResource IconFont}" FontSize="40" Foreground="{DynamicResource Text3Brush}"
-                               HorizontalAlignment="Center" />
+                    <Rectangle Style="{StaticResource NoteLogo}" Width="64" Height="64" />
                     <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource Text2Brush}" Margin="0,14,0,0" TextAlignment="Center"
                                TextWrapping="Wrap" MaxWidth="460" />
                     <Button Style="{StaticResource PrimaryButton}" Content="Añadir carpeta de música…" Click="ChangeFolder_Click"
@@ -1390,8 +1392,7 @@
                                 <DockPanel Margin="8,0" Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
                                     <Grid DockPanel.Dock="Left" Width="52" Height="52">
                                         <Border CornerRadius="5" Background="{DynamicResource PlaceholderBrush}">
-                                            <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" Foreground="{DynamicResource Text3Brush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <Rectangle Style="{StaticResource NoteLogo}" Width="22" Height="22" />
                                         </Border>
                                         <Border CornerRadius="5" Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
                                             <Border.Background>
@@ -1433,10 +1434,19 @@
                         </ScrollViewer>
 
                         <!-- Letra -->
-                        <Grid Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=lyrics}">
+                        <DockPanel Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=lyrics}">
+                        <!-- letras de internet (LRCLIB): siempre a mano, desactivado de serie -->
+                        <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="16,10,12,10">
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}" FontSize="13"
+                                      ToolTip="Busca en lrclib.net las letras que no tengan tus archivos (solo envía artista, título, álbum y duración)">
+                                <TextBlock Text="Buscar letras en internet (LRCLIB)" TextWrapping="Wrap" />
+                            </CheckBox>
+                        </Border>
+                        <Grid>
                             <ScrollViewer x:Name="LyricsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
                                           Visibility="{Binding HasLyrics, Converter={StaticResource BoolVis}}">
-                                <ItemsControl x:Name="LyricsList" ItemsSource="{Binding Lyrics}" Margin="20,24,20,160">
+                                <StackPanel Margin="0,0,0,160">
+                                <ItemsControl x:Name="LyricsList" ItemsSource="{Binding Lyrics}" Margin="20,24,20,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:LyricLine}">
                                             <TextBlock x:Name="L" Text="{Binding Text}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5"
@@ -1458,14 +1468,20 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                                <TextBlock Text="Letra de LRCLIB (lrclib.net)" FontSize="12" Foreground="{DynamicResource Text3Brush}" Margin="20,18,20,0"
+                                           Visibility="{Binding LyricsFromOnline, Converter={StaticResource BoolVis}}" />
+                                </StackPanel>
                             </ScrollViewer>
                             <StackPanel Margin="24,32" Visibility="{Binding HasLyrics, Converter={StaticResource InvBoolVis}}">
                                 <TextBlock Text="&#xE8BD;" FontFamily="{StaticResource IconFont}" FontSize="32" Foreground="{DynamicResource Text3Brush}" />
                                 <TextBlock Text="No hay letra para esta canción" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,6" />
                                 <TextBlock Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" LineHeight="20"
-                                           Text="Echoplex muestra letras sincronizadas si hay un archivo .lrc con el mismo nombre junto a la canción, o la letra guardada en sus etiquetas." />
+                                           Text="Echoplex muestra letras sincronizadas si hay un archivo .lrc con el mismo nombre junto a la canción, o la letra guardada en sus etiquetas. Con la opción de abajo, también las busca en LRCLIB." />
+                                <TextBlock Text="{Binding LyricsStatus}" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,14,0,0"
+                                           Visibility="{Binding LyricsStatus, Converter={StaticResource NullVis}}" />
                             </StackPanel>
                         </Grid>
+                        </DockPanel>
 
                         <!-- Detalles -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
@@ -1474,8 +1490,7 @@
                                 <Grid Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
                                     <Border x:Name="InfoCover" CornerRadius="6" Background="{DynamicResource PlaceholderBrush}"
                                             Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}">
-                                        <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" FontSize="56" Foreground="{DynamicResource Text3Brush}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Rectangle Style="{StaticResource NoteLogo}" Width="64" Height="64" />
                                     </Border>
                                     <Border CornerRadius="6" Height="{Binding ActualWidth, ElementName=InfoCover}"
                                             Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
@@ -1548,8 +1563,7 @@
                         <Border x:Name="CoverGlow" CornerRadius="8" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" Opacity="0"
                                 Margin="-2" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False" />
                         <Border CornerRadius="5" Background="{DynamicResource PlaceholderBrush}">
-                            <TextBlock Text="&#xE8D6;" FontFamily="{StaticResource IconFont}" Foreground="{DynamicResource Text3Brush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Rectangle Style="{StaticResource NoteLogo}" Width="22" Height="22" />
                         </Border>
                         <Border CornerRadius="5" Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
                             <Border.Background>

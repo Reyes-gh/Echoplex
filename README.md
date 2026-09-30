@@ -9,7 +9,7 @@
 - **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio) y miniaturas de portada.
 - **Páginas de carpeta por discos**: al abrir una carpeta con varios discos, cada disco aparece como un módulo con su portada y su título.
 - **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula).
-- **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`), mini reproductor, temporizador de apagado y resumen de escucha.
+- **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, con animaciones que se pueden desactivar.
@@ -41,13 +41,21 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.0.5`).
-2. `.\publish.ps1 -Zip`
-3. En GitHub, crea una release con la etiqueta **`v1.0.5`** y adjunta **`Echoplex-1.0.5-win-x64.zip`** (el nombre importa: es lo que busca el actualizador).
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.0.10`).
+2. Escribe las notas en `.github/notas/1.0.10.md` (si no, se usa la sección `### 1.0.10` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.0.10`** con **`Echoplex-1.0.10-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+
+Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.0.9
+- **Letras de internet (LRCLIB)**, desactivadas por defecto: si una canción no tiene `.lrc` ni letra incrustada, se busca en [lrclib.net](https://lrclib.net), con tiempos por línea para saltar con un clic. Se activa en *Ajustes → Letras* o abajo en la pestaña *Letra* del panel derecho. Solo se envían artista, título, álbum y duración; lo encontrado se guarda en `%LocalAppData%\Echoplex\lyrics` (nunca en la carpeta de música).
+- **Botones laterales del ratón** para ir atrás y adelante entre páginas, como en el navegador (además de las flechas y `Alt+←` / `Alt+→`).
+- **Explorar → Carpetas**: galería de carátulas como la de álbumes, con las carpetas de primer nivel ordenadas por nombre (las de varios discos, con su mosaico).
+- **Más carátulas encontradas**: si un álbum no tiene imagen y su primera canción está solo en OneDrive, se usa la portada incrustada de otra canción del álbum que esté en el PC (tarjetas de álbum, canción y playlist, y reproductor).
 
 ### 1.0.8
 - **Nombres de fichero por carpeta**: además del ajuste general, cada carpeta puede usar nombres de fichero o metadatos. Clic derecho en la carpeta del árbol, o el interruptor **Nombres fichero** junto a `…` en su página. Lo que se fija en una carpeta lo siguen todas sus subcarpetas; *Títulos: seguir el ajuste general* quita la excepción. Se guarda por ruta completa.

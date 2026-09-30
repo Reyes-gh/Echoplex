@@ -38,6 +38,8 @@ public sealed class AppSettings
     public Dictionary<string, string>? CustomCovers { get; set; }
     /// <summary>Portada de la cabecera en grande (se activa y desactiva con un clic en la portada pequeña).</summary>
     public bool ShowBigCover { get; set; }
+    /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
+    public bool OnlineLyrics { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
     public double SidebarWidth { get; set; } = 260;

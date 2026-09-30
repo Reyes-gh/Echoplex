@@ -131,12 +131,18 @@ public sealed partial class LibraryService
         _counts = counts;
         _children = children;
         _byPath = byPath;
+        _byDir = list.GroupBy(s => s.Directory, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
         Songs = list;
         Roots = roots;
     }
 
     /// <summary>Carpetas de música que existen ahora mismo (las hijas de "Toda tu música").</summary>
     public IReadOnlyList<string> PresentRoots => GetChildren(AllKey);
+
+    private Dictionary<string, List<Song>> _byDir = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Canciones que están justo en esta carpeta (sin subcarpetas).</summary>
+    public IReadOnlyList<Song> SongsIn(string dir) => _byDir.TryGetValue(dir, out var l) ? l : Array.Empty<Song>();
 
     public Song? Find(string path) => _byPath.GetValueOrDefault(path);
 

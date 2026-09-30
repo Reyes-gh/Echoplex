@@ -338,6 +338,15 @@ public partial class MainWindow : Window
     // Teclado
     // ======================================================================
 
+    /// <summary>Botones laterales del ratón: atrás (X1) y adelante (X2), como en el navegador.</summary>
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.XButton1) _vm.GoBack();
+        else if (e.ChangedButton == MouseButton.XButton2) _vm.GoForward();
+        else return;
+        e.Handled = true;
+    }
+
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         bool inText = Keyboard.FocusedElement is TextBox;
@@ -368,6 +377,8 @@ public partial class MainWindow : Window
         else if ((ctrl && key == Key.OemQuestion) || key == Key.F1) ShowShortcuts();
         else if (mods == ModifierKeys.Alt && key == Key.Left) _vm.GoBack();
         else if (mods == ModifierKeys.Alt && key == Key.Right) _vm.GoForward();
+        else if (key == Key.BrowserBack) _vm.GoBack();
+        else if (key == Key.BrowserForward) _vm.GoForward();
         else if (key == Key.Escape && inText)
         {
             if (Keyboard.FocusedElement == FilterBox) FilterBox.Text = "";
@@ -557,6 +568,7 @@ public partial class MainWindow : Window
         "Ctrl+,\tAjustes\n" +
         "Ctrl + / Ctrl −\tZoom (Ctrl+0: 100 %)\n" +
         "Alt+← / Alt+→\tAtrás / adelante\n" +
+        "Botones laterales del ratón\tAtrás / adelante\n" +
         "Supr\tQuitar de la playlist\n" +
         "Enter\tReproducir la canción seleccionada");
 
@@ -572,6 +584,8 @@ public partial class MainWindow : Window
     private void Stats_Click(object sender, RoutedEventArgs e) => _vm.OpenStats();
     private void Artists_Click(object sender, RoutedEventArgs e) => _vm.OpenArtists();
     private void Albums_Click(object sender, RoutedEventArgs e) => _vm.OpenAlbums();
+
+    private void Folders_Click(object sender, RoutedEventArgs e) => _vm.OpenFolders();
     private void Back_Click(object sender, RoutedEventArgs e) => _vm.GoBack();
     private void Forward_Click(object sender, RoutedEventArgs e) => _vm.GoForward();
     private void NewPlaylist_Click(object sender, RoutedEventArgs e) => NewPlaylist(null);

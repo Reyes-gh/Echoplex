@@ -46,6 +46,9 @@ public sealed partial class Song : ObservableObject
     /// </summary>
     public bool UseFileName { get; private set; }
 
+    /// <summary>Título de los metadatos (o el deducido del nombre), aunque se muestre el nombre del archivo.</summary>
+    public string MetaTitle => _title;
+
     /// <summary>Nombre del archivo sin extensión.</summary>
     public string FileTitle => System.IO.Path.GetFileNameWithoutExtension(FileName);
 
