@@ -31,10 +31,4 @@ public static class OneDriveService
         var a = GetFileAttributesW(path);
         return a != Invalid && LibraryService.IsCloudOnly((FileAttributes)a);
     }
-
-    public static bool IsPinned(string path)
-    {
-        var a = GetFileAttributesW(path);
-        return a != Invalid && (a & Pinned) != 0;
-    }
 }

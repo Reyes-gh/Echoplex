@@ -72,11 +72,7 @@ public static class ThemeFactory
             d[$"Tag{name}Bg"] = ColorMath.Mix(bg, hue, 0.3);
             d[$"Tag{name}Fg"] = ColorMath.Mix(text, hue, 0.22);
         }
-
-        // resplandor del acento si es vivo; si no, sombra negra profunda
-        var (_, sa, la) = ColorMath.ToHsl(accent);
-        var shadow = sa > 0.55 && la is > 0.35 and < 0.8 ? Color.FromArgb(0x77, accent.R, accent.G, accent.B) : Color.FromArgb(0x88, 0, 0, 0);
-        return ToDictionary(d, shadow);
+        return ToDictionary(d);
     }
 
     private static ResourceDictionary BuildLight(ThemeInfo t)
@@ -130,10 +126,10 @@ public static class ThemeFactory
             d[$"Tag{name}Bg"] = ColorMath.Mix(bg, hue, 0.22);
             d[$"Tag{name}Fg"] = ColorMath.Mix(hue, Colors.Black, 0.6);
         }
-        return ToDictionary(d, Color.FromArgb(0x1E, 0x0F, 0x0F, 0x0F));
+        return ToDictionary(d);
     }
 
-    private static ResourceDictionary ToDictionary(Dictionary<string, Color> colors, Color shadow)
+    private static ResourceDictionary ToDictionary(Dictionary<string, Color> colors)
     {
         var rd = new ResourceDictionary();
         foreach (var (key, c) in colors)
@@ -142,7 +138,6 @@ public static class ThemeFactory
             b.Freeze();
             rd[key] = b;
         }
-        rd["ShadowColor"] = shadow;
         return rd;
     }
 }

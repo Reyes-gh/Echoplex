@@ -132,7 +132,11 @@ public sealed partial class LibraryService
         _children = children;
         _byPath = byPath;
         _byDir = list.GroupBy(s => s.Directory, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-        Songs = list;
+        lock (_underLock)
+        {
+            Songs = list;
+            _under = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
+        }
         Roots = roots;
     }
 
@@ -155,11 +159,23 @@ public sealed partial class LibraryService
     public IReadOnlyList<string> GetChildren(string dir) =>
         _children.TryGetValue(dir, out var kids) ? kids : Array.Empty<string>();
 
+    // canciones bajo cada carpeta, ya calculadas (las piden mucho las miniaturas de carpetas); se vacía en cada Load
+    private Dictionary<string, List<Song>> _under = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _underLock = new();
+
+    /// <summary>Todas las canciones dentro de la carpeta (con subcarpetas), en el orden de la biblioteca. Copia nueva.</summary>
     public List<Song> SongsUnder(string dir)
     {
         if (Eq(dir, AllKey)) return Songs.ToList();
-        var prefix = dir + Path.DirectorySeparatorChar;
-        return Songs.Where(s => s.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+        lock (_underLock)
+        {
+            if (!_under.TryGetValue(dir, out var list))
+            {
+                var prefix = dir + Path.DirectorySeparatorChar;
+                _under[dir] = list = Songs.Where(s => s.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            return list.ToList();
+        }
     }
 
     public static string AlbumKey(Song s) => s.Directory + "|" + s.Album.ToLowerInvariant();
@@ -167,19 +183,32 @@ public sealed partial class LibraryService
     /// <summary>Álbumes: canciones de la misma carpeta con el mismo nombre de álbum.</summary>
     public List<AlbumInfo> GetAlbums() => Songs
         .GroupBy(AlbumKey, StringComparer.OrdinalIgnoreCase)
-        .Select(g =>
-        {
-            // por número de pista de los metadatos, o por nombre de archivo si esa carpeta usa nombres de fichero
-            var songs = (g.First().UseFileName
-                ? g.OrderBy(s => s.FileName, NaturalComparer.Instance)
-                : g.OrderBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber).ThenBy(s => s.FileName, NaturalComparer.Instance)).ToList();
-            var artist = songs.GroupBy(s => s.PrimaryArtist).OrderByDescending(x => x.Count()).First().Key;
-            return new AlbumInfo(g.Key, songs[0].Album, artist, songs[0].Directory, songs);
-        })
+        .Select(g => BuildAlbum(g.Key, g))
         .OrderBy(a => a.Name, NaturalComparer.Instance)
         .ToList();
 
-    public AlbumInfo? GetAlbum(string key) => GetAlbums().FirstOrDefault(a => string.Equals(a.Key, key, StringComparison.OrdinalIgnoreCase));
+    private static AlbumInfo BuildAlbum(string key, IEnumerable<Song> group)
+    {
+        var first = group.First();
+        // por número de pista de los metadatos, o por nombre de archivo si esa carpeta usa nombres de fichero
+        var songs = (first.UseFileName
+            ? group.OrderBy(s => s.FileName, NaturalComparer.Instance)
+            : group.OrderBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber).ThenBy(s => s.FileName, NaturalComparer.Instance)).ToList();
+        var artist = songs.GroupBy(s => s.PrimaryArtist).OrderByDescending(x => x.Count()).First().Key;
+        return new AlbumInfo(key, songs[0].Album, artist, songs[0].Directory, songs);
+    }
+
+    /// <summary>
+    /// Un álbum por su clave, sin agrupar toda la biblioteca: la clave empieza por su carpeta (una ruta de Windows
+    /// no puede contener "|"), así que basta con las canciones de esa carpeta. Mismo resultado que en GetAlbums.
+    /// </summary>
+    public AlbumInfo? GetAlbum(string key)
+    {
+        int bar = key.IndexOf('|');
+        if (bar <= 0) return null;
+        var group = SongsIn(key[..bar]).Where(s => string.Equals(AlbumKey(s), key, StringComparison.OrdinalIgnoreCase)).ToList();
+        return group.Count == 0 ? null : BuildAlbum(AlbumKey(group[0]), group);
+    }
 
     public List<ArtistInfo> GetArtists() => Songs
         .GroupBy(s => s.PrimaryArtist, StringComparer.OrdinalIgnoreCase)

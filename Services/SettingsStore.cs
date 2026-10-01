@@ -122,12 +122,18 @@ public static class SettingsStore
         return s;
     }
 
+    // una sola instancia: así System.Text.Json reaprovecha lo que ya sabe del tipo en cada guardado
+    private static readonly JsonSerializerOptions SaveOptions = new() { WriteIndented = true };
+
     public static void Save(AppSettings settings)
     {
         try
         {
             Directory.CreateDirectory(DataDirectory);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            // a un temporal y luego en su sitio: un cierre a medias nunca deja los ajustes rotos
+            var tmp = FilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(settings, SaveOptions));
+            File.Move(tmp, FilePath, true);
         }
         catch
         {

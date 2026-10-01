@@ -22,7 +22,6 @@ public sealed record UpdateResult(UpdateState State, Version? Version, string Me
 public sealed class UpdateService
 {
     public const string Repository = "Reyes-gh/echoplex";
-    public static string ReleasesPage => $"https://github.com/{Repository}/releases";
 
     private const string OldSuffix = ".old";
     private readonly string _apiUrl;

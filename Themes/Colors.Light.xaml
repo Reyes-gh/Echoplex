@@ -1,50 +1,52 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    mc:Ignorable="po">
     <!-- Paleta clara inspirada en Notion -->
-    <SolidColorBrush x:Key="BgBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="SidebarBrush" Color="#F7F7F5" />
-    <SolidColorBrush x:Key="TextBrush" Color="#37352F" />
-    <SolidColorBrush x:Key="Text2Brush" Color="#787774" />
-    <SolidColorBrush x:Key="Text3Brush" Color="#A5A4A0" />
-    <SolidColorBrush x:Key="SidebarTextBrush" Color="#5F5E5B" />
-    <SolidColorBrush x:Key="DividerBrush" Color="#EDEDEB" />
-    <SolidColorBrush x:Key="HoverBrush" Color="#F1F1EF" />
-    <SolidColorBrush x:Key="SidebarHoverBrush" Color="#EBEBE9" />
-    <SolidColorBrush x:Key="SelectedBrush" Color="#E7E7E4" />
-    <SolidColorBrush x:Key="AccentBrush" Color="#2383E2" />
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#0B6BCB" />
-    <SolidColorBrush x:Key="AccentSoftBrush" Color="#E9F2FB" />
-    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#E9E9E7" />
-    <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="PopupBorderBrush" Color="#E3E2DF" />
-    <SolidColorBrush x:Key="PlaceholderBrush" Color="#F1F1EF" />
-    <SolidColorBrush x:Key="InputBrush" Color="#F4F4F2" />
-    <SolidColorBrush x:Key="CalloutBrush" Color="#F7F7F5" />
-    <SolidColorBrush x:Key="FavBrush" Color="#E03E3E" />
-    <SolidColorBrush x:Key="ToastBrush" Color="#2F2E2B" />
-    <SolidColorBrush x:Key="ToastTextBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#D9D8D4" />
-    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#BDBCB7" />
-    <SolidColorBrush x:Key="TrackBrush" Color="#E3E2DF" />
-    <SolidColorBrush x:Key="PlayCircleBrush" Color="#37352F" />
-    <SolidColorBrush x:Key="OnPlayCircleBrush" Color="#FFFFFF" />
-    <Color x:Key="ShadowColor">#1A0F0F0F</Color>
+    <SolidColorBrush po:Freeze="True" x:Key="BgBrush" Color="#FFFFFF" />
+    <SolidColorBrush po:Freeze="True" x:Key="SidebarBrush" Color="#F7F7F5" />
+    <SolidColorBrush po:Freeze="True" x:Key="TextBrush" Color="#37352F" />
+    <SolidColorBrush po:Freeze="True" x:Key="Text2Brush" Color="#787774" />
+    <SolidColorBrush po:Freeze="True" x:Key="Text3Brush" Color="#A5A4A0" />
+    <SolidColorBrush po:Freeze="True" x:Key="SidebarTextBrush" Color="#5F5E5B" />
+    <SolidColorBrush po:Freeze="True" x:Key="DividerBrush" Color="#EDEDEB" />
+    <SolidColorBrush po:Freeze="True" x:Key="HoverBrush" Color="#F1F1EF" />
+    <SolidColorBrush po:Freeze="True" x:Key="SidebarHoverBrush" Color="#EBEBE9" />
+    <SolidColorBrush po:Freeze="True" x:Key="SelectedBrush" Color="#E7E7E4" />
+    <SolidColorBrush po:Freeze="True" x:Key="AccentBrush" Color="#2383E2" />
+    <SolidColorBrush po:Freeze="True" x:Key="AccentHoverBrush" Color="#0B6BCB" />
+    <SolidColorBrush po:Freeze="True" x:Key="AccentSoftBrush" Color="#E9F2FB" />
+    <SolidColorBrush po:Freeze="True" x:Key="OnAccentBrush" Color="#FFFFFF" />
+    <SolidColorBrush po:Freeze="True" x:Key="CardBrush" Color="#FFFFFF" />
+    <SolidColorBrush po:Freeze="True" x:Key="CardBorderBrush" Color="#E9E9E7" />
+    <SolidColorBrush po:Freeze="True" x:Key="PopupBrush" Color="#FFFFFF" />
+    <SolidColorBrush po:Freeze="True" x:Key="PopupBorderBrush" Color="#E3E2DF" />
+    <SolidColorBrush po:Freeze="True" x:Key="PlaceholderBrush" Color="#F1F1EF" />
+    <SolidColorBrush po:Freeze="True" x:Key="InputBrush" Color="#F4F4F2" />
+    <SolidColorBrush po:Freeze="True" x:Key="CalloutBrush" Color="#F7F7F5" />
+    <SolidColorBrush po:Freeze="True" x:Key="FavBrush" Color="#E03E3E" />
+    <SolidColorBrush po:Freeze="True" x:Key="ToastBrush" Color="#2F2E2B" />
+    <SolidColorBrush po:Freeze="True" x:Key="ToastTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush po:Freeze="True" x:Key="ScrollThumbBrush" Color="#D9D8D4" />
+    <SolidColorBrush po:Freeze="True" x:Key="ScrollThumbHoverBrush" Color="#BDBCB7" />
+    <SolidColorBrush po:Freeze="True" x:Key="TrackBrush" Color="#E3E2DF" />
+    <SolidColorBrush po:Freeze="True" x:Key="PlayCircleBrush" Color="#37352F" />
+    <SolidColorBrush po:Freeze="True" x:Key="OnPlayCircleBrush" Color="#FFFFFF" />
 
     <!-- Etiquetas de colores (formato de archivo) -->
-    <SolidColorBrush x:Key="TagGrayBg" Color="#E3E2E0" />
-    <SolidColorBrush x:Key="TagGrayFg" Color="#32302C" />
-    <SolidColorBrush x:Key="TagBlueBg" Color="#D3E5EF" />
-    <SolidColorBrush x:Key="TagBlueFg" Color="#183347" />
-    <SolidColorBrush x:Key="TagGreenBg" Color="#DBEDDB" />
-    <SolidColorBrush x:Key="TagGreenFg" Color="#1C3829" />
-    <SolidColorBrush x:Key="TagOrangeBg" Color="#FADEC9" />
-    <SolidColorBrush x:Key="TagOrangeFg" Color="#49290E" />
-    <SolidColorBrush x:Key="TagPurpleBg" Color="#E8DEEE" />
-    <SolidColorBrush x:Key="TagPurpleFg" Color="#412454" />
-    <SolidColorBrush x:Key="TagYellowBg" Color="#FDECC8" />
-    <SolidColorBrush x:Key="TagYellowFg" Color="#402C1B" />
-    <SolidColorBrush x:Key="TagPinkBg" Color="#F5E0E9" />
-    <SolidColorBrush x:Key="TagPinkFg" Color="#4C2337" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagGrayBg" Color="#E3E2E0" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagGrayFg" Color="#32302C" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagBlueBg" Color="#D3E5EF" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagBlueFg" Color="#183347" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagGreenBg" Color="#DBEDDB" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagGreenFg" Color="#1C3829" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagOrangeBg" Color="#FADEC9" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagOrangeFg" Color="#49290E" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagPurpleBg" Color="#E8DEEE" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagPurpleFg" Color="#412454" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagYellowBg" Color="#FDECC8" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagYellowFg" Color="#402C1B" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagPinkBg" Color="#F5E0E9" />
+    <SolidColorBrush po:Freeze="True" x:Key="TagPinkFg" Color="#4C2337" />
 </ResourceDictionary>

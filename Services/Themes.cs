@@ -84,12 +84,6 @@ public static class Themes
         Dark("hcdark", "Alto contraste", Vivid, "#000000", "#FFFFFF", "#FFFF00", "#00FFFF", "#FF3B3B"),
         Light("hclight", "Alto contraste claro", Vivid, "#FFFFFF", "#FFFFFF", "#000000", "#0000CC", "#0000CC", "#CC0000"),    };
 
-    /// <summary>Los cinco de siempre, arriba en Ajustes.</summary>
-    public static IEnumerable<ThemeInfo> Main => All.Where(t => t.File != null);
-
-    /// <summary>Los de "Más temas", en su orden de grupos.</summary>
-    public static IEnumerable<IGrouping<string, ThemeInfo>> Extra => All.Where(t => t.File == null).GroupBy(t => t.Group);
-
     public static ThemeInfo Get(string key) => All.FirstOrDefault(t => t.Key == key) ?? All[0];
 
     /// <summary>

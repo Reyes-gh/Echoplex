@@ -89,8 +89,20 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     /// Prepara el archivo (abrirlo es lo que hace que OneDrive lo descargue si está en la nube).
     /// Devuelve null si está listo, o el motivo por el que no se puede.
     /// </summary>
-    public Task<string?> LoadAsync(string path, string? deviceId, bool exclusive) => Task.Run(() =>
+    public Task<string?> LoadAsync(string path, string? deviceId, bool exclusive)
     {
+        // cada carga lleva su número: si mientras abre el archivo (p. ej. bajando de OneDrive) se pide otra,
+        // esta ya no debe instalarse ni cerrar lo que haya cargado la nueva
+        int ticket = Interlocked.Increment(ref _loadTicket);
+        return Task.Run(() => Load(path, deviceId, exclusive, ticket));
+    }
+
+    private int _loadTicket;
+    private const string Superseded = "sustituida por otra carga";
+
+    private string? Load(string path, string? deviceId, bool exclusive, int ticket)
+    {
+        if (ticket != Volatile.Read(ref _loadTicket)) return Superseded;
         Unload();
         MMDevice device;
         try
@@ -125,7 +137,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
         if (!exclusive)
         {
-            Commit(reader, device, reader.WaveFormat, false);
+            if (!Commit(reader, device, reader.WaveFormat, false, ticket)) return Superseded;
             FormatText = srcText;
             return null;
         }
@@ -161,19 +173,33 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             }
             if (!ok) continue;
 
-            Commit(reader, device, fmt, true);
+            if (!Commit(reader, device, fmt, true, ticket)) return Superseded;
             FormatText = fmt.BitsPerSample == src.BitsPerSample ? srcText : $"{srcText} en contenedor de {fmt.BitsPerSample} bits";
             return null;
         }
 
         reader.Dispose();
         return $"«{device.FriendlyName}» no admite {srcText} en exclusivo";
-    });
+    }
 
     private static WaveStream OpenFile(string path)
     {
         var clean = path.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ? FlacSanitizer.TryOpen(path) : null;
-        return clean != null ? new StreamMediaFoundationReader(clean) : new MediaFoundationReader(path);
+        return clean != null ? new OwningStreamReader(clean) : new MediaFoundationReader(path);
+    }
+
+    /// <summary>Lector de un flujo que además lo cierra al terminar (el de NAudio deja abierto el archivo).</summary>
+    private sealed class OwningStreamReader : StreamMediaFoundationReader
+    {
+        private readonly Stream _stream;
+
+        public OwningStreamReader(Stream stream) : base(stream) => _stream = stream;
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing) _stream.Dispose();
+        }
     }
 
     private static bool SameFormat(WaveFormat a, WaveFormat b) =>
@@ -243,16 +269,23 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         return _reader;
     }
 
-    private void Commit(WaveStream reader, MMDevice device, WaveFormat format, bool exclusive)
+    /// <summary>Instala lo cargado, salvo que entretanto se haya pedido otra carga (entonces lo cierra).</summary>
+    private bool Commit(WaveStream reader, MMDevice device, WaveFormat format, bool exclusive, int ticket)
     {
         lock (_lock)
         {
+            if (ticket != Volatile.Read(ref _loadTicket))
+            {
+                reader.Dispose();
+                return false;
+            }
             _reader = reader;
             _device = device;
             _exclusive = exclusive;
             _provider = new PcmProvider(reader, format, _lock, TakeNext);
         }
         try { _deviceName = device.FriendlyName; } catch { _deviceName = "dispositivo de audio"; }
+        return true;
     }
 
     /// <summary>Empieza o reanuda la reproducción (en exclusivo, toma el dispositivo).</summary>

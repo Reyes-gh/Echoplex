@@ -20,12 +20,20 @@ public partial class MainWindow
 {
     private enum TransitionStyle { Diffuse, Vortex, Shatter }
 
-    private static readonly IEasingFunction Ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-    private static readonly IEasingFunction EaseIn = new CubicEase { EasingMode = EasingMode.EaseIn };
-    private static readonly IEasingFunction Silk = new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 };
-    private static readonly IEasingFunction Drift = new SineEase { EasingMode = EasingMode.EaseOut };
-    private static readonly IEasingFunction Pop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.45 };
-    private static readonly IEasingFunction SoftPop = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 };
+    // congeladas: WPF no tiene que copiarlas cada vez que empieza una animación (mismas curvas)
+    private static readonly IEasingFunction Ease = Frozen(new CubicEase { EasingMode = EasingMode.EaseOut });
+    private static readonly IEasingFunction EaseIn = Frozen(new CubicEase { EasingMode = EasingMode.EaseIn });
+    private static readonly IEasingFunction Silk = Frozen(new ExponentialEase { EasingMode = EasingMode.EaseOut, Exponent = 5 });
+    private static readonly IEasingFunction Drift = Frozen(new SineEase { EasingMode = EasingMode.EaseOut });
+    private static readonly IEasingFunction Pop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.45 });
+    private static readonly IEasingFunction SoftPop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 });
+    private static readonly IEasingFunction Sway = Frozen(new SineEase { EasingMode = EasingMode.EaseInOut });
+
+    private static T Frozen<T>(T f) where T : Freezable
+    {
+        f.Freeze();
+        return f;
+    }
 
     private readonly Stopwatch _cardClock = Stopwatch.StartNew();
     private readonly Stopwatch _pageClock = Stopwatch.StartNew();
@@ -39,6 +47,11 @@ public partial class MainWindow
     private bool _crossfadePending;
 
     private readonly List<GradientStop[]> _auroraStops = new();
+    // relojes de la deriva de la aurora: se pausan con la ventana minimizada u oculta (mini reproductor)
+    private readonly List<AnimationClock> _auroraClocks = new();
+    // última portada y opacidad aplicadas: si no cambian, no hace falta volver a fundir los colores
+    private object? _auroraSource;
+    private byte _auroraAlpha;
     private INotifyPropertyChanged? _watchedPage;
 
     /// <summary>El ajuste del usuario (Ctrl+E) y la opción de Windows "Mostrar animaciones".</summary>
@@ -58,6 +71,8 @@ public partial class MainWindow
                 case nameof(MainViewModel.AnimationsOn):
                     // las de XAML leen la propiedad heredada; la aurora se rehace quieta o en movimiento
                     Anim.SetEnabled(this, AnimationsEnabled);
+                    foreach (var c in _auroraClocks) c.Controller?.Remove(); // las de la aurora anterior se paran de verdad
+                    _auroraClocks.Clear();
                     Aurora.Children.Clear();
                     _auroraStops.Clear();
                     BuildAurora();
@@ -73,6 +88,19 @@ public partial class MainWindow
             }
         };
         _vm.ThemeChanged += RefreshAurora;
+        // minimizada u oculta no se ve nada: la deriva se pausa y sigue desde el mismo punto al volver
+        StateChanged += (s, e) => UpdateAuroraRunning();
+        IsVisibleChanged += (s, e) => UpdateAuroraRunning();
+    }
+
+    private void UpdateAuroraRunning()
+    {
+        bool run = IsVisible && WindowState != WindowState.Minimized;
+        foreach (var c in _auroraClocks)
+        {
+            if (c.Controller == null) continue;
+            if (run) c.Controller.Resume(); else c.Controller.Pause();
+        }
     }
 
     // ======================================================================
@@ -494,17 +522,27 @@ public partial class MainWindow
 
             // deriva lenta e infinita, a 30 fps: suficiente para algo tan suave
             var t = TimeSpan.FromSeconds(l.secs);
-            move.BeginAnimation(TranslateTransform.XProperty, Forever(0, l.dx, t));
-            move.BeginAnimation(TranslateTransform.YProperty, Forever(0, l.dy, TimeSpan.FromSeconds(l.secs * 0.77)));
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, Forever(0.9, 1.18, TimeSpan.FromSeconds(l.secs * 1.3)));
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, Forever(1.12, 0.92, TimeSpan.FromSeconds(l.secs * 1.1)));
+            Drive(move, TranslateTransform.XProperty, Forever(0, l.dx, t));
+            Drive(move, TranslateTransform.YProperty, Forever(0, l.dy, TimeSpan.FromSeconds(l.secs * 0.77)));
+            Drive(scale, ScaleTransform.ScaleXProperty, Forever(0.9, 1.18, TimeSpan.FromSeconds(l.secs * 1.3)));
+            Drive(scale, ScaleTransform.ScaleYProperty, Forever(1.12, 0.92, TimeSpan.FromSeconds(l.secs * 1.1)));
         }
+        _auroraSource = null; // capas nuevas: hay que darles color
         RefreshAurora();
+        UpdateAuroraRunning();
+    }
+
+    /// <summary>Como BeginAnimation, pero guardando el reloj para poder pausarlo.</summary>
+    private void Drive(Animatable target, DependencyProperty property, AnimationTimeline animation)
+    {
+        var clock = animation.CreateClock();
+        target.ApplyAnimationClock(property, clock);
+        _auroraClocks.Add(clock);
     }
 
     private static DoubleAnimation Forever(double from, double to, TimeSpan t)
     {
-        var a = new DoubleAnimation(from, to, t) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
+        var a = new DoubleAnimation(from, to, t) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Sway };
         Timeline.SetDesiredFrameRate(a, 30);
         return a;
     }
@@ -514,8 +552,13 @@ public partial class MainWindow
     {
         if (_auroraStops.Count == 0) return;
         var source = (_vm.CurrentPage as SongListPage)?.Cover ?? _vm.NowPlayingCover;
-        var colors = Palette.Extract(source);
         byte alpha = (byte)(_vm.IsDark ? 92 : 58);
+        // misma portada y mismo tema que ya están aplicados: nada que cambiar (antes se fundía de un color al mismo)
+        object key = source ?? (object)DBNull.Value; // "sin portada" también cuenta como un estado
+        if (_auroraSource != null && ReferenceEquals(key, _auroraSource) && alpha == _auroraAlpha) return;
+        _auroraSource = key;
+        _auroraAlpha = alpha;
+        var colors = Palette.Extract(source);
         for (int i = 0; i < _auroraStops.Count; i++)
         {
             var c = colors[i % colors.Length];

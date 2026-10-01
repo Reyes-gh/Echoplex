@@ -63,8 +63,12 @@ public partial class VolumePanel : UserControl
 
     private void OnPlayerChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(PlayerService.Volume) or nameof(PlayerService.IsMuted)) Dispatcher.BeginInvoke(Refresh);
+        // cerrado no se ve: al abrirse, PrepareToShow lo pone al día
+        if (e.PropertyName is nameof(PlayerService.Volume) or nameof(PlayerService.IsMuted))
+            Dispatcher.BeginInvoke(() => { if (IsVisible) Refresh(); });
     }
+
+    private bool? _shownMuted;
 
     /// <summary>Antes de abrirse: el rango más pequeño en el que el volumen actual queda cómodo (hasta el 80 % de la barra).</summary>
     public void PrepareToShow()
@@ -97,7 +101,11 @@ public partial class VolumePanel : UserControl
         DbText.Text = v <= 0 ? "−∞ dB" : (20 * Math.Log10(v)).ToString("0.0", Es).Replace("-", "−") + " dB";
         if (!ExactBox.IsKeyboardFocused) ExactBox.Text = Pct(v);
         bool muted = _player?.IsMuted == true;
-        PercentRun.SetResourceReference(TextElement.ForegroundProperty, muted ? "Text3Brush" : "TextBrush");
+        if (_shownMuted != muted)
+        {
+            _shownMuted = muted;
+            PercentRun.SetResourceReference(TextElement.ForegroundProperty, muted ? "Text3Brush" : "TextBrush");
+        }
 
         double w = Track.ActualWidth;
         double frac = Math.Clamp(v / _range, 0, 1);

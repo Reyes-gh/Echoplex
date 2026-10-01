@@ -19,7 +19,21 @@ public sealed class EqualizerBars : StackPanel
         (0.35, 0.9, 560, 140, 0.9),
         (0.2, 0.8, 480, 60, 0.4),
     };
-    private static readonly IEasingFunction Ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+    // las tres animaciones se crean una vez, congeladas, y las comparten todas las barritas
+    private static readonly DoubleAnimation[] Motions = Bars.Select(b =>
+    {
+        var ease = new SineEase { EasingMode = EasingMode.EaseInOut };
+        var a = new DoubleAnimation(b.Low, b.High, TimeSpan.FromMilliseconds(b.Ms))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = ease,
+            BeginTime = TimeSpan.FromMilliseconds(b.Delay),
+        };
+        Timeline.SetDesiredFrameRate(a, 30); // barritas: 30 fps de sobra
+        a.Freeze();
+        return a;
+    }).ToArray();
 
     public static readonly DependencyProperty FillProperty = DependencyProperty.Register(
         nameof(Fill), typeof(Brush), typeof(EqualizerBars), new PropertyMetadata(Brushes.Gray, (d, e) => ((EqualizerBars)d).ApplyFill()));
@@ -60,10 +74,26 @@ public sealed class EqualizerBars : StackPanel
             Children.Add(bar);
         }
         ApplyFill();
-        Loaded += (s, e) => Update();
-        Unloaded += (s, e) => Stop();
+        Loaded += (s, e) =>
+        {
+            // con la ventana minimizada no se ven: se paran y vuelven a moverse al restaurarla
+            _window = Window.GetWindow(this);
+            if (_window != null) _window.StateChanged += OnWindowStateChanged;
+            Update();
+        };
+        Unloaded += (s, e) =>
+        {
+            if (_window != null) _window.StateChanged -= OnWindowStateChanged;
+            _window = null;
+            Stop();
+        };
         IsVisibleChanged += (s, e) => Update();
     }
+
+    private Window? _window;
+    private bool _running;
+
+    private void OnWindowStateChanged(object? sender, EventArgs e) => Update();
 
     public Brush Fill
     {
@@ -84,28 +114,21 @@ public sealed class EqualizerBars : StackPanel
 
     private void Update()
     {
-        if (!(IsAnimating && IsVisible && IsLoaded && Anim.GetEnabled(this)))
+        bool minimized = _window?.WindowState == WindowState.Minimized;
+        if (!(IsAnimating && IsVisible && IsLoaded && !minimized && Anim.GetEnabled(this)))
         {
             Stop();
             return;
         }
-        for (int i = 0; i < _bars.Count; i++)
-        {
-            var b = Bars[i];
-            var a = new DoubleAnimation(b.Low, b.High, TimeSpan.FromMilliseconds(b.Ms))
-            {
-                AutoReverse = true,
-                RepeatBehavior = RepeatBehavior.Forever,
-                EasingFunction = Ease,
-                BeginTime = TimeSpan.FromMilliseconds(b.Delay),
-            };
-            Timeline.SetDesiredFrameRate(a, 30); // barritas: 30 fps de sobra
-            _bars[i].Scale.BeginAnimation(ScaleTransform.ScaleYProperty, a);
-        }
+        if (_running) return; // ya se mueven: no se reinician
+        _running = true;
+        for (int i = 0; i < _bars.Count; i++) _bars[i].Scale.BeginAnimation(ScaleTransform.ScaleYProperty, Motions[i]);
     }
 
     private void Stop()
     {
+        if (!_running) return; // quietas ya, a su altura de reposo
+        _running = false;
         for (int i = 0; i < _bars.Count; i++)
         {
             _bars[i].Scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);

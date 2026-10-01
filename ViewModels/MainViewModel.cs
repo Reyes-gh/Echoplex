@@ -71,7 +71,7 @@ public sealed partial class MainViewModel : ObservableObject
         _searchTimer.Stop();
         _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(45), DispatcherPriority.Background, (s, e) =>
         {
-            UserData.Save();
+            UserData.SaveInBackground();
             Task.Run(_cache.Save);
         }, ui);
         _saveTimer.Stop();
@@ -115,7 +115,6 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _lyricsSynced;
     [ObservableProperty] private LyricLine? _activeLyric;
     [ObservableProperty] private int _galleryColumns = 5;
-    [ObservableProperty] private bool _isMiniPlayer;
 
     public bool QueueTabActive => ShowRightPanel && RightTab == "queue";
     public bool LyricsTabActive => ShowRightPanel && RightTab == "lyrics";
@@ -1697,16 +1696,25 @@ public sealed partial class MainViewModel : ObservableObject
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         timer.Tick += async (s, e) =>
         {
+            // una comprobación cada vez: si una tarda más de 3 s (miles de archivos), no empieza otra encima
+            timer.Stop();
             ticks++;
-            var states = await Task.Run(() => songs.Select(x => OneDriveService.IsCloudOnly(x.Path)).ToList());
             bool done = true;
-            for (int i = 0; i < songs.Count; i++)
+            try
             {
-                songs[i].IsCloud = states[i];
-                if (states[i] != targetCloud) done = false;
+                var states = await Task.Run(() => songs.Select(x => OneDriveService.IsCloudOnly(x.Path)).ToList());
+                for (int i = 0; i < songs.Count; i++)
+                {
+                    songs[i].IsCloud = states[i];
+                    if (states[i] != targetCloud) done = false;
+                }
+                (CurrentPage as SongListPage)?.RefreshProperties();
             }
-            (CurrentPage as SongListPage)?.RefreshProperties();
-            if (done || ticks > 400) timer.Stop();
+            catch
+            {
+                done = false; // se vuelve a mirar en el siguiente tic
+            }
+            if (!done && ticks <= 400) timer.Start();
         };
         timer.Start();
     }
@@ -2076,12 +2084,6 @@ public sealed partial class MainViewModel : ObservableObject
     {
         int i = id.IndexOf(':');
         return i < 0 ? (id, "") : (id[..i], id[(i + 1)..]);
-    }
-
-    private Song? FirstSongUnder(string path)
-    {
-        var prefix = path + "\\";
-        return Library.Songs.FirstOrDefault(s => s.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private string FolderName(string path) => Eq(path, LibraryService.AllKey) ? "Toda tu música" : Path.GetFileName(path) is { Length: > 0 } n ? n : path;

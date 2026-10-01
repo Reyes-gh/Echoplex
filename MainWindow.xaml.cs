@@ -251,7 +251,13 @@ public partial class MainWindow : Window
                 if (_dragSlider != SeekSlider)
                 {
                     SeekSlider.Value = p.Position;
-                    PosText.Text = FormatTime(p.Position);
+                    // el texto solo cambia una vez por segundo: no se rehace en cada tic (4 por segundo)
+                    long second = double.IsFinite(p.Position) ? (long)Math.Max(0, p.Position) : 0;
+                    if (second != _shownSecond)
+                    {
+                        _shownSecond = second;
+                        PosText.Text = FormatTime(p.Position);
+                    }
                 }
                 if (p.Duration > 0) Taskbar.ProgressValue = Math.Clamp(p.Position / p.Duration, 0, 1);
                 break;
@@ -333,6 +339,8 @@ public partial class MainWindow : Window
         _gliding = false;
     }
 
+    private long _shownSecond = -1;
+
     private static string FormatTime(double seconds) =>
         Song.FormatTime(TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)));
 
@@ -346,7 +354,11 @@ public partial class MainWindow : Window
             // el tirador en el último repintado y se desvía si el valor acaba de cambiar).
             double fraction = Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1);
             slider.Value = slider.Minimum + fraction * (slider.Maximum - slider.Minimum);
-            if (slider == SeekSlider) PosText.Text = FormatTime(slider.Value);
+            if (slider == SeekSlider)
+            {
+                PosText.Text = FormatTime(slider.Value);
+                _shownSecond = -1; // al soltar, el tiempo real vuelve a escribirse
+            }
         }
 
         slider.PreviewMouseLeftButtonDown += (o, e) =>

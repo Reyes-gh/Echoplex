@@ -1,7 +1,10 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:local="clr-namespace:Echoplex"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    mc:Ignorable="po">
 
     <!-- ===== Tipografía ===== -->
     <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
@@ -20,7 +23,7 @@
 
     <!-- ===== Nota de Echoplex ===== -->
     <!-- La imagen es blanca sobre transparente: se usa de máscara y se pinta con el color del tema (claro, oscuro, neón…) -->
-    <ImageBrush x:Key="NoteMask" ImageSource="pack://application:,,,/Echoplex;component/Assets/note.png" Stretch="Uniform" />
+    <ImageBrush po:Freeze="True" x:Key="NoteMask" ImageSource="pack://application:,,,/Echoplex;component/Assets/note.png" Stretch="Uniform" />
 
     <Style x:Key="NoteLogo" TargetType="Rectangle">
         <Setter Property="Fill" Value="{DynamicResource Text3Brush}" />
@@ -60,7 +63,7 @@
     </Style>
 
     <!-- ===== Animaciones ===== -->
-    <CubicEase x:Key="EaseOut" EasingMode="EaseOut" />
+    <CubicEase po:Freeze="True" x:Key="EaseOut" EasingMode="EaseOut" />
 
     <!-- Aparece con un fundido suave cuando se hace visible (portadas que llegan después de la página) -->
     <!-- (solo con las animaciones activadas: local:Anim.Enabled se hereda de la ventana) -->
@@ -213,8 +216,8 @@
         </Setter>
     </Style>
 
-    <DropShadowEffect x:Key="SoftShadow" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.14" Color="#000000" />
-    <DropShadowEffect x:Key="PopupShadow" BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.18" Color="#000000" />
+    <DropShadowEffect po:Freeze="True" x:Key="SoftShadow" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.14" Color="#000000" />
+    <DropShadowEffect po:Freeze="True" x:Key="PopupShadow" BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.18" Color="#000000" />
 
     <!-- ===== Botones ===== -->
 

@@ -692,17 +692,49 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
 
     private void UpdateUpNext()
     {
-        QueueNext.Clear();
-        foreach (var q in _userQueue) QueueNext.Add(q);
+        Sync(QueueNext, _userQueue);
         HasQueue = QueueNext.Count > 0;
 
-        ContextNext.Clear();
-        for (int i = _pos + 1; i < _order.Count && ContextNext.Count < 50; i++)
-            ContextNext.Add(_context[_order[i]]);
+        var context = new List<Song>(50);
+        for (int i = _pos + 1; i < _order.Count && context.Count < 50; i++)
+            context.Add(_context[_order[i]]);
         if (Repeat == RepeatMode.All && !Shuffle)
-            for (int i = 0; i < _pos && ContextNext.Count < 50; i++)
-                ContextNext.Add(_context[_order[i]]);
+            for (int i = 0; i < _pos && context.Count < 50; i++)
+                context.Add(_context[_order[i]]);
+        Sync(ContextNext, context);
         CheckGapless();
+    }
+
+    /// <summary>
+    /// Deja la lista visible igual que <paramref name="items"/> tocando solo lo que cambia: al pasar de canción
+    /// se quita la primera y, si acaso, se añade al final (antes se vaciaba y rellenaba entera: con una cola de
+    /// miles de canciones, miles de avisos a la interfaz). Si cambia de otra forma, se rehace como siempre.
+    /// </summary>
+    private static void Sync(ObservableCollection<Song> target, IList<Song> items)
+    {
+        int n = target.Count;
+        bool Same(int from, int count, int itemsFrom)
+        {
+            for (int k = 0; k < count; k++)
+                if (!ReferenceEquals(target[from + k], items[itemsFrom + k])) return false;
+            return true;
+        }
+        if (n == items.Count && Same(0, n, 0)) return;
+        // avance: la lista nueva empieza por la vieja sin su primera
+        if (n > 0 && items.Count >= n - 1 && Same(1, n - 1, 0))
+        {
+            target.RemoveAt(0);
+            for (int k = n - 1; k < items.Count; k++) target.Add(items[k]);
+            return;
+        }
+        // añadido al final: la nueva empieza por toda la vieja
+        if (items.Count > n && Same(0, n, 0))
+        {
+            for (int k = n; k < items.Count; k++) target.Add(items[k]);
+            return;
+        }
+        target.Clear();
+        foreach (var s in items) target.Add(s);
     }
 
     private static void Log(string text)

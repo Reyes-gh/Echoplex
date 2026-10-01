@@ -129,13 +129,16 @@ public static class SongColumns
         if (d is not Grid grid || e.NewValue is not true) return;
         lock (Hosts)
         {
-            Hosts.RemoveAll(w => !w.TryGetTarget(out _));
+            // las filas se crean sin parar al desplazarse: se limpia la lista de vez en cuando, no en cada fila
+            if (++_hostsAdded % 64 == 0) Hosts.RemoveAll(w => !w.TryGetTarget(out _));
             Hosts.Add(new WeakReference<Grid>(grid));
         }
         Apply(grid);
         // al fijar la propiedad en XAML las celdas aún no están dentro: se recolocan al cargar
         grid.Loaded += (s, _) => Apply((Grid)s);
     }
+
+    private static int _hostsAdded;
 
     private static void ApplyAll()
     {
@@ -145,7 +148,9 @@ public static class SongColumns
             Hosts.RemoveAll(w => !w.TryGetTarget(out _));
             live = Hosts.Select(w => w.TryGetTarget(out var g) ? g : null).Where(g => g != null).Cast<Grid>().ToList();
         }
-        foreach (var g in live) Apply(g);
+        // las que no están en pantalla se recolocan solas al volver a cargarse (ver OnHostChanged)
+        foreach (var g in live)
+            if (g.IsLoaded) Apply(g);
     }
 
     /// <summary>Columnas del Grid según el diseño actual, y cada celda en la suya.</summary>

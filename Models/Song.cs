@@ -50,7 +50,8 @@ public sealed partial class Song : ObservableObject
     public string MetaTitle => _title;
 
     /// <summary>Nombre del archivo sin extensión.</summary>
-    public string FileTitle => System.IO.Path.GetFileNameWithoutExtension(FileName);
+    public string FileTitle => _fileTitle ??= System.IO.Path.GetFileNameWithoutExtension(FileName);
+    private string? _fileTitle;
 
     /// <summary>Título que se muestra: el de los metadatos o, con <see cref="UseFileName"/>, el nombre del archivo.</summary>
     public string Title
@@ -82,19 +83,23 @@ public sealed partial class Song : ObservableObject
 
     public string DurationText => Duration is { } d ? FormatTime(d) : "";
 
-    /// <summary>Artista principal, sin colaboraciones ("feat.", "ft.").</summary>
-    public string PrimaryArtist
+    private static readonly string[] FeatSeparators = { " feat.", " feat ", " ft.", " ft ", " featuring ", " Feat.", " Ft.", " FEAT." };
+    private static readonly char[] OpenBrackets = { '(', '[' };
+    private string? _primaryArtist;
+
+    partial void OnArtistChanged(string value) => _primaryArtist = null;
+
+    /// <summary>Artista principal, sin colaboraciones ("feat.", "ft."). Se calcula una vez por cada artista.</summary>
+    public string PrimaryArtist => _primaryArtist ??= ComputePrimaryArtist(Artist);
+
+    private static string ComputePrimaryArtist(string a)
     {
-        get
+        foreach (var sep in FeatSeparators)
         {
-            var a = Artist;
-            foreach (var sep in new[] { " feat.", " feat ", " ft.", " ft ", " featuring ", " Feat.", " Ft.", " FEAT." })
-            {
-                int i = a.IndexOf(sep, StringComparison.Ordinal);
-                if (i > 0) a = a[..i];
-            }
-            return a.Trim().TrimEnd('(', '[').Trim();
+            int i = a.IndexOf(sep, StringComparison.Ordinal);
+            if (i > 0) a = a[..i];
         }
+        return a.Trim().TrimEnd(OpenBrackets).Trim();
     }
 
     public static string FormatTime(TimeSpan d) =>

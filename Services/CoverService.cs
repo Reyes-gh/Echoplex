@@ -27,6 +27,10 @@ public sealed class CoverService
     private readonly ConcurrentDictionary<string, string[]> _dirImages = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, BitmapSource?> _images = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(3);
+    // las portadas grandes (cabeceras, reproductor: ~1,6 MB cada una) no se guardan todas para siempre:
+    // solo las más recientes; si se vuelve a pedir una más antigua, se decodifica otra vez del mismo archivo
+    private const int LargeSize = 500, MaxLarge = 80;
+    private readonly ConcurrentQueue<string> _largeKeys = new();
 
     /// <summary>Carátulas elegidas por el usuario: carpeta → imagen (en %LocalAppData%\Echoplex\covers). Mandan sobre todo lo demás.</summary>
     private Dictionary<string, string> _custom = new(StringComparer.OrdinalIgnoreCase);
@@ -49,6 +53,16 @@ public sealed class CoverService
     {
         _dirImages.Clear();
         _images.Clear();
+        _largeKeys.Clear();
+    }
+
+    private void Remember(string key, BitmapSource? img, int size)
+    {
+        bool isNew = !_images.ContainsKey(key);
+        _images[key] = img;
+        if (size < LargeSize || img == null || !isNew) return;
+        _largeKeys.Enqueue(key);
+        while (_largeKeys.Count > MaxLarge && _largeKeys.TryDequeue(out var oldest)) _images.TryRemove(oldest, out _);
     }
 
     /// <summary>
@@ -181,7 +195,7 @@ public sealed class CoverService
         // 0. la carátula que eligió el usuario para esta carpeta
         if (CustomFor(dir) is { } custom && LoadFile(custom, size) is { } chosen)
         {
-            _images[key] = chosen;
+            Remember(key, chosen, size);
             return chosen;
         }
 
@@ -215,7 +229,7 @@ public sealed class CoverService
             }
         }
 
-        if (img != null) _images[key] = img;
+        if (img != null) Remember(key, img, size);
         return img;
     }
 
@@ -225,7 +239,7 @@ public sealed class CoverService
         if (_images.TryGetValue(key, out var cached)) return cached;
         var bytes = MetadataReader.ReadPicture(song.Path);
         var img = bytes != null ? Decode(new MemoryStream(bytes), size) : null;
-        if (img != null) _images[key] = img; // si falla, se puede probar con otra canción del mismo disco
+        if (img != null) Remember(key, img, size); // si falla, se puede probar con otra canción del mismo disco
         return img;
     }
 
@@ -242,7 +256,7 @@ public sealed class CoverService
         {
             // imagen ilegible
         }
-        _images[key] = img;
+        Remember(key, img, size);
         return img;
     }
 

@@ -65,25 +65,31 @@ public sealed class MetadataCache
         }
     }
 
+    private readonly object _writeLock = new();
+
     public void Save()
     {
-        Dictionary<string, CachedMeta> copy;
-        lock (_lock)
+        // de uno en uno: el guardado al cerrar espera al periódico si está en marcha (comparten el .tmp)
+        lock (_writeLock)
         {
-            if (!_dirty) return;
-            copy = new Dictionary<string, CachedMeta>(_map);
-            _dirty = false;
-        }
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
-            var tmp = _file + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(copy));
-            File.Move(tmp, _file, true);
-        }
-        catch
-        {
-            lock (_lock) _dirty = true;
+            Dictionary<string, CachedMeta> copy;
+            lock (_lock)
+            {
+                if (!_dirty) return;
+                copy = new Dictionary<string, CachedMeta>(_map);
+                _dirty = false;
+            }
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_file)!);
+                var tmp = _file + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(copy));
+                File.Move(tmp, _file, true);
+            }
+            catch
+            {
+                lock (_lock) _dirty = true;
+            }
         }
     }
 }

@@ -11,7 +11,6 @@ public abstract class PageBase : ObservableObject
     public string Title { get; init; } = "";
     public string Glyph { get; init; } = "";
     public string Breadcrumb { get; init; } = "";
-    public virtual bool IsSongList => false;
     public virtual bool HasFilter => false;
 }
 
@@ -134,7 +133,6 @@ public sealed partial class SongListPage : PageBase
     public ListKind Kind { get; }
     public List<Song> Songs { get; }
     public List<Song> Visible { get; private set; } = new();
-    public override bool IsSongList => true;
     public override bool HasFilter => true;
 
     public string? Description { get; init; }
@@ -155,7 +153,6 @@ public sealed partial class SongListPage : PageBase
     public string? ExtraHeader { get; init; }
     public bool ShowExtra => ExtraHeader != null;
     public List<PropertyItem> BaseProperties { get; init; } = new();
-    public List<CardVm> Albums { get; init; } = new();
 
     /// <summary>Divide la lista en módulos por carpeta (disco) cuando no hay un orden aplicado.</summary>
     public bool GroupByFolder { get; init; }
@@ -163,13 +160,11 @@ public sealed partial class SongListPage : PageBase
     public string? GroupRoot { get; init; }
     /// <summary>Usar el nombre de álbum como título del módulo (página de artista).</summary>
     public bool GroupTitleFromAlbum { get; init; }
-    public string AlbumsHeader { get; init; } = "Álbumes";
 
     /// <summary>Todo lo que se reproduce/descarga desde la cabecera (p. ej. una carpeta con subcarpetas).</summary>
     public List<Song>? PlayAll { get; init; }
     public List<Song> AllSongs => PlayAll ?? Songs;
     public bool HasRows => Songs.Count > 0;
-    public bool HasAlbums => Albums.Count > 0;
     public bool IsPlaylist => Kind == ListKind.Playlist;
     public bool CanDownload => Kind is not ListKind.History and not ListKind.Search;
     public bool IsEmpty => AllSongs.Count == 0;
@@ -265,6 +260,7 @@ public sealed partial class SongListPage : PageBase
         bool group = GroupByFolder && SortKey == null;
         string? dir = null;
         int inGroup = 0;
+        Dictionary<string, List<Song>>? byDir = null; // canciones por carpeta, en una sola pasada y solo si hace falta
         for (int k = 0; k < list.Count; k++)
         {
             var s = list[k].s;
@@ -272,7 +268,7 @@ public sealed partial class SongListPage : PageBase
             {
                 dir = s.Directory;
                 inGroup = 0;
-                items.Add(GetGroup(dir));
+                items.Add(GetGroup(dir, ref byDir));
             }
             inGroup++;
             items.Add(new SongRow(s, k, _extras != null && list[k].i < _extras.Count ? _extras[list[k].i] : null, group ? inGroup : null));
@@ -280,10 +276,19 @@ public sealed partial class SongListPage : PageBase
         Items = items;
     }
 
-    private GroupHeader GetGroup(string dir)
+    private GroupHeader GetGroup(string dir, ref Dictionary<string, List<Song>>? byDir)
     {
         if (_groups.TryGetValue(dir, out var g)) return g;
-        var songs = Songs.Where(s => string.Equals(s.Directory, dir, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (byDir == null)
+        {
+            byDir = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var x in Songs)
+            {
+                if (!byDir.TryGetValue(x.Directory, out var l)) byDir[x.Directory] = l = new List<Song>();
+                l.Add(x);
+            }
+        }
+        var songs = byDir.TryGetValue(dir, out var found) ? found : new List<Song>();
         string title, kicker;
         if (GroupTitleFromAlbum && songs.Count > 0)
         {
@@ -305,11 +310,10 @@ public sealed partial class SongListPage : PageBase
 
     public void RefreshProperties()
     {
-        Properties.Clear();
-        foreach (var p in BaseProperties) Properties.Add(p);
+        var props = new List<PropertyItem>(BaseProperties);
         var all = AllSongs;
         int count = all.Count;
-        Properties.Add(new PropertyItem("", "Canciones", count == 1 ? "1 canción" : $"{count:N0} canciones"));
+        props.Add(new PropertyItem("", "Canciones", count == 1 ? "1 canción" : $"{count:N0} canciones"));
 
         long ticks = 0;
         int unknown = 0, cloud = 0;
@@ -322,7 +326,7 @@ public sealed partial class SongListPage : PageBase
         {
             var t = TimeSpan.FromTicks(ticks);
             var dur = t.TotalHours >= 1 ? $"{(int)t.TotalHours} h {t.Minutes} min" : $"{t.Minutes} min {t.Seconds} s";
-            Properties.Add(new PropertyItem("", "Duración", unknown > 0 ? $"más de {dur}" : dur));
+            props.Add(new PropertyItem("", "Duración", unknown > 0 ? $"más de {dur}" : dur));
         }
         if (count > 0 && Kind != ListKind.History)
         {
@@ -330,8 +334,12 @@ public sealed partial class SongListPage : PageBase
             var text = cloud == 0 ? "Todo en este dispositivo"
                 : local == 0 ? "Todo en OneDrive (se descarga al reproducir)"
                 : $"{local:N0} en el dispositivo · {cloud:N0} en OneDrive";
-            Properties.Add(new PropertyItem(cloud == 0 ? "" : "", "Disponibilidad", text));
+            props.Add(new PropertyItem(cloud == 0 ? "" : "", "Disponibilidad", text));
         }
+        // se llama a menudo mientras se leen metadatos: si nada cambió, no se rehacen las filas de la cabecera
+        if (props.SequenceEqual(Properties)) return;
+        Properties.Clear();
+        foreach (var p in props) Properties.Add(p);
     }
 }
 
@@ -392,6 +400,9 @@ public sealed record GreetChar(string Ch, int Index);
 
 public sealed class HomePage : PageBase
 {
+    /// <summary>Sin filtro en esta página (el cuadro de filtro está oculto); evita que su enlace falle.</summary>
+    public string Filter { get; set; } = "";
+
     public string Greeting { get; init; } = "";
     /// <summary>El saludo letra a letra, para animarlo en cascada.</summary>
     public List<GreetChar> GreetingChars => Greeting.Select((c, i) => new GreetChar(c.ToString(), i)).ToList();
@@ -402,6 +413,9 @@ public sealed class HomePage : PageBase
 
 public sealed partial class SearchPage : PageBase
 {
+    /// <summary>Sin filtro en esta página (el cuadro de filtro está oculto); evita que su enlace falle.</summary>
+    public string Filter { get; set; } = "";
+
     [ObservableProperty] private string _query = "";
     [ObservableProperty] private List<SongRow> _songs = new();
     [ObservableProperty] private List<CardVm> _artists = new();
@@ -430,6 +444,9 @@ public sealed record BarItem(string Label, double Height, string Tip);
 
 public sealed class StatsPage : PageBase
 {
+    /// <summary>Sin filtro en esta página (el cuadro de filtro está oculto); evita que su enlace falle.</summary>
+    public string Filter { get; set; } = "";
+
     public string TotalTime { get; init; } = "";
     public string MonthTime { get; init; } = "";
     public string PlayCount { get; init; } = "";

@@ -76,21 +76,53 @@ public sealed class UserDataService
         foreach (var p in _data.Playlists) Playlists.Add(new Playlist(p.Id, p.Name, p.Songs, p.Created));
     }
 
-    public void Save(bool force = false)
+    private readonly object _writeLock = new();
+
+    /// <summary>Guarda ya, esperando a que esté escrito (al cerrar).</summary>
+    public void Save(bool force = false) => Write(Snapshot(force));
+
+    /// <summary>
+    /// Guardado periódico mientras suena: los datos se copian a bytes aquí (en el hilo de la interfaz, que es
+    /// donde cambian) y el archivo se escribe en segundo plano, sin parar la interfaz.
+    /// </summary>
+    public void SaveInBackground()
     {
-        if (!_dirty && !force) return;
+        var bytes = Snapshot(false);
+        if (bytes != null) Task.Run(() => Write(bytes));
+    }
+
+    private byte[]? Snapshot(bool force)
+    {
+        if (!_dirty && !force) return null;
         try
         {
             _data.Playlists = Playlists.Select(p => new PlaylistData { Id = p.Id, Name = p.Name, Songs = p.Songs, Created = p.Created }).ToList();
-            Directory.CreateDirectory(SettingsStore.DataDirectory);
-            var tmp = _file + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(_data));
-            File.Move(tmp, _file, true);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(_data);
             _dirty = false;
+            return bytes;
         }
         catch
         {
-            // se reintenta en el siguiente guardado
+            return null; // se reintenta en el siguiente guardado
+        }
+    }
+
+    private void Write(byte[]? bytes)
+    {
+        if (bytes == null) return;
+        lock (_writeLock) // de uno en uno: el de cierre espera al que esté en marcha
+        {
+            try
+            {
+                Directory.CreateDirectory(SettingsStore.DataDirectory);
+                var tmp = _file + ".tmp";
+                File.WriteAllBytes(tmp, bytes);
+                File.Move(tmp, _file, true);
+            }
+            catch
+            {
+                _dirty = true; // se reintenta en el siguiente guardado
+            }
         }
     }
 
@@ -181,10 +213,19 @@ public sealed class UserDataService
         if (seconds <= 0) return;
         if (!_data.Stats.TryGetValue(song.Path, out var st)) _data.Stats[song.Path] = st = new PlayStat();
         st.Seconds += seconds;
-        var day = DateTime.Now.ToString("yyyy-MM-dd");
-        _data.Daily[day] = _data.Daily.GetValueOrDefault(day) + seconds;
+        // se llama 4 veces por segundo: la clave del día solo se rehace cuando cambia la fecha
+        var today = DateTime.Today;
+        if (today != _dayDate)
+        {
+            _dayDate = today;
+            _dayKey = today.ToString("yyyy-MM-dd");
+        }
+        _data.Daily[_dayKey] = _data.Daily.GetValueOrDefault(_dayKey) + seconds;
         _dirty = true;
     }
+
+    private DateTime _dayDate;
+    private string _dayKey = "";
 
     public void RecordPlay(Song song)
     {

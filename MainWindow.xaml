@@ -170,10 +170,7 @@
 
                 <Border local:SongColumns.Key="artist" Style="{StaticResource CellBorder}">
                     <TextBlock Text="{Binding Song.Artist}" FontSize="14" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Left">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource LinkText}" />
-                        </TextBlock.Style>
+                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" Style="{StaticResource LinkText}">
                         <TextBlock.InputBindings>
                             <MouseBinding MouseAction="LeftClick" Command="{x:Static local:MainWindow.OpenArtistCommand}" CommandParameter="{Binding Song}" />
                         </TextBlock.InputBindings>
@@ -182,10 +179,7 @@
 
                 <Border local:SongColumns.Key="album" Style="{StaticResource CellBorder}">
                     <TextBlock Text="{Binding Song.Album}" FontSize="14" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Left">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource LinkText}" />
-                        </TextBlock.Style>
+                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" Style="{StaticResource LinkText}">
                         <TextBlock.InputBindings>
                             <MouseBinding MouseAction="LeftClick" Command="{x:Static local:MainWindow.OpenAlbumCommand}" CommandParameter="{Binding Song}" />
                         </TextBlock.InputBindings>
@@ -261,6 +255,16 @@
         </DataTemplate>
 
         <!-- ================= Tarjeta (galerías, inicio, búsqueda) ================= -->
+        <!-- botón de reproducir de la tarjeta: la sombra solo existe mientras se ve (invisible no hay que calcularla) -->
+        <Style x:Key="CardPlayButton" TargetType="Button" BasedOn="{StaticResource PlayCircleButton}">
+            <Setter Property="Effect" Value="{StaticResource SoftShadow}" />
+            <Style.Triggers>
+                <Trigger Property="Opacity" Value="0">
+                    <Setter Property="Effect" Value="{x:Null}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <DataTemplate x:Key="CardTemplate" DataType="{x:Type vm:CardVm}">
             <Button x:Name="Card" Style="{StaticResource CardButton}" Width="176" Margin="0,0,16,16" Click="Card_Click" Loaded="Card_Loaded"
                     MouseRightButtonUp="Card_RightClick" MouseEnter="Card_MouseEnter" MouseLeave="Card_MouseLeave" RenderTransformOrigin="0.5,0.5">
@@ -279,9 +283,9 @@
                                 </ImageBrush>
                             </Border.Background>
                         </Border>
-                        <Button x:Name="CardPlay" Style="{StaticResource PlayCircleButton}" Width="38" Height="38" FontSize="14" Content="&#xF5B0;"
+                        <Button x:Name="CardPlay" Style="{StaticResource CardPlayButton}" Width="38" Height="38" FontSize="14" Content="&#xF5B0;"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,10" Opacity="0" Click="CardPlay_Click"
-                                Effect="{StaticResource SoftShadow}" ToolTip="Reproducir">
+                                ToolTip="Reproducir">
                             <Button.RenderTransform>
                                 <TranslateTransform Y="6" />
                             </Button.RenderTransform>
@@ -493,12 +497,6 @@
                 </StackPanel>
                 </Grid>
 
-                    <StackPanel Visibility="{Binding Page.HasAlbums, Converter={StaticResource BoolVis}}" Margin="56,0,56,12">
-                        <TextBlock Text="{Binding Page.AlbumsHeader}" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,12" />
-                        <ItemsControl ItemsSource="{Binding Page.Albums}" ItemTemplate="{StaticResource CardTemplate}"
-                                      ItemsPanel="{StaticResource WrapPanelTemplate}" />
-                        <TextBlock Text="Canciones" FontSize="16" FontWeight="SemiBold" Margin="0,8,0,8" Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}" />
-                    </StackPanel>
 
                 <Border Margin="56,0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,1" Height="34"
                         Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}">
