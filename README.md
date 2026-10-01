@@ -8,12 +8,12 @@
 
 - **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio) y miniaturas de portada.
 - **Páginas de carpeta por discos**: al abrir una carpeta con varios discos, cada disco aparece como un módulo con su portada y su título.
-- **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula).
+- **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula), o las incrustadas en sus canciones si son de álbumes distintos.
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 50 más en *Más temas* (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
-- **Actualizaciones automáticas** desde las releases de este repositorio.
+- **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
 
 Todas las opciones están en **Ajustes** (engranaje abajo a la izquierda, menú *Echoplex* o `Ctrl+,`): tema, animaciones, carpetas de música y actualizaciones.
@@ -27,7 +27,7 @@ Todas las opciones están en **Ajustes** (engranaje abajo a la izquierda, menú 
 
 Los ajustes, playlists e historial se guardan en `%LocalAppData%\Echoplex`; la carpeta del programa no guarda nada tuyo.
 
-**Actualizaciones automáticas**: al abrirse, Echoplex mira si hay una release nueva en este repositorio, la descarga y la instala en segundo plano; basta con reiniciar cuando lo avise. Se puede desactivar en Ajustes.
+**Actualizaciones**: al abrirse, Echoplex mira si hay una release nueva en este repositorio y, si la hay, avisa en la barra lateral: *Actualizar* (la descarga, comprueba su huella SHA-256, la instala y reinicia), *Omitir esta versión* o *Ahora no*. Nunca se instala nada sin preguntar. La comprobación se puede desactivar en Ajustes.
 
 ## Compilar
 
@@ -41,15 +41,21 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.6`).
-2. Escribe las notas en `.github/notas/1.1.6.md` (si no, se usa la sección `### 1.1.6` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.6`** con **`Echoplex-1.1.6-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.7`).
+2. Escribe las notas en `.github/notas/1.1.7.md` (si no, se usa la sección `### 1.1.7` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.7`** con **`Echoplex-1.1.7-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.6
+- **Actualizaciones a tu elección**: Echoplex ya no instala versiones nuevas por su cuenta; avisa con *Actualizar*, *Omitir esta versión* y *Ahora no*.
+- **Carpetas de canciones sueltas**: sin imagen propia y con canciones de varios álbumes, muestran un mosaico de sus carátulas incrustadas, y cada canción lleva la suya al sonar. Los álbumes siguen igual.
+- **Controles multimedia de Windows** con la carátula incrustada cuando la carpeta no tiene imagen.
+- **Correcciones**: abrir y cerrar Ajustes muy rápido ya no deja la app bloqueada tras el fondo oscurecido; el panel *Detalles* ya no puede quedarse saltando con la barra de desplazamiento; los botones de la miniatura de la barra de tareas (*Anterior*, *Siguiente*…) se ven nítidos.
 
 ### 1.1.5
 - **Rendimiento** (todo se ve igual): páginas más rápidas, pausa de las animaciones de fondo con la ventana minimizada u oculta, portadas grandes con límite de memoria y guardado de estadísticas en segundo plano.

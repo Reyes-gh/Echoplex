@@ -243,8 +243,13 @@
                     <TextBlock Text="Actualizaciones" Style="{StaticResource SectionTitle}" />
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Reiniciar y actualizar" Click="RestartUpdate_Click" Margin="0,0,8,0"
-                                    Visibility="{Binding UpdateReady, Converter={StaticResource NullVis}}" />
+                            <!-- con versión nueva disponible: se elige (nada se instala solo) -->
+                            <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Actualizar ahora" Click="InstallUpdate_Click" Margin="0,0,8,0"
+                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}"
+                                    IsEnabled="{Binding IsInstallingUpdate, Converter={StaticResource Eq}, ConverterParameter=False}"
+                                    ToolTip="Descarga e instala la versión nueva y reinicia Echoplex (la cola y la posición se conservan)" />
+                            <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Omitir esta versión" Click="SkipUpdate_Click" Margin="0,0,8,0"
+                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}" ToolTip="No volver a avisar de esta versión" />
                             <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Buscar ahora" Click="CheckUpdates_Click" />
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
@@ -253,7 +258,7 @@
                                        Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,12,0" />
                         </StackPanel>
                     </DockPanel>
-                    <CheckBox Style="{StaticResource Switch}" Content="Buscar e instalar actualizaciones al abrir Echoplex" Margin="0,12,0,0"
+                    <CheckBox Style="{StaticResource Switch}" Content="Buscar actualizaciones al abrir Echoplex (avisa y pregunta antes de instalar)" Margin="0,12,0,0"
                               IsChecked="{Binding AutoUpdate}" />
                     <!-- notas de esta versión, las mismas de la release de GitHub -->
                     <ToggleButton x:Name="ReleaseNotesToggle" Style="{StaticResource DisclosureToggle}" Margin="0,10,0,0" />

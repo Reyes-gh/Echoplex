@@ -8,9 +8,12 @@ using System.Text.Json;
 namespace Echoplex.Services;
 
 /// <summary>Resultado de buscar/instalar una actualización.</summary>
-public enum UpdateState { UpToDate, Installed, Failed }
+public enum UpdateState { UpToDate, Available, Installed, Failed }
 
-public sealed record UpdateResult(UpdateState State, Version? Version, string Message);
+/// <summary>Una versión publicada: su zip y la huella SHA-256 que da GitHub (si la da).</summary>
+public sealed record ReleaseInfo(Version Version, string ZipUrl, string? Digest);
+
+public sealed record UpdateResult(UpdateState State, Version? Version, string Message, ReleaseInfo? Release = null);
 
 /// <summary>
 /// Actualizaciones desde GitHub Releases: mira la última release publicada, descarga su zip
@@ -60,13 +63,19 @@ public sealed class UpdateService
         }
     }
 
-    /// <summary>Busca una versión nueva y, si la hay, la descarga e instala (queda lista para el siguiente arranque).</summary>
-    public async Task<UpdateResult> CheckAndInstallAsync(CancellationToken ct = default)
+    private static HttpClient NewClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"Echoplex/{CurrentVersion}");
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return http;
+    }
+
+    /// <summary>Solo mira si hay una versión más nueva (no descarga ni instala nada).</summary>
+    public async Task<UpdateResult> CheckAsync(CancellationToken ct = default)
     {
         var current = CurrentVersion;
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd($"Echoplex/{current}");
-        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        using var http = NewClient();
 
         // 1. ¿hay una release más nueva?
         JsonElement release;
@@ -106,10 +115,23 @@ public sealed class UpdateService
         if (asset is not { } zipAsset)
             return new(UpdateState.Failed, latest, $"La versión {latest} no incluye el archivo Echoplex-{latest}-win-x64.zip");
 
+        var info = new ReleaseInfo(latest, zipAsset.GetProperty("browser_download_url").GetString()!,
+            zipAsset.TryGetProperty("digest", out var dg) && dg.ValueKind == JsonValueKind.String ? dg.GetString() : null);
+        return new(UpdateState.Available, latest, $"Echoplex {latest} está disponible", info);
+    }
+
+    /// <summary>
+    /// Descarga, comprueba e instala esa versión (queda lista para el siguiente arranque). Solo se llama cuando el
+    /// usuario lo pide: nada se instala solo.
+    /// </summary>
+    public async Task<UpdateResult> InstallAsync(ReleaseInfo release, CancellationToken ct = default)
+    {
+        var latest = release.Version;
         if (!CanWrite(_appDir))
             return new(UpdateState.Failed, latest, $"Hay una versión nueva ({latest}), pero no se puede escribir en la carpeta del programa. Descárgala desde GitHub.");
 
-        // 3. descarga y comprobación
+        using var http = NewClient();
+        // descarga y comprobación
         var work = Path.Combine(SettingsStore.DataDirectory, "updates");
         var zipPath = Path.Combine(work, $"Echoplex-{latest}.zip");
         var staging = Path.Combine(work, latest.ToString());
@@ -117,12 +139,11 @@ public sealed class UpdateService
         {
             if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
             Directory.CreateDirectory(staging);
-            var url = zipAsset.GetProperty("browser_download_url").GetString()!;
-            await using (var src = await http.GetStreamAsync(url, ct))
+            await using (var src = await http.GetStreamAsync(release.ZipUrl, ct))
             await using (var dst = File.Create(zipPath))
                 await src.CopyToAsync(dst, ct);
 
-            if (zipAsset.TryGetProperty("digest", out var d) && d.GetString() is { } digest && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+            if (release.Digest is { } digest && digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
             {
                 await using var fs = File.OpenRead(zipPath);
                 var hash = Convert.ToHexString(await SHA256.HashDataAsync(fs, ct));

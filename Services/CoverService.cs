@@ -139,14 +139,20 @@ public sealed class CoverService
                 yield return f;
     }
 
+    /// <summary>
+    /// Portada de una canción. Si su carpeta tiene imagen (o carátula elegida), esa: el álbum de siempre. Si no, la incrustada
+    /// en la propia canción, para que en una carpeta de canciones sueltas cada una lleve la suya. Si la canción está solo
+    /// en la nube o no trae imagen, la incrustada en otra de <paramref name="siblings"/> del mismo álbum que esté en el PC.
+    /// </summary>
+    /// <param name="deepImages">Mirar también imágenes de subcarpetas (cabecera de la página de un álbum).</param>
     /// <param name="priority">Lo que el usuario está mirando (cabecera de página, canción actual): no espera a la cola.</param>
-    public async Task<BitmapSource?> GetSongCoverAsync(Song song, int size, bool allowDownload = true, bool priority = false)
+    public async Task<BitmapSource?> GetSongCoverAsync(Song song, IEnumerable<Song> siblings, int size, bool allowDownload = true, bool priority = false, bool deepImages = false)
     {
-        if (priority) return await Task.Run(() => FolderCover(song.Directory, new[] { song }, size, allowDownload, recurse: false));
+        if (priority) return await Task.Run(() => SongCover(song, siblings, size, allowDownload, deepImages));
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => FolderCover(song.Directory, new[] { song }, size, allowDownload, recurse: false));
+            return await Task.Run(() => SongCover(song, siblings, size, allowDownload, deepImages));
         }
         finally
         {
@@ -154,22 +160,57 @@ public sealed class CoverService
         }
     }
 
-    /// <summary>
-    /// Portada de un álbum / de la carpeta de una canción, sin mirar subcarpetas: imagen de la carpeta o, si no hay,
-    /// la incrustada en la primera de <paramref name="songs"/> que esté en el dispositivo (conviene pasar todas las de la carpeta).
-    /// </summary>
-    public async Task<BitmapSource?> GetAlbumCoverAsync(string dir, IEnumerable<Song> songs, int size, bool allowDownload = true, bool priority = false)
+    /// <summary>La incrustada en esta canción y nada más (null si no trae o está solo en la nube).</summary>
+    public async Task<BitmapSource?> GetEmbeddedCoverAsync(Song song, int size, bool priority = false)
     {
-        if (priority) return await Task.Run(() => FolderCover(dir, songs, size, allowDownload, recurse: false));
+        if (song.IsCloud) return null;
+        if (priority) return await Task.Run(() => EmbeddedCover(song, size));
         await _gate.WaitAsync();
         try
         {
-            return await Task.Run(() => FolderCover(dir, songs, size, allowDownload, recurse: false));
+            return await Task.Run(() => EmbeddedCover(song, size));
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>Bytes de la portada de una canción para los controles multimedia de Windows (imagen de la carpeta o incrustada).</summary>
+    public byte[]? CoverBytes(Song song)
+    {
+        try
+        {
+            if (FindCoverFile(song.Directory) is { } file) return File.ReadAllBytes(file);
+        }
+        catch
+        {
+            // imagen ilegible: se prueba la incrustada
+        }
+        return song.IsCloud ? null : MetadataReader.ReadPicture(song.Path);
+    }
+
+    private BitmapSource? SongCover(Song song, IEnumerable<Song> siblings, int size, bool allowDownload, bool deepImages)
+    {
+        var dir = song.Directory;
+        if (CustomFor(dir) is { } custom && LoadFile(custom, size) is { } chosen) return chosen;
+        if (FirstImage(deepImages ? ImagesUnder(dir) : ImagesIn(dir), size, allowDownload) is { } img) return img;
+        var sameAlbum = siblings.Where(s => s != song && string.Equals(s.Album.Trim(), song.Album.Trim(), StringComparison.OrdinalIgnoreCase));
+        foreach (var s in new[] { song }.Concat(sameAlbum).Where(s => !s.IsCloud).Take(MaxEmbeddedAttempts))
+            if (EmbeddedCover(s, size) is { } embedded) return embedded;
+        return FirstImage(HiddenImagesIn(dir), size, allowDownload, MaxImageAttempts);
+    }
+
+    private BitmapSource? FirstImage(IEnumerable<string> files, int size, bool allowDownload, int maxAttempts = MaxImageAttempts)
+    {
+        int attempts = 0;
+        foreach (var file in files)
+        {
+            if (!allowDownload && OneDriveService.IsCloudOnly(file)) continue;
+            if (LoadFile(file, size) is { } img) return img;
+            if (++attempts >= maxAttempts) break;
+        }
+        return null;
     }
 
     /// <summary>Portada de una carpeta: imagen interna válida o, si no hay, la incrustada del primer disco.</summary>
@@ -235,11 +276,11 @@ public sealed class CoverService
 
     private BitmapSource? EmbeddedCover(Song song, int size)
     {
-        var key = $"embedded:{song.Directory}|{size}";
+        var key = $"embedded:{song.Path}|{size}"; // por canción: en una carpeta de sueltas cada una trae la suya
         if (_images.TryGetValue(key, out var cached)) return cached;
         var bytes = MetadataReader.ReadPicture(song.Path);
         var img = bytes != null ? Decode(new MemoryStream(bytes), size) : null;
-        if (img != null) Remember(key, img, size); // si falla, se puede probar con otra canción del mismo disco
+        if (img != null) Remember(key, img, size); // si falla, se puede probar con otra canción del mismo álbum
         return img;
     }
 

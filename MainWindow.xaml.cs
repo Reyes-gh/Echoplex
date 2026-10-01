@@ -51,7 +51,12 @@ public partial class MainWindow : Window
         if (s.Maximized) WindowState = WindowState.Maximized;
         SidebarCol.Width = new GridLength(Math.Clamp(s.SidebarWidth, SidebarCol.MinWidth, SidebarCol.MaxWidth));
         RightPanel.Width = Math.Clamp(s.RightPanelWidth, RightMin, RightMax);
-        RightPanel.SizeChanged += (o, e) => _vm.DetailsCompact = RightPanel.ActualWidth < 300;
+        RightPanel.SizeChanged += (o, e) =>
+        {
+            _vm.DetailsCompact = RightPanel.ActualWidth < 300;
+            ReleaseInfoScrollLock();
+        };
+        InfoScroll.ScrollChanged += (o, e) => WatchInfoScrollFlips();
         ((FrameworkElement)PlayerRight.Parent).SizeChanged += (o, e) => UpdatePlayerExtras();
         PlayerExtras.SizeChanged += (o, e) => UpdatePlayerExtras(); // p. ej. aparece el texto del temporizador
         ExtrasPopup.Opened += (o, e) => ExtrasToggle.IsHitTestVisible = false;
@@ -108,7 +113,9 @@ public partial class MainWindow : Window
         await _vm.CheckForUpdatesOnStartupAsync();
     }
 
-    private void RestartUpdate_Click(object sender, RoutedEventArgs e) => _vm.RestartToUpdate();
+    private async void InstallUpdate_Click(object sender, RoutedEventArgs e) => await _vm.InstallUpdateAsync();
+    private void SkipUpdate_Click(object sender, RoutedEventArgs e) => _vm.SkipUpdate();
+    private void DismissUpdate_Click(object sender, RoutedEventArgs e) => _vm.DismissUpdate();
 
     /// <summary>Al bajar por el panel lateral, el menú fijo aparece cuando el de navegación sale de la vista.</summary>
     private void SidebarScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -204,22 +211,26 @@ public partial class MainWindow : Window
         }
     }
 
-    private static ImageSource GlyphImage(string glyph)
+    /// <summary>
+    /// Icono de un botón de la miniatura de la barra de tareas, dibujado al tamaño en que lo muestra Windows
+    /// (16 px a escala 100 %) para que no se reescale y quede nítido.
+    /// </summary>
+    private static ImageSource GlyphImage(string glyph, int size)
     {
-        var grid = new Grid { Width = 32, Height = 32, Background = Brushes.Transparent };
+        var grid = new Grid { Width = size, Height = size, Background = Brushes.Transparent };
         grid.Children.Add(new TextBlock
         {
             Text = glyph,
             FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-            FontSize = 18,
+            FontSize = size * 0.75,
             Foreground = Brushes.White,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         });
-        grid.Measure(new Size(32, 32));
-        grid.Arrange(new Rect(0, 0, 32, 32));
+        grid.Measure(new Size(size, size));
+        grid.Arrange(new Rect(0, 0, size, size));
         grid.UpdateLayout();
-        var bmp = new RenderTargetBitmap(32, 32, 96, 96, PixelFormats.Pbgra32);
+        var bmp = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
         bmp.Render(grid);
         bmp.Freeze();
         return bmp;
@@ -227,11 +238,19 @@ public partial class MainWindow : Window
 
     private void SetupTaskbar()
     {
-        _playImage = GlyphImage("");
-        _pauseImage = GlyphImage("");
-        ThumbPrev.ImageSource = GlyphImage("");
-        ThumbNext.ImageSource = GlyphImage("");
-        ThumbPlay.ImageSource = _playImage;
+        // los cuatro con la variante rellena de la misma familia (anterior y siguiente de contorno apenas se veían)
+        int size = (int)Math.Round(16 * VisualTreeHelper.GetDpi(this).DpiScaleX);
+        _playImage = GlyphImage("\uF5B0", size);
+        _pauseImage = GlyphImage("\uF8AE", size);
+        ThumbPrev.ImageSource = GlyphImage("\uF8AC", size);
+        ThumbNext.ImageSource = GlyphImage("\uF8AD", size);
+        ThumbPlay.ImageSource = _vm.Player.IsPlaying ? _pauseImage : _playImage;
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        SetupTaskbar();
     }
 
     private void ThumbPrev_Click(object? sender, EventArgs e) => _vm.Player.Previous();
@@ -272,6 +291,7 @@ public partial class MainWindow : Window
                 break;
             case nameof(p.Current):
                 Title = p.Current != null ? $"{p.Current.Title} · {p.Current.Artist} — Echoplex" : "Echoplex";
+                ReleaseInfoScrollLock(); // otra canción, otros detalles: la barra vuelve a ser automática
                 break;
         }
     }
@@ -340,6 +360,33 @@ public partial class MainWindow : Window
     }
 
     private long _shownSecond = -1;
+
+    // red de seguridad del panel Detalles: si la barra de desplazamiento entra en vaivén (aparece, el contenido
+    // estrecha y deja de hacer falta, desaparece, vuelve a hacer falta…), se deja fija hasta que cambie algo
+    private Visibility _infoBar = Visibility.Collapsed;
+    private int _infoFlips;
+    private DateTime _infoFlipsSince;
+
+    private void WatchInfoScrollFlips()
+    {
+        var now = InfoScroll.ComputedVerticalScrollBarVisibility;
+        if (now == _infoBar) return;
+        _infoBar = now;
+        if (DateTime.UtcNow - _infoFlipsSince > TimeSpan.FromSeconds(1))
+        {
+            _infoFlipsSince = DateTime.UtcNow;
+            _infoFlips = 0;
+        }
+        if (++_infoFlips >= 4 && InfoScroll.VerticalScrollBarVisibility == ScrollBarVisibility.Auto)
+            InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Visible;
+    }
+
+    /// <summary>Al cambiar el ancho del panel o la canción, la barra vuelve a ser automática.</summary>
+    private void ReleaseInfoScrollLock()
+    {
+        _infoFlips = 0;
+        if (InfoScroll.VerticalScrollBarVisibility != ScrollBarVisibility.Auto) InfoScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+    }
 
     private static string FormatTime(double seconds) =>
         Song.FormatTime(TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)));
@@ -725,11 +772,18 @@ public partial class MainWindow : Window
         _settings = w;
         // el fondo se oscurece a la vez que entra la ventana (y la capa ya bloquea clics mientras se monta)
         SettingsDim.Visibility = Visibility.Visible;
-        w.Opened += () => FadeSettingsDim(true);
-        w.ClosingStarted += () => FadeSettingsDim(false);
+        bool closing = false;
+        w.Opened += () => { if (!closing && _settings == w) FadeSettingsDim(true); };
+        w.ClosingStarted += () =>
+        {
+            closing = true;
+            FadeSettingsDim(false);
+        };
         w.Closed += (s, e) =>
         {
             if (_settings == w) _settings = null;
+            // cerrada del todo: la capa se quita siempre (aunque un fundido se hubiera cruzado con otro)
+            if (_settings == null) HideSettingsDim();
             Activate();
         };
         w.Show();
@@ -737,8 +791,16 @@ public partial class MainWindow : Window
 
     private void SettingsDim_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        _settings?.Close();
+        if (_settings != null) _settings.Close();
+        else HideSettingsDim(); // nunca debería quedarse sola, pero si pasa, un clic la quita
         e.Handled = true;
+    }
+
+    private void HideSettingsDim()
+    {
+        SettingsDim.BeginAnimation(OpacityProperty, null);
+        SettingsDim.Opacity = 0;
+        SettingsDim.Visibility = Visibility.Collapsed;
     }
 
     private void FadeSettingsDim(bool show)

@@ -46,6 +46,8 @@ public sealed class AppSettings
     public bool OnlineLyrics { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
+    /// <summary>Versión de la que el usuario pidió no volver a avisar («Omitir esta versión»).</summary>
+    public string? SkippedVersion { get; set; }
     public double SidebarWidth { get; set; } = 260;
     /// <summary>Orden de las columnas de la tabla de canciones (claves de SongColumns).</summary>
     public List<string>? ColumnOrder { get; set; }

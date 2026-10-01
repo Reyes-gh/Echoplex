@@ -55,6 +55,7 @@ public partial class SettingsWindow : Window
         if (Animated) Card.Opacity = 0;
         ContentRendered += (s, e) =>
         {
+            if (_closing) return; // cerrada antes de llegar a pintarse: ni oscurecer el fondo ni animar la entrada
             Opened?.Invoke();
             AnimateIn();
         };
@@ -245,11 +246,9 @@ public partial class SettingsWindow : Window
 
     private async void CheckUpdates_Click(object sender, RoutedEventArgs e) => await _vm.CheckForUpdatesAsync(manual: true);
 
-    private void RestartUpdate_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-        _vm.RestartToUpdate();
-    }
+    private async void InstallUpdate_Click(object sender, RoutedEventArgs e) => await _vm.InstallUpdateAsync();
+
+    private void SkipUpdate_Click(object sender, RoutedEventArgs e) => _vm.SkipUpdate();
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 

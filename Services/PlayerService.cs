@@ -84,7 +84,8 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         _deviceTimer.Stop();
     }
 
-    public Func<Song, string?>? CoverFileProvider { get; set; }
+    /// <summary>Bytes de la portada para los controles multimedia de Windows.</summary>
+    public Func<Song, byte[]?>? CoverProvider { get; set; }
 
     /// <summary>Genera más canciones parecidas cuando la lista se acaba (radio automática).</summary>
     public Func<Song, IReadOnlyCollection<Song>, List<Song>>? RadioProvider { get; set; }
@@ -554,8 +555,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         {
             try
             {
-                var path = CoverFileProvider?.Invoke(song);
-                return path != null ? File.ReadAllBytes(path) : null;
+                return CoverProvider?.Invoke(song);
             }
             catch
             {

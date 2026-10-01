@@ -1143,15 +1143,28 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- actualización descargada e instalada: falta reiniciar -->
-                    <Button DockPanel.Dock="Bottom" Style="{StaticResource PrimaryButton}" Margin="10,0,10,8" Click="RestartUpdate_Click"
-                            Visibility="{Binding UpdateReady, Converter={StaticResource NullVis}}"
-                            ToolTip="La versión nueva ya está instalada; se abre al reiniciar">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE777;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="{Binding UpdateReady, StringFormat=Reiniciar para usar la {0}}" VerticalAlignment="Center" />
+                    <!-- hay versión nueva: se pregunta (nada se instala solo) -->
+                    <Border DockPanel.Dock="Bottom" Margin="10,0,10,8" Padding="12,10,8,10" CornerRadius="8"
+                            Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                            Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" Width="22" Height="22"
+                                        VerticalAlignment="Top" Click="DismissUpdate_Click" ToolTip="Ahora no (vuelve a avisar la próxima vez que abras Echoplex)" />
+                                <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{DynamicResource AccentBrush}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding UpdateAvailable, StringFormat=Echoplex {0} disponible}" FontSize="13" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Style="{StaticResource PrimaryButton}" Height="28" FontSize="13" Content="Actualizar" Click="InstallUpdate_Click"
+                                        IsEnabled="{Binding IsInstallingUpdate, Converter={StaticResource Eq}, ConverterParameter=False}"
+                                        ToolTip="Descarga e instala la versión nueva y reinicia Echoplex (la cola y la posición se conservan)" />
+                                <Button Style="{StaticResource GhostButton}" Content="Omitir esta versión" Margin="6,0,0,0" Click="SkipUpdate_Click"
+                                        VerticalAlignment="Center" ToolTip="No volver a avisar de esta versión" />
+                            </StackPanel>
                         </StackPanel>
-                    </Button>
+                    </Border>
 
                     <ScrollViewer x:Name="SidebarScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
                                   ScrollChanged="SidebarScroll_ScrollChanged">
@@ -1507,21 +1520,22 @@
                         </DockPanel>
 
                         <!-- Detalles -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                        <ScrollViewer x:Name="InfoScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
                                       Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=info}">
                             <StackPanel Margin="16,16,16,16">
-                                <Grid Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
-                                    <Border x:Name="InfoCover" CornerRadius="6" Background="{DynamicResource PlaceholderBrush}"
-                                            Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}">
-                                        <Rectangle Style="{StaticResource NoteLogo}" Width="64" Height="64" />
-                                    </Border>
-                                    <Border CornerRadius="6" Height="{Binding ActualWidth, ElementName=InfoCover}"
-                                            Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
-                                        <Border.Background>
-                                            <ImageBrush ImageSource="{Binding NowPlayingCover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-                                        </Border.Background>
-                                    </Border>
-                                </Grid>
+                                <!-- portada cuadrada (alto = ancho, calculado en la misma pasada: sin bucles de la barra de desplazamiento) -->
+                                <local:SquareBox Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
+                                    <Grid>
+                                        <Border CornerRadius="6" Background="{DynamicResource PlaceholderBrush}">
+                                            <Rectangle Style="{StaticResource NoteLogo}" Width="64" Height="64" />
+                                        </Border>
+                                        <Border CornerRadius="6" Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
+                                            <Border.Background>
+                                                <ImageBrush ImageSource="{Binding NowPlayingCover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                                            </Border.Background>
+                                        </Border>
+                                    </Grid>
+                                </local:SquareBox>
                                 <TextBlock Text="{Binding Player.Current.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="22" FontWeight="Bold"
                                            TextWrapping="Wrap" Margin="0,16,0,12" />
                                 <ItemsControl ItemsSource="{Binding InfoItems}">

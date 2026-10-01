@@ -50,7 +50,7 @@ public sealed partial class MainViewModel : ObservableObject
             ExclusiveMode = Settings.ExclusiveMode,
         };
         Player.Notice += text => ShowToast(text, 7);
-        Player.CoverFileProvider = s => Covers.FindCoverFile(s.Directory);
+        Player.CoverProvider = Covers.CoverBytes;
         Player.RadioProvider = (seed, context) => BuildRadio(seed, context, 25);
         Player.PropertyChanged += OnPlayerPropertyChanged;
         Player.SongOpened += OnSongOpened;
@@ -197,8 +197,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private string? _updateStatus;
     [ObservableProperty] private bool _isCheckingUpdates;
-    /// <summary>Versión ya instalada que espera un reinicio (muestra el botón "Reiniciar para actualizar").</summary>
-    [ObservableProperty] private string? _updateReady;
+    /// <summary>Versión nueva disponible (muestra el aviso con Actualizar / Omitir / Ahora no); nada se instala solo.</summary>
+    [ObservableProperty] private string? _updateAvailable;
+    [ObservableProperty] private bool _isInstallingUpdate;
+    private ReleaseInfo? _pendingRelease;
 
     public UpdateService Updates { get; set; } = new();
 
@@ -214,7 +216,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Al abrir: si está activado, busca e instala en segundo plano sin molestar.</summary>
+    /// <summary>Al abrir: si está activado, mira si hay versión nueva y, si la hay, avisa (no descarga ni instala).</summary>
     public async Task CheckForUpdatesOnStartupAsync()
     {
         if (!Settings.AutoUpdate) return;
@@ -222,22 +224,29 @@ public sealed partial class MainViewModel : ObservableObject
         await CheckForUpdatesAsync(manual: false);
     }
 
+    /// <param name="manual">Desde «Buscar ahora»: también avisa de una versión omitida y de que ya está al día.</param>
     public async Task CheckForUpdatesAsync(bool manual)
     {
-        if (IsCheckingUpdates || UpdateReady != null) return;
+        if (IsCheckingUpdates || IsInstallingUpdate) return;
         IsCheckingUpdates = true;
         UpdateStatus = "Buscando actualizaciones…";
-        var result = await Task.Run(() => Updates.CheckAndInstallAsync());
+        var result = await Task.Run(() => Updates.CheckAsync());
         IsCheckingUpdates = false;
         UpdateStatus = result.Message;
         switch (result.State)
         {
-            case UpdateState.Installed:
-                UpdateReady = result.Version?.ToString();
-                ShowToast($"Echoplex {UpdateReady} está listo: reinicia para usarlo", 8);
+            case UpdateState.Available when result.Release is { } release:
+                var version = release.Version.ToString();
+                if (!manual && Settings.SkippedVersion == version)
+                {
+                    UpdateStatus = $"Echoplex {version} disponible (omitida)";
+                    break;
+                }
+                _pendingRelease = release;
+                UpdateAvailable = version;
                 break;
-            case UpdateState.Failed when manual || result.Version != null:
-                // sin conexión al abrir no se avisa; un fallo con una versión nueva delante, sí
+            case UpdateState.Failed when manual:
+                // sin conexión al abrir no se avisa
                 ShowToast(result.Message, 8);
                 break;
             case UpdateState.UpToDate when manual:
@@ -245,6 +254,39 @@ public sealed partial class MainViewModel : ObservableObject
                 break;
         }
     }
+
+    /// <summary>Actualizar: descarga, comprueba, instala y reinicia (guardando cola y posición, como al cerrar).</summary>
+    public async Task InstallUpdateAsync()
+    {
+        if (_pendingRelease is not { } release || IsInstallingUpdate) return;
+        IsInstallingUpdate = true;
+        UpdateStatus = $"Descargando Echoplex {release.Version}…";
+        ShowToast(UpdateStatus, 4);
+        var result = await Task.Run(() => Updates.InstallAsync(release));
+        IsInstallingUpdate = false;
+        UpdateStatus = result.Message;
+        if (result.State == UpdateState.Installed)
+        {
+            Settings.SkippedVersion = null;
+            RestartToUpdate();
+        }
+        else ShowToast(result.Message, 8);
+    }
+
+    /// <summary>Omitir esta versión: no se vuelve a avisar de ella (sí de la siguiente; «Buscar ahora» la muestra igual).</summary>
+    public void SkipUpdate()
+    {
+        if (UpdateAvailable == null) return;
+        Settings.SkippedVersion = UpdateAvailable;
+        SettingsStore.Save(Settings);
+        UpdateStatus = $"Echoplex {UpdateAvailable} omitida: no volverá a avisar de esta versión";
+        ShowToast(UpdateStatus, 4);
+        UpdateAvailable = null;
+        _pendingRelease = null;
+    }
+
+    /// <summary>Ahora no: se oculta el aviso hasta la próxima vez que se abra Echoplex.</summary>
+    public void DismissUpdate() => UpdateAvailable = null;
 
     /// <summary>Lo pide la ventana: cierra guardando todo y arranca la versión nueva.</summary>
     public event Action? RestartRequested;
@@ -311,6 +353,7 @@ public sealed partial class MainViewModel : ObservableObject
         Settings.MusicRoots = roots;
         SettingsStore.Save(Settings);
         Covers.ClearCache();
+        _fileAlbums.Clear();
         if (roots.Count == 0)
         {
             Library.Load(_cache, roots);
@@ -338,6 +381,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (IsLoading) return;
         int before = Library.Songs.Count;
+        _fileAlbums.Clear();
         if (!await ReloadLibraryAsync(null, reset: false) || !announce && before == SongCount) return;
         int diff = SongCount - before;
         ShowToast(diff == 0 ? "La biblioteca ya estaba al día"
@@ -916,9 +960,10 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task LoadPageCoverAsync(SongListPage page, string? dir, Song? first)
     {
         // la cabecera de la página abierta tiene prioridad sobre las miniaturas en cola
-        page.Cover = dir != null
-            ? await Covers.GetFolderCoverAsync(dir, page.Songs, 600, priority: true)
-            : first != null ? await SongCoverAsync(first, 600, priority: true) : null;
+        // un álbum: la imagen de su carpeta o la incrustada en sus canciones (no la de otro álbum de la misma carpeta)
+        page.Cover = first == null ? null
+            : dir != null ? await Covers.GetSongCoverAsync(first, page.Songs, 600, priority: true, deepImages: true)
+            : await SongCoverAsync(first, 600, priority: true);
     }
 
     private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first) =>
@@ -932,7 +977,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var children = Library.GetChildren(path);
         if (children.Count < 2 || await Task.Run(() => Covers.FindCoverFile(path)) != null)
-            return await Covers.GetFolderCoverAsync(path, Library.SongsUnder(path), size, allowDownload, priority);
+            return await LooseSongsArtAsync(path, size, priority) ?? await Covers.GetFolderCoverAsync(path, Library.SongsUnder(path), size, allowDownload, priority);
 
         var imgs = new List<BitmapSource>();
         var prints = new List<byte[]>();
@@ -952,6 +997,42 @@ public sealed partial class MainViewModel : ObservableObject
             1 => imgs[0],
             _ => Mosaic(imgs, size),
         };
+    }
+
+    /// <summary>Álbum leído del archivo para las mezclas de carátulas (cada canción se lee una vez).</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _fileAlbums = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Carpeta de canciones sueltas (sin imagen propia y con canciones de varios álbumes): mosaico con las carátulas
+    /// incrustadas distintas, como el de las carpetas con discos. null si no es el caso: un álbum normal, aunque no tenga
+    /// folder.jpg, tiene todas sus canciones con el mismo álbum y sigue usando su carátula de siempre.
+    /// </summary>
+    private async Task<BitmapSource?> LooseSongsArtAsync(string dir, int size, bool priority)
+    {
+        var local = Library.SongsIn(dir).Where(s => !s.IsCloud).Take(12).ToList();
+        if (local.Count < 2 || await Task.Run(() => Covers.FindCoverFile(dir)) != null) return null;
+        // una por álbum, en el orden de la carpeta. Mientras no se leen las etiquetas, el álbum provisional es el nombre de la
+        // carpeta: en ese caso se mira en el archivo (si no, la miniatura de una carpeta recién añadida se quedaría sin mosaico)
+        var folderName = Path.GetFileName(dir);
+        var albums = await Task.Run(() => local.Select(s => s.MetadataLoaded && !string.Equals(s.Album, folderName, StringComparison.OrdinalIgnoreCase) ? s.Album
+            : _fileAlbums.GetOrAdd(s.Path, p => MetadataReader.Read(p).B is { } b && !string.IsNullOrWhiteSpace(b) ? b : folderName)).ToList());
+        var reps = local.Select((s, i) => (s, album: albums[i].Trim().ToLowerInvariant()))
+            .GroupBy(x => x.album).Select(g => g.First().s).Take(12).ToList();
+        if (reps.Count < 2) return null;
+
+        var imgs = new List<BitmapSource>();
+        var prints = new List<byte[]>();
+        foreach (var song in reps)
+        {
+            var img = await Covers.GetEmbeddedCoverAsync(song, size, priority);
+            if (img == null) continue;
+            var print = Fingerprint(img);
+            if (prints.Any(p => SameArt(p, print))) continue;
+            imgs.Add(img);
+            prints.Add(print);
+            if (imgs.Count == 4) break;
+        }
+        return imgs.Count < 2 ? null : Mosaic(imgs, size);
     }
 
     /// <summary>Huella de 8×8 en grises para reconocer carátulas repetidas aunque vengan de archivos distintos.</summary>
@@ -1034,7 +1115,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (group.CoverRequested) return;
         group.CoverRequested = true;
-        group.Cover = await Covers.GetFolderCoverAsync(group.Directory, group.Songs, 200);
+        group.Cover = await LooseSongsArtAsync(group.Directory, 200, priority: false) ?? await Covers.GetFolderCoverAsync(group.Directory, group.Songs, 200);
     }
 
     public void PlayGroup(GroupHeader group, bool shuffle = false)
@@ -1058,11 +1139,11 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Portada de la carpeta de una canción. Si no hay imagen y la canción está solo en la nube, se usa la incrustada
-    /// de otra canción de la misma carpeta que sí esté en el PC (leer una de la nube la descargaría entera).
+    /// Portada de una canción: la imagen de su carpeta o, si no hay, la incrustada en ella. Si está solo en la nube, la
+    /// incrustada en otra del mismo álbum que sí esté en el PC (leer una de la nube la descargaría entera).
     /// </summary>
     private Task<BitmapSource?> SongCoverAsync(Song song, int size, bool allowDownload = true, bool priority = false) =>
-        Covers.GetAlbumCoverAsync(song.Directory, new[] { song }.Concat(Library.SongsIn(song.Directory).Where(s => s != song)), size, allowDownload, priority);
+        Covers.GetSongCoverAsync(song, Library.SongsIn(song.Directory), size, allowDownload, priority);
 
     public async void EnsureCover(CardVm card)
     {
