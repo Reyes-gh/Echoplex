@@ -954,7 +954,7 @@
         <!-- ================= Panel lateral: elementos ================= -->
 
         <HierarchicalDataTemplate DataType="{x:Type m:FolderNode}" ItemsSource="{Binding Children}">
-            <DockPanel Loaded="TreeNode_Loaded" Background="Transparent" MouseLeftButtonUp="TreeNode_Click">
+            <DockPanel Loaded="TreeNode_Loaded">
                 <!-- barritas de ecualizador en todas las carpetas del camino hasta la canción (se mueven mientras suena) -->
                 <local:EqualizerBars x:Name="Speaker" DockPanel.Dock="Right" Margin="6,0,10,0" Visibility="Collapsed"
                                      Fill="{DynamicResource AccentBrush}"

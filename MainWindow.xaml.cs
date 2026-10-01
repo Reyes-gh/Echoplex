@@ -667,12 +667,6 @@ public partial class MainWindow : Window
         if ((sender as FrameworkElement)?.DataContext is FolderNode node) _vm.EnsureNodeCover(node);
     }
 
-    /// <summary>Clic en una carpeta con subcarpetas: además de abrir su página, se despliega (plegar, con la flecha).</summary>
-    private void TreeNode_Click(object sender, MouseButtonEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is FolderNode { Children.Count: > 0 } node) node.IsExpanded = true;
-    }
-
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (!_vm.IsSyncingTree && e.NewValue is FolderNode node) _vm.OpenFolder(node.Path);
