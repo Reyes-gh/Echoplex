@@ -1509,7 +1509,7 @@
                                 </StackPanel>
                             </ScrollViewer>
                             <StackPanel Margin="24,32" Visibility="{Binding HasLyrics, Converter={StaticResource InvBoolVis}}">
-                                <TextBlock Text="&#xE8BD;" FontFamily="{StaticResource IconFont}" FontSize="32" Foreground="{DynamicResource Text3Brush}" />
+                                <Path Style="{StaticResource SingMicIcon}" Width="32" Height="32" StrokeThickness="2" Stroke="{DynamicResource Text3Brush}" HorizontalAlignment="Left" />
                                 <TextBlock Text="No hay letra para esta canción" FontSize="16" FontWeight="SemiBold" Margin="0,14,0,6" />
                                 <TextBlock Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" LineHeight="20"
                                            Text="Echoplex muestra letras sincronizadas si hay un archivo .lrc con el mismo nombre junto a la canción, o la letra guardada en sus etiquetas. Con la opción de abajo, también las busca en LRCLIB." />
@@ -1664,8 +1664,9 @@
                                        Visibility="{Binding SleepText, Converter={StaticResource NullVis}}" />
                             <Button Style="{StaticResource IconButton}" Content="&#xE708;" Tag="{Binding SleepActive}" Click="Sleep_Click"
                                     ToolTip="Temporizador de apagado" Margin="2,0,0,0" />
-                            <Button Style="{StaticResource IconButton}" Content="&#xE8BD;" Tag="{Binding LyricsTabActive}" Click="LyricsToggle_Click"
-                                    ToolTip="Letra" Margin="2,0,0,0" />
+                            <Button Style="{StaticResource IconButton}" Tag="{Binding LyricsTabActive}" Click="LyricsToggle_Click" ToolTip="Letra" Margin="2,0,0,0">
+                                <Path Style="{StaticResource SingMicIcon}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                            </Button>
                             <Button Style="{StaticResource IconButton}" Content="&#xE8FD;" Tag="{Binding QueueTabActive}" Click="QueueToggle_Click"
                                     ToolTip="Cola (Ctrl+Q)" Margin="2,0,0,0" />
                             <Button Style="{StaticResource IconButton}" Content="&#xE946;" Tag="{Binding InfoTabActive}" Click="InfoToggle_Click"

@@ -41,15 +41,18 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.7`).
-2. Escribe las notas en `.github/notas/1.1.7.md` (si no, se usa la sección `### 1.1.7` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.7`** con **`Echoplex-1.1.7-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.8`).
+2. Escribe las notas en `.github/notas/1.1.8.md` (si no, se usa la sección `### 1.1.8` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.8`** con **`Echoplex-1.1.8-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.7
+- **Micrófono de cantar** (de mano, como el de karaoke) como icono del botón de la letra en la barra del reproductor.
 
 ### 1.1.6
 - **Actualizaciones a tu elección**: Echoplex ya no instala versiones nuevas por su cuenta; avisa con *Actualizar*, *Omitir esta versión* y *Ahora no*.
