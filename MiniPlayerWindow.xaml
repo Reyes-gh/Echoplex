@@ -4,9 +4,12 @@
         Title="Echoplex — mini reproductor" Width="380" Height="132" Topmost="True"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
         ShowInTaskbar="True" Icon="Assets/echoplex.ico"
-        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}">
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}" UseLayoutRounding="True">
+    <!-- sombra en una capa aparte: con el efecto sobre el contenido, el texto saldría borroso (sin ClearType) -->
+    <Grid Margin="10">
+    <Border CornerRadius="10" Background="{DynamicResource BgBrush}" Effect="{StaticResource PopupShadow}" />
     <Border Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-            CornerRadius="10" Margin="10" Effect="{StaticResource PopupShadow}" MouseLeftButtonDown="Drag">
+            CornerRadius="10" MouseLeftButtonDown="Drag" RenderOptions.ClearTypeHint="Enabled">
         <Grid Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="90" />
@@ -55,4 +58,5 @@
             </Grid>
         </Grid>
     </Border>
+    </Grid>
 </Window>

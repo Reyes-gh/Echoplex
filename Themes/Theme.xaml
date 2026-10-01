@@ -903,10 +903,14 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
-                    <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-                            CornerRadius="7" Padding="5" Margin="10,4,10,14" MinWidth="230" Effect="{StaticResource PopupShadow}">
-                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                    </Border>
+                    <!-- sombra en una capa aparte: con el efecto sobre el menú, el texto saldría borroso (sin ClearType) -->
+                    <Grid Margin="10,4,10,14" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                        <Border CornerRadius="7" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+                        <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+                                CornerRadius="7" Padding="5" MinWidth="230" RenderOptions.ClearTypeHint="Enabled">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -933,12 +937,15 @@
                         <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="-4" VerticalOffset="-10" AllowsTransparency="True"
                                Focusable="False" PopupAnimation="Fade"
                                IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}">
-                            <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-                                    CornerRadius="7" Padding="5" Margin="10,4,10,14" MinWidth="210" Effect="{StaticResource PopupShadow}">
-                                <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                                </ScrollViewer>
-                            </Border>
+                            <Grid Margin="10,4,10,14" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                                <Border CornerRadius="7" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+                                <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+                                        CornerRadius="7" Padding="5" MinWidth="210" RenderOptions.ClearTypeHint="Enabled">
+                                    <ScrollViewer MaxHeight="420" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>

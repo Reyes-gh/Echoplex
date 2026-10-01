@@ -1672,15 +1672,22 @@
                 <!-- volumen avanzado: clic derecho en el botón o la barra de volumen -->
                 <Popup x:Name="VolumePopup" PlacementTarget="{Binding ElementName=VolumeButton}" Placement="Top" VerticalOffset="-4"
                        HorizontalOffset="-150" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
-                    <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-                            CornerRadius="12" Padding="18,14,18,16" Margin="12" Effect="{StaticResource PopupShadow}">
-                        <local:VolumePanel x:Name="VolumeAdvanced" Width="320" />
-                    </Border>
+                    <!-- sombra en una capa aparte: con el efecto sobre el panel, el texto se dibujaría borroso (sin ClearType) -->
+                    <Grid Margin="12" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                        <Border CornerRadius="12" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+                        <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+                                CornerRadius="12" Padding="18,14,18,16" RenderOptions.ClearTypeHint="Enabled">
+                            <local:VolumePanel x:Name="VolumeAdvanced" Width="320" />
+                        </Border>
+                    </Grid>
                 </Popup>
                 <Popup x:Name="ExtrasPopup" PlacementTarget="{Binding ElementName=ExtrasToggle}" Placement="Top" VerticalOffset="-6"
                        StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" Closed="ExtrasPopup_Closed">
-                    <Border x:Name="ExtrasPopupHost" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}"
-                            BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="10" Effect="{StaticResource PopupShadow}" />
+                    <Grid Margin="10" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                        <Border CornerRadius="8" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+                        <Border x:Name="ExtrasPopupHost" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}"
+                                BorderThickness="1" CornerRadius="8" Padding="8,6" RenderOptions.ClearTypeHint="Enabled" />
+                    </Grid>
                 </Popup>
             </Grid>
         </Border>

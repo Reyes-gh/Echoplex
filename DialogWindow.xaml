@@ -3,9 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
         SizeToContent="WidthAndHeight" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}">
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}" UseLayoutRounding="True">
+    <!-- sombra en una capa aparte: con el efecto sobre el contenido, el texto saldría borroso (sin ClearType) -->
+    <Grid Margin="24">
+    <Border CornerRadius="10" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
     <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-            CornerRadius="10" Margin="24" Padding="24,20" Width="440" Effect="{StaticResource PopupShadow}">
+            CornerRadius="10" Padding="24,20" Width="440" RenderOptions.ClearTypeHint="Enabled">
         <StackPanel>
             <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock x:Name="MessageText" FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
@@ -17,4 +20,5 @@
             </StackPanel>
         </StackPanel>
     </Border>
+    </Grid>
 </Window>
