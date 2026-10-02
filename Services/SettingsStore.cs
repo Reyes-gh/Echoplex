@@ -60,6 +60,8 @@ public sealed class AppSettings
     /// <summary>Zoom de la interfaz (Ctrl + / Ctrl − / Ctrl+0): 1 = 100 %.</summary>
     public double Zoom { get; set; } = 1.0;
     public bool ShowRightPanel { get; set; } = true;
+    /// <summary>Letra a la derecha en la pantalla completa (se pone y se quita con el micro de abajo a la derecha).</summary>
+    public bool FullViewLyrics { get; set; } = true;
     public string RightPanelTab { get; set; } = "queue";
     public double Width { get; set; } = 1440;
     public double Height { get; set; } = 900;

@@ -61,8 +61,12 @@ public partial class MainWindow
                     ClearFullLights();
                     if (FullView.IsVisible) RefreshFullArt();
                     break;
+                case nameof(MainViewModel.HasLyrics):
+                    LayoutFullView(); // con letra, a dos columnas; sin ella, la portada centrada
+                    break;
             }
         };
+        LayoutFullView();
         StateChanged += (s, e) => UpdateFullRunning();
         IsVisibleChanged += (s, e) => UpdateFullRunning();
     }
@@ -192,23 +196,52 @@ public partial class MainWindow
     /// Fijo a propósito: si dependiera de cuántas líneas ocupa el título, que depende del ancho de la portada,
     /// el tamaño podría entrar en vaivén.
     /// </summary>
-    private const double FullBelowCover = 312;
+    private const double FullBelowCover = 330;
 
     /// <summary>
     /// Portada (del mayor tamaño que quepa con lo de debajo), hueco y letra, centrados como un bloque.
     /// Todo sale del tamaño de la vista, que no depende de su contenido: sin vaivenes.
     /// </summary>
-    private void FullView_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void FullView_SizeChanged(object sender, SizeChangedEventArgs e) => LayoutFullView();
+
+    /// <summary>
+    /// Con letra: portada y controles, hueco y letra. Sin letra (no hay, o la has quitado con el micro): solo la portada
+    /// y los controles, centrados. Todo sale del tamaño de la vista, que no depende de su contenido: sin vaivenes.
+    /// </summary>
+    private void LayoutFullView()
     {
+        bool wanted = _vm.Settings.FullViewLyrics, lyrics = wanted && _vm.HasLyrics;
+        FullLyricsHost.Visibility = lyrics ? Visibility.Visible : Visibility.Collapsed;
+        FullGapCol.Width = new GridLength(lyrics ? FullGap : 0);
+        FullNoLyrics.Visibility = wanted && !_vm.HasLyrics ? Visibility.Visible : Visibility.Collapsed;
+        FullLyricsButton.Tag = wanted;
+        FullLyricsButton.ToolTip = wanted ? "Quitar la letra" : "Poner la letra";
+
         var m = FullContent.Margin;
-        double width = FullView.ActualWidth - m.Left - m.Right - FullGap, height = FullView.ActualHeight - m.Top - m.Bottom;
+        double width = FullView.ActualWidth - m.Left - m.Right - (lyrics ? FullGap : 0), height = FullView.ActualHeight - m.Top - m.Bottom;
+        if (width <= 0 || height <= 0) return; // aún sin medir
         // nunca más estrecha que la fila de controles; si no cabe en alto, el Viewbox la reduce entera
-        double side = Math.Clamp(Math.Min(width * 0.42, height - FullBelowCover), 320, 560);
+        double below = FullBelowCover + (FullNoLyrics.Visibility == Visibility.Visible ? 56 : 0);
+        double side = lyrics
+            ? Math.Clamp(Math.Min(width * 0.42, height - below), MinFullSide, 560)
+            : Math.Clamp(height - below, MinFullSide, 620);
         FullCoverHost.Width = FullCoverHost.Height = side;
         FullLeft.Width = side;
         FullLyricsHost.Width = Math.Clamp(width - side, 280, 680);
         // la primera línea de la letra puede llegar a su altura de lectura; la última, también
         FullLyricsPad.Margin = new Thickness(0, Math.Max(40, height * 0.36), 24, Math.Max(120, height * 0.6));
+    }
+
+    /// <summary>Lo que ocupa la fila de controles (favorita, aleatorio… repetir y el hueco que la equilibra).</summary>
+    private const double MinFullSide = 400;
+
+    private void FullLyricsToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.Settings.FullViewLyrics = !_vm.Settings.FullViewLyrics;
+        SettingsStore.Save(_vm.Settings);
+        LayoutFullView();
+        if (_vm.Settings.FullViewLyrics)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _fullLyrics.Follow(_vm.ActiveLyric, smooth: false));
     }
 
     /// <summary>Hueco entre la portada y la letra (la columna del medio).</summary>

@@ -1767,7 +1767,7 @@
                 </Grid.RenderTransform>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="80" />
+                    <ColumnDefinition x:Name="FullGapCol" Width="80" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -1792,22 +1792,17 @@
                         </Border>
                     </Grid>
 
-                    <DockPanel Margin="0,30,0,0">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource HeartButton}" VerticalAlignment="Top" Margin="12,6,0,0" FontSize="20"
-                                Width="38" Height="38" Content="{Binding Player.Current.IsFavorite, Converter={StaticResource HeartGlyph}}"
-                                Tag="{Binding Player.Current.IsFavorite}" Click="CurrentHeart_Click" ToolTip="Favorita (Ctrl+L)"
-                                Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}" />
-                        <StackPanel>
-                            <TextBlock Text="{Binding Player.Current.Title, FallbackValue='Nada sonando'}" FontFamily="{StaticResource DisplayFont}"
-                                       FontSize="32" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis"
-                                       TextWrapping="Wrap" LineHeight="40" LineStackingStrategy="BlockLineHeight" MaxHeight="86"
-                                       ToolTip="{Binding Player.Current.Title}" />
-                            <TextBlock Text="{Binding Player.Current.Artist}" FontSize="19" Foreground="{DynamicResource Text2Brush}" Margin="0,6,0,0"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Player.Current.Album}" FontSize="14" Foreground="{DynamicResource Text3Brush}" Margin="0,4,0,0"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </DockPanel>
+                    <!-- título, artista y álbum siempre centrados bajo la portada -->
+                    <StackPanel Margin="0,30,0,0">
+                        <TextBlock Text="{Binding Player.Current.Title, FallbackValue='Nada sonando'}" FontFamily="{StaticResource DisplayFont}"
+                                   FontSize="32" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis"
+                                   TextWrapping="Wrap" LineHeight="40" LineStackingStrategy="BlockLineHeight" MaxHeight="86" TextAlignment="Center"
+                                   ToolTip="{Binding Player.Current.Title}" />
+                        <TextBlock Text="{Binding Player.Current.Artist}" FontSize="19" Foreground="{DynamicResource Text2Brush}" Margin="0,6,0,0"
+                                   TextTrimming="CharacterEllipsis" TextAlignment="Center" />
+                        <TextBlock Text="{Binding Player.Current.Album}" FontSize="14" Foreground="{DynamicResource Text3Brush}" Margin="0,4,0,0"
+                                   TextTrimming="CharacterEllipsis" TextAlignment="Center" />
+                    </StackPanel>
 
                     <Slider x:Name="FullSeek" Style="{StaticResource ThinSlider}" Minimum="0" Maximum="1" Margin="0,24,0,0" />
                     <Grid Margin="0,2,0,0">
@@ -1815,17 +1810,30 @@
                         <TextBlock x:Name="FullDur" Text="0:00" FontSize="12" Foreground="{DynamicResource Text2Brush}" HorizontalAlignment="Right" />
                     </Grid>
 
+                    <!-- favorita a la izquierda del aleatorio; a la derecha, un hueco igual para que el play quede bajo el centro de la portada -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                        <Button Style="{StaticResource HeartButton}" Width="40" Height="40" FontSize="18" Margin="0,0,10,0"
+                                Content="{Binding Player.Current.IsFavorite, Converter={StaticResource HeartGlyph}}"
+                                Tag="{Binding Player.Current.IsFavorite}" Click="CurrentHeart_Click" ToolTip="Favorita (Ctrl+L)" />
                         <ToggleButton Style="{StaticResource StateButton}" Content="&#xE8B1;" IsChecked="{Binding Player.Shuffle}"
                                       Width="42" Height="42" FontSize="18" ToolTip="Aleatorio (Ctrl+S)" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE892;" Click="Previous_Click" Margin="16,0,0,0"
+                        <Button Style="{StaticResource IconButton}" Content="&#xE892;" Click="Previous_Click" Margin="12,0,0,0"
                                 Width="44" Height="44" FontSize="20" ToolTip="Anterior (Ctrl+←)" />
-                        <Button Style="{StaticResource PlayCircleButton}" Content="{Binding Player.PlayGlyph}" Click="PlayPause_Click" Margin="18,0"
+                        <Button Style="{StaticResource PlayCircleButton}" Content="{Binding Player.PlayGlyph}" Click="PlayPause_Click" Margin="14,0"
                                 Width="60" Height="60" FontSize="22" ToolTip="Reproducir / Pausa (Espacio)" />
-                        <Button Style="{StaticResource IconButton}" Content="&#xE893;" Click="Next_Click" Margin="0,0,16,0"
+                        <Button Style="{StaticResource IconButton}" Content="&#xE893;" Click="Next_Click" Margin="0,0,12,0"
                                 Width="44" Height="44" FontSize="20" ToolTip="Siguiente (Ctrl+→)" />
                         <Button Style="{StaticResource StateButton}" Content="{Binding Player.RepeatGlyph}" Tag="{Binding Player.IsRepeatOn}"
                                 Width="42" Height="42" FontSize="18" Click="Repeat_Click" ToolTip="{Binding Player.RepeatTip}" />
+                        <FrameworkElement Width="50" />
+                    </StackPanel>
+
+                    <!-- sin letra: la portada se centra y aquí se avisa -->
+                    <StackPanel x:Name="FullNoLyrics" Margin="0,18,0,0" Visibility="Collapsed">
+                        <TextBlock Text="No hay lyrics para esta canción" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource Text2Brush}"
+                                   TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding LyricsStatus}" FontSize="13" Foreground="{DynamicResource Text3Brush}" TextAlignment="Center"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" Visibility="{Binding LyricsStatus, Converter={StaticResource NullVis}}" />
                     </StackPanel>
                 </StackPanel>
                 </Viewbox>
@@ -1875,14 +1883,6 @@
                                        Visibility="{Binding LyricsFromOnline, Converter={StaticResource BoolVis}}" />
                         </StackPanel>
                     </ScrollViewer>
-                    <StackPanel VerticalAlignment="Center" Visibility="{Binding HasLyrics, Converter={StaticResource InvBoolVis}}">
-                        <Path Style="{StaticResource SingMicIcon}" Width="44" Height="44" StrokeThickness="2.4" Stroke="{DynamicResource Text3Brush}"
-                              HorizontalAlignment="Left" />
-                        <TextBlock Text="No hay lyrics para esta canción" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Bold"
-                                   Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,18,0,0" />
-                        <TextBlock Text="{Binding LyricsStatus}" FontSize="15" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,10,0,0"
-                                   Visibility="{Binding LyricsStatus, Converter={StaticResource NullVis}}" />
-                    </StackPanel>
                 </Grid>
             </Grid>
 
@@ -1895,6 +1895,10 @@
                  (misma altura de franja, mismos tamaños y márgenes): al entrar en la vista el botón no se mueve -->
             <StackPanel x:Name="FullVolume" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Height="76"
                         Margin="0,0,14,0">
+                <Button x:Name="FullLyricsButton" Style="{StaticResource IconButton}" VerticalAlignment="Center" Margin="0,0,2,0"
+                        Click="FullLyricsToggle_Click" ToolTip="Quitar la letra">
+                    <Path Style="{StaticResource SingMicIcon}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                </Button>
                 <Button x:Name="FullScreenButton" Style="{StaticResource IconButton}" Content="&#xE740;" VerticalAlignment="Center"
                         Click="FullScreenToggle_Click" ToolTip="Toda la pantalla (F11)" />
                 <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar"
