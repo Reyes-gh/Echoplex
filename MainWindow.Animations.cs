@@ -95,7 +95,8 @@ public partial class MainWindow
 
     private void UpdateAuroraRunning()
     {
-        bool run = IsVisible && WindowState != WindowState.Minimized;
+        // con la vista a pantalla completa delante, la aurora de la app no se ve: también se pausa
+        bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility != Visibility.Visible;
         foreach (var c in _auroraClocks)
         {
             if (c.Controller == null) continue;

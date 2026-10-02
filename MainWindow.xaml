@@ -1676,6 +1676,8 @@
                     <ToggleButton x:Name="ExtrasToggle" Style="{StaticResource IconButton}" Content="&#xE70E;" Margin="2,0,0,0" Visibility="Collapsed"
                                   ToolTip="Temporizador, letra, cola y detalles" Checked="ExtrasToggle_Checked" />
                     <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" Click="Mini_Click" ToolTip="Mini reproductor (Ctrl+M)" Margin="2,0,0,0" />
+                    <Button Style="{StaticResource IconButton}" Content="&#xE740;" Click="FullView_Click" MouseRightButtonUp="FullView_RightClick"
+                            ToolTip="Pantalla completa en la app · clic derecho o F11: toda la pantalla" Margin="2,0,0,0" />
                     <!-- el volumen siempre en la barra -->
                     <Button x:Name="VolumeButton" Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click"
                             MouseRightButtonUp="Volume_RightClick" ToolTip="Silenciar · clic derecho: volumen avanzado" Margin="8,0,0,0" />
@@ -1704,6 +1706,200 @@
                 </Popup>
             </Grid>
         </Border>
+
+        <!-- ======================= PANTALLA COMPLETA ======================= -->
+        <!-- Ocupa toda la app (o, además, toda la pantalla): lo que suena a la izquierda y la letra a la derecha,
+             sobre la portada difuminada con luces de sus colores. Siempre oscura, para que la letra se lea con cualquier tema. -->
+        <Grid x:Name="FullView" Grid.RowSpan="2" Panel.ZIndex="90" Visibility="Collapsed" Background="#0B0B0E" ClipToBounds="True"
+              MouseMove="FullView_MouseMove" SizeChanged="FullView_SizeChanged">
+            <Grid.Resources>
+                <SolidColorBrush x:Key="TextBrush" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="Text2Brush" Color="#C8FFFFFF" />
+                <SolidColorBrush x:Key="Text3Brush" Color="#85FFFFFF" />
+                <SolidColorBrush x:Key="HoverBrush" Color="#1CFFFFFF" />
+                <SolidColorBrush x:Key="SelectedBrush" Color="#2BFFFFFF" />
+                <SolidColorBrush x:Key="TrackBrush" Color="#3DFFFFFF" />
+                <SolidColorBrush x:Key="PlayCircleBrush" Color="#FFFFFF" />
+                <SolidColorBrush x:Key="OnPlayCircleBrush" Color="#121212" />
+                <SolidColorBrush x:Key="PlaceholderBrush" Color="#1FFFFFFF" />
+            </Grid.Resources>
+
+            <!-- fondo: la portada muy difuminada (se difumina una vez por canción) y fundida al cambiar -->
+            <Image x:Name="FullBackdropA" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False"
+                   RenderTransformOrigin="0.5,0.5" Opacity="0">
+                <Image.RenderTransform>
+                    <ScaleTransform x:Name="FullBackdropScaleA" ScaleX="1.15" ScaleY="1.15" />
+                </Image.RenderTransform>
+            </Image>
+            <Image x:Name="FullBackdropB" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False"
+                   RenderTransformOrigin="0.5,0.5" Opacity="0">
+                <Image.RenderTransform>
+                    <ScaleTransform x:Name="FullBackdropScaleB" ScaleX="1.15" ScaleY="1.15" />
+                </Image.RenderTransform>
+            </Image>
+            <!-- luces de los colores de la portada, flotando -->
+            <Grid x:Name="FullLights" IsHitTestVisible="False" />
+            <!-- velos: la letra (derecha) y los controles (abajo) siempre legibles -->
+            <Rectangle IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#66000000" Offset="0" />
+                        <GradientStop Color="#4D000000" Offset="0.42" />
+                        <GradientStop Color="#8C000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Rectangle IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#59000000" Offset="0" />
+                        <GradientStop Color="#00000000" Offset="0.22" />
+                        <GradientStop Color="#00000000" Offset="0.72" />
+                        <GradientStop Color="#73000000" Offset="1" />
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <!-- portada y controles, un hueco y la letra: todo centrado como un bloque -->
+            <Grid x:Name="FullContent" Margin="48,64,48,56" HorizontalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="FullContentScale" />
+                </Grid.RenderTransform>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="80" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- izquierda: lo que suena -->
+                <!-- si la ventana es baja o estrecha, la columna entera se reduce en proporción en vez de recortarse -->
+                <Viewbox Stretch="Uniform" StretchDirection="DownOnly" VerticalAlignment="Center" HorizontalAlignment="Left">
+                <StackPanel x:Name="FullLeft">
+                    <Grid x:Name="FullCoverHost" Width="420" Height="420">
+                        <!-- sombra en una capa aparte: con el efecto sobre la imagen, la portada se pintaría peor -->
+                        <Border CornerRadius="12" Background="#000000" Margin="6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="60" ShadowDepth="14" Direction="270" Opacity="0.55" RenderingBias="Performance" />
+                            </Border.Effect>
+                        </Border>
+                        <Border CornerRadius="12" Background="{DynamicResource PlaceholderBrush}">
+                            <Rectangle Style="{StaticResource NoteLogo}" Width="96" Height="96" />
+                        </Border>
+                        <Border CornerRadius="12" Visibility="{Binding NowPlayingCover, Converter={StaticResource NullVis}}">
+                            <Border.Background>
+                                <ImageBrush ImageSource="{Binding NowPlayingCover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+
+                    <DockPanel Margin="0,30,0,0">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource HeartButton}" VerticalAlignment="Top" Margin="12,6,0,0" FontSize="20"
+                                Width="38" Height="38" Content="{Binding Player.Current.IsFavorite, Converter={StaticResource HeartGlyph}}"
+                                Tag="{Binding Player.Current.IsFavorite}" Click="CurrentHeart_Click" ToolTip="Favorita (Ctrl+L)"
+                                Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}" />
+                        <StackPanel>
+                            <TextBlock Text="{Binding Player.Current.Title, FallbackValue='Nada sonando'}" FontFamily="{StaticResource DisplayFont}"
+                                       FontSize="32" FontWeight="Bold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis"
+                                       TextWrapping="Wrap" LineHeight="40" LineStackingStrategy="BlockLineHeight" MaxHeight="86"
+                                       ToolTip="{Binding Player.Current.Title}" />
+                            <TextBlock Text="{Binding Player.Current.Artist}" FontSize="19" Foreground="{DynamicResource Text2Brush}" Margin="0,6,0,0"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Player.Current.Album}" FontSize="14" Foreground="{DynamicResource Text3Brush}" Margin="0,4,0,0"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Slider x:Name="FullSeek" Style="{StaticResource ThinSlider}" Minimum="0" Maximum="1" Margin="0,24,0,0" />
+                    <Grid Margin="0,2,0,0">
+                        <TextBlock x:Name="FullPos" Text="0:00" FontSize="12" Foreground="{DynamicResource Text2Brush}" HorizontalAlignment="Left" />
+                        <TextBlock x:Name="FullDur" Text="0:00" FontSize="12" Foreground="{DynamicResource Text2Brush}" HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                        <ToggleButton Style="{StaticResource StateButton}" Content="&#xE8B1;" IsChecked="{Binding Player.Shuffle}"
+                                      Width="42" Height="42" FontSize="18" ToolTip="Aleatorio (Ctrl+S)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE892;" Click="Previous_Click" Margin="16,0,0,0"
+                                Width="44" Height="44" FontSize="20" ToolTip="Anterior (Ctrl+←)" />
+                        <Button Style="{StaticResource PlayCircleButton}" Content="{Binding Player.PlayGlyph}" Click="PlayPause_Click" Margin="18,0"
+                                Width="60" Height="60" FontSize="22" ToolTip="Reproducir / Pausa (Espacio)" />
+                        <Button Style="{StaticResource IconButton}" Content="&#xE893;" Click="Next_Click" Margin="0,0,16,0"
+                                Width="44" Height="44" FontSize="20" ToolTip="Siguiente (Ctrl+→)" />
+                        <Button Style="{StaticResource StateButton}" Content="{Binding Player.RepeatGlyph}" Tag="{Binding Player.IsRepeatOn}"
+                                Width="42" Height="42" FontSize="18" Click="Repeat_Click" ToolTip="{Binding Player.RepeatTip}" />
+                    </StackPanel>
+                </StackPanel>
+                </Viewbox>
+
+                <!-- derecha: la letra pasando sola -->
+                <Grid x:Name="FullLyricsHost" Grid.Column="2" Width="560">
+                    <ScrollViewer x:Name="FullLyricsScroll" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                                  Focusable="False" Visibility="{Binding HasLyrics, Converter={StaticResource BoolVis}}">
+                        <!-- los bordes de arriba y abajo se desvanecen -->
+                        <ScrollViewer.OpacityMask>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#00000000" Offset="0" />
+                                <GradientStop Color="#FF000000" Offset="0.14" />
+                                <GradientStop Color="#FF000000" Offset="0.84" />
+                                <GradientStop Color="#00000000" Offset="1" />
+                            </LinearGradientBrush>
+                        </ScrollViewer.OpacityMask>
+                        <StackPanel x:Name="FullLyricsPad" Margin="0,120,24,360">
+                            <ItemsControl x:Name="FullLyricsList" ItemsSource="{Binding Lyrics}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:LyricLine}">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,9" Foreground="{DynamicResource TextBrush}"
+                                                   FontFamily="{StaticResource DisplayFont}" MouseLeftButtonUp="Lyric_Click">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="FontSize" Value="34" />
+                                                    <Setter Property="LineHeight" Value="44" />
+                                                    <Setter Property="FontWeight" Value="Bold" />
+                                                    <Setter Property="Cursor" Value="Hand" />
+                                                    <Setter Property="local:Anim.SmoothOpacity" Value="{Binding Emphasis}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DataContext.LyricsSynced, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                            <Setter Property="local:Anim.SmoothOpacity" Value="1" />
+                                                            <Setter Property="FontSize" Value="24" />
+                                                            <Setter Property="LineHeight" Value="34" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                            <Setter Property="Cursor" Value="Arrow" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Letra de LRCLIB (lrclib.net)" FontSize="13" Foreground="{DynamicResource Text3Brush}" Margin="0,26,0,0"
+                                       Visibility="{Binding LyricsFromOnline, Converter={StaticResource BoolVis}}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                    <StackPanel VerticalAlignment="Center" Visibility="{Binding HasLyrics, Converter={StaticResource InvBoolVis}}">
+                        <Path Style="{StaticResource SingMicIcon}" Width="44" Height="44" StrokeThickness="2.4" Stroke="{DynamicResource Text3Brush}"
+                              HorizontalAlignment="Left" />
+                        <TextBlock Text="No hay lyrics para esta canción" FontFamily="{StaticResource DisplayFont}" FontSize="30" FontWeight="Bold"
+                                   Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,18,0,0" />
+                        <TextBlock Text="{Binding LyricsStatus}" FontSize="15" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                   Visibility="{Binding LyricsStatus, Converter={StaticResource NullVis}}" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <!-- arriba a la derecha: toda la pantalla y salir (se desvanecen si no mueves el ratón) -->
+            <StackPanel x:Name="FullChrome" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,16,0">
+                <Button x:Name="FullScreenButton" Style="{StaticResource IconButton}" Content="&#xE740;" Width="36" Height="36" FontSize="16"
+                        Click="FullScreenToggle_Click" ToolTip="Toda la pantalla (F11)" />
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" Width="36" Height="36" FontSize="16" Margin="4,0,0,0"
+                        Click="FullClose_Click" ToolTip="Salir de la pantalla completa (Esc)" />
+            </StackPanel>
+            <!-- abajo a la derecha: volumen -->
+            <StackPanel x:Name="FullVolume" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,18">
+                <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar" />
+                <Slider x:Name="FullVolumeSlider" Style="{StaticResource ThinSlider}" Width="120" Minimum="0" Maximum="1" Margin="6,0,0,0"
+                        VerticalAlignment="Center" Value="{Binding Player.Volume, Mode=TwoWay}" />
+            </StackPanel>
+        </Grid>
 
         <!-- con Ajustes abierto: la app se oscurece un poco y un clic aquí cierra Ajustes -->
         <Border x:Name="SettingsDim" Grid.RowSpan="2" Background="#000000" Opacity="0" Visibility="Collapsed" Panel.ZIndex="100"

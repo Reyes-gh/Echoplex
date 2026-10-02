@@ -10,6 +10,7 @@
 - **Páginas de carpeta por discos**: al abrir una carpeta con varios discos, cada disco aparece como un módulo con su portada y su título.
 - **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula), o las incrustadas en sus canciones si son de álbumes distintos.
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
+- **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 50 más en *Más temas* (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
@@ -52,6 +53,7 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 ## Versiones
 
 ### 1.1.7
+- **Pantalla completa** (botón a la izquierda del volumen): portada, título, progreso y controles a la izquierda y la letra sincronizada a la derecha, sobre la portada difuminada con luces de sus colores. Dentro de la app o a toda la pantalla (clic derecho en el botón o `F11`; `Esc` para salir).
 - **Micrófono de cantar** (de mano, como el de karaoke) como icono del botón de la letra en la barra del reproductor.
 
 ### 1.1.6

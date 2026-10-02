@@ -77,19 +77,12 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(OpenArtistCommand, (o, e) => { if (e.Parameter is Song song) _vm.OpenArtist(song.PrimaryArtist); }));
         CommandBindings.Add(new CommandBinding(OpenAlbumCommand, (o, e) => { if (e.Parameter is Song song) _vm.OpenAlbum(LibraryService.AlbumKey(song)); }));
 
-        AttachSliderDrag(SeekSlider, v => _vm.Player.Seek(v));
+        AttachSliderDrag(SeekSlider, v => _vm.Player.Seek(v), PosText);
         AttachSliderDrag(VolumeSlider, null);
-        VolumeSlider.PreviewMouseWheel += (o, e) =>
-        {
-            // pasos más finos en volúmenes bajos: 0,5 puntos por debajo del 10 %, 1 punto hasta el 25 %, 5 por encima
-            double v = _vm.Player.Volume, up = e.Delta > 0 ? 1 : -1;
-            double step = (up > 0 ? v : v - 1e-6) < 0.1 ? 0.005 : (up > 0 ? v : v - 1e-6) < 0.25 ? 0.01 : 0.05;
-            _vm.Player.Volume = Math.Clamp(Math.Round((v + up * step) / step) * step, 0, 1);
-            e.Handled = true;
-        };
+        VolumeSlider.PreviewMouseWheel += VolumeWheel;
         VolumeAdvanced.CloseRequested += () => VolumePopup.IsOpen = false;
-        // si mueves la letra con la rueda, el deslizamiento automático se aparta
-        LyricsScroll.PreviewMouseWheel += (o, e) => StopLyricsGlide();
+        _panelLyrics = new LyricsFollower(LyricsScroll, LyricsList, 0.35);
+        InitFullView();
 
         // Los menús contextuales de plantillas se conectan aquí (conectarlos en XAML falla con x:Shared="False").
         EventManager.RegisterClassHandler(typeof(ContextMenu), ContextMenu.OpenedEvent, new RoutedEventHandler(AnyMenu_Opened));
@@ -100,6 +93,15 @@ public partial class MainWindow : Window
             ApplyTitleBar();
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
         };
+    }
+
+    /// <summary>Rueda sobre el volumen: pasos más finos en volúmenes bajos (0,5 puntos por debajo del 10 %, 1 punto hasta el 25 %, 5 por encima).</summary>
+    private void VolumeWheel(object sender, MouseWheelEventArgs e)
+    {
+        double v = _vm.Player.Volume, up = e.Delta > 0 ? 1 : -1;
+        double step = (up > 0 ? v : v - 1e-6) < 0.1 ? 0.005 : (up > 0 ? v : v - 1e-6) < 0.25 ? 0.01 : 0.05;
+        _vm.Player.Volume = Math.Clamp(Math.Round((v + up * step) / step) * step, 0, 1);
+        e.Handled = true;
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -176,6 +178,7 @@ public partial class MainWindow : Window
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
         _settings?.CloseNow(); // Ajustes abierto: se cierra ya, sin esperar a su animación
+        CloseFullView(animate: false); // a toda la pantalla: se guarda el tamaño de ventana de verdad, no el de la pantalla
         var s = _vm.Settings;
         s.Maximized = WindowState == WindowState.Maximized;
         var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
@@ -279,10 +282,12 @@ public partial class MainWindow : Window
                     }
                 }
                 if (p.Duration > 0) Taskbar.ProgressValue = Math.Clamp(p.Position / p.Duration, 0, 1);
+                if (FullView.IsVisible) SyncFullPosition();
                 break;
             case nameof(p.Duration):
                 SeekSlider.Maximum = Math.Max(p.Duration, 0.001);
                 DurText.Text = FormatTime(p.Duration);
+                if (FullView.IsVisible) SyncFullPosition();
                 break;
             case nameof(p.IsPlaying):
                 ThumbPlay.ImageSource = p.IsPlaying ? _pauseImage : _playImage;
@@ -292,6 +297,8 @@ public partial class MainWindow : Window
             case nameof(p.Current):
                 Title = p.Current != null ? $"{p.Current.Title} · {p.Current.Artist} — Echoplex" : "Echoplex";
                 ReleaseInfoScrollLock(); // otra canción, otros detalles: la barra vuelve a ser automática
+                if (FullView.IsVisible) _fullLyrics.Stop();
+                FullLyricsScroll.ScrollToTop(); // la letra nueva empieza desde arriba
                 break;
         }
     }
@@ -315,49 +322,13 @@ public partial class MainWindow : Window
 
     private void ScrollToActiveLyric(bool smooth)
     {
-        if (_vm.ActiveLyric is not { } line || !LyricsScroll.IsVisible) return;
-        if (LyricsList.ItemContainerGenerator.ContainerFromItem(line) is not FrameworkElement el) return;
-        var pos = el.TransformToAncestor(LyricsScroll).Transform(new Point(0, 0));
-        // desde donde está ahora (si hay un deslizamiento a medias, desde su punto actual)
-        var target = Math.Clamp(LyricsScroll.VerticalOffset + pos.Y - LyricsScroll.ViewportHeight * 0.35, 0, LyricsScroll.ScrollableHeight);
-        if (smooth && AnimationsEnabled) GlideLyrics(target);
-        else
-        {
-            StopLyricsGlide();
-            LyricsScroll.ScrollToVerticalOffset(target);
-        }
+        _panelLyrics.Follow(_vm.ActiveLyric, smooth && AnimationsEnabled);
+        _fullLyrics.Follow(_vm.ActiveLyric, smooth && AnimationsEnabled);
     }
 
-    // deslizamiento de la letra: el ScrollViewer no anima su desplazamiento, así que se hace fotograma a fotograma
-    private double _glideFrom, _glideTo;
-    private bool _gliding;
-    private readonly System.Diagnostics.Stopwatch _glideClock = new();
-    private static readonly TimeSpan GlideDuration = TimeSpan.FromMilliseconds(550);
-
-    private void GlideLyrics(double target)
-    {
-        if (Math.Abs(target - LyricsScroll.VerticalOffset) < 0.5) return;
-        _glideFrom = LyricsScroll.VerticalOffset;
-        _glideTo = target;
-        _glideClock.Restart();
-        if (!_gliding) CompositionTarget.Rendering += OnGlideFrame;
-        _gliding = true;
-    }
-
-    private void OnGlideFrame(object? sender, EventArgs e)
-    {
-        double t = Math.Min(1, _glideClock.Elapsed.TotalMilliseconds / GlideDuration.TotalMilliseconds);
-        double eased = 1 - Math.Pow(1 - t, 3); // ease-out: arranca con decisión y se posa suave
-        LyricsScroll.ScrollToVerticalOffset(_glideFrom + (_glideTo - _glideFrom) * eased);
-        if (t >= 1) StopLyricsGlide();
-    }
-
-    private void StopLyricsGlide()
-    {
-        if (!_gliding) return;
-        CompositionTarget.Rendering -= OnGlideFrame;
-        _gliding = false;
-    }
+    // la letra del panel derecho y la de la vista a pantalla completa siguen a la línea que suena
+    private LyricsFollower _panelLyrics = null!;
+    private LyricsFollower _fullLyrics = null!;
 
     private long _shownSecond = -1;
 
@@ -391,8 +362,8 @@ public partial class MainWindow : Window
     private static string FormatTime(double seconds) =>
         Song.FormatTime(TimeSpan.FromSeconds(Math.Max(0, double.IsFinite(seconds) ? seconds : 0)));
 
-    /// <summary>Clic o arrastre en cualquier punto del slider.</summary>
-    private void AttachSliderDrag(Slider slider, Action<double>? commit)
+    /// <summary>Clic o arrastre en cualquier punto del slider (<paramref name="time"/>: su texto de tiempo, si es de posición).</summary>
+    private void AttachSliderDrag(Slider slider, Action<double>? commit, TextBlock? time = null)
     {
         void SetFromMouse(MouseEventArgs e)
         {
@@ -401,10 +372,10 @@ public partial class MainWindow : Window
             // el tirador en el último repintado y se desvía si el valor acaba de cambiar).
             double fraction = Math.Clamp(e.GetPosition(track).X / track.ActualWidth, 0, 1);
             slider.Value = slider.Minimum + fraction * (slider.Maximum - slider.Minimum);
-            if (slider == SeekSlider)
+            if (time != null)
             {
-                PosText.Text = FormatTime(slider.Value);
-                _shownSecond = -1; // al soltar, el tiempo real vuelve a escribirse
+                time.Text = FormatTime(slider.Value);
+                _shownSecond = _fullShownSecond = -1; // al soltar, el tiempo real vuelve a escribirse
             }
         }
 
@@ -491,6 +462,8 @@ public partial class MainWindow : Window
             Keyboard.ClearFocus();
             FocusManager.SetFocusedElement(this, this);
         }
+        else if (key == Key.Escape && FullView.IsVisible) CloseFullView();
+        else if (key == Key.F11 && mods == ModifierKeys.None) ToggleScreenFull();
         else handled = false;
 
         if (handled) e.Handled = true;
@@ -669,6 +642,7 @@ public partial class MainWindow : Window
         "Ctrl+Q\tCola\n" +
         "Ctrl+N\tNueva playlist\n" +
         "Ctrl+M\tMini reproductor\n" +
+        "F11\tPantalla completa a toda la pantalla (Esc: salir)\n" +
         "Ctrl+D\tTema claro / oscuro\n" +
         "Ctrl+E\tAnimaciones sí / no\n" +
         "Ctrl+,\tAjustes\n" +
@@ -1294,6 +1268,7 @@ public partial class MainWindow : Window
     private void ShowMiniPlayer()
     {
         if (_mini != null) { _mini.Activate(); return; }
+        CloseFullView(animate: false);
         _mini = new MiniPlayerWindow(_vm);
         _mini.ExpandRequested += RestoreFromMini;
         _mini.Closed += (s, e) =>
