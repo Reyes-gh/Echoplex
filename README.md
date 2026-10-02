@@ -42,15 +42,18 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.8`).
-2. Escribe las notas en `.github/notas/1.1.8.md` (si no, se usa la sección `### 1.1.8` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.8`** con **`Echoplex-1.1.8-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.9`).
+2. Escribe las notas en `.github/notas/1.1.9.md` (si no, se usa la sección `### 1.1.9` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.9`** con **`Echoplex-1.1.9-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.8
+- **Pantalla completa**: el botón de pantalla completa se queda abajo a la derecha, junto al volumen, en el mismo sitio que en la barra del reproductor (antes saltaba arriba al abrir la vista).
 
 ### 1.1.7
 - **Pantalla completa** (botón a la izquierda del volumen): portada, título, progreso y controles a la izquierda y la letra sincronizada a la derecha, sobre la portada difuminada con luces de sus colores. Dentro de la app o a toda la pantalla (clic derecho en el botón o `F11`; `Esc` para salir).

@@ -13,7 +13,7 @@
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
     <Description>Reproductor de música local al estilo Spotify</Description>
-    <Version>1.1.7</Version>
+    <Version>1.1.8</Version>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>

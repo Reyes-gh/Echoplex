@@ -1886,17 +1886,20 @@
                 </Grid>
             </Grid>
 
-            <!-- arriba a la derecha: toda la pantalla y salir (se desvanecen si no mueves el ratón) -->
+            <!-- arriba a la derecha: salir (se desvanece si no mueves el ratón) -->
             <StackPanel x:Name="FullChrome" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,16,0">
-                <Button x:Name="FullScreenButton" Style="{StaticResource IconButton}" Content="&#xE740;" Width="36" Height="36" FontSize="16"
-                        Click="FullScreenToggle_Click" ToolTip="Toda la pantalla (F11)" />
-                <Button Style="{StaticResource IconButton}" Content="&#xE711;" Width="36" Height="36" FontSize="16" Margin="4,0,0,0"
+                <Button Style="{StaticResource IconButton}" Content="&#xE711;" Width="36" Height="36" FontSize="16"
                         Click="FullClose_Click" ToolTip="Salir de la pantalla completa (Esc)" />
             </StackPanel>
-            <!-- abajo a la derecha: volumen -->
-            <StackPanel x:Name="FullVolume" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,18">
-                <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar" />
-                <Slider x:Name="FullVolumeSlider" Style="{StaticResource ThinSlider}" Width="120" Minimum="0" Maximum="1" Margin="6,0,0,0"
+            <!-- abajo a la derecha: pantalla completa y volumen, en el mismo sitio exacto que en la barra del reproductor
+                 (misma altura de franja, mismos tamaños y márgenes): al entrar en la vista el botón no se mueve -->
+            <StackPanel x:Name="FullVolume" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Height="76"
+                        Margin="0,0,14,0">
+                <Button x:Name="FullScreenButton" Style="{StaticResource IconButton}" Content="&#xE740;" VerticalAlignment="Center"
+                        Click="FullScreenToggle_Click" ToolTip="Toda la pantalla (F11)" />
+                <Button Style="{StaticResource IconButton}" Content="{Binding Player.VolumeGlyph}" Click="Mute_Click" ToolTip="Silenciar"
+                        VerticalAlignment="Center" Margin="8,0,0,0" />
+                <Slider x:Name="FullVolumeSlider" Style="{StaticResource ThinSlider}" Width="96" Minimum="0" Maximum="1" Margin="4,0,0,0"
                         VerticalAlignment="Center" Value="{Binding Player.Volume, Mode=TwoWay}" />
             </StackPanel>
         </Grid>
