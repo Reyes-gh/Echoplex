@@ -42,15 +42,18 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.11`).
-2. Escribe las notas en `.github/notas/1.1.11.md` (si no, se usa la sección `### 1.1.11` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.11`** con **`Echoplex-1.1.11-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.12`).
+2. Escribe las notas en `.github/notas/1.1.12.md` (si no, se usa la sección `### 1.1.12` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.12`** con **`Echoplex-1.1.12-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.11
+- **Ajustes más claros**: cada sección (Tema, Carpetas de música, Títulos de las canciones, Letras, Actualizaciones, Otros y Estructura) tiene un título grande con su icono en el color de acento y una línea que la separa de la anterior.
 
 ### 1.1.10
 - **Rendimiento** (todo se ve igual): transiciones entre páginas y redimensionado de la ventana mucho más ligeros. Los desenfoques de las transiciones se calculan a media resolución mientras son fuertes; la cabecera difuminada de las páginas y el destello de la portada se desenfocan una sola vez en lugar de en cada fotograma; el fondo animado se detiene mientras arrastras el borde de la ventana y va a 20 fotogramas por segundo; en el inicio solo se crean las tarjetas que caben en cada fila.

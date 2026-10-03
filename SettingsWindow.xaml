@@ -7,11 +7,34 @@
         SizeToContent="Height" Width="720" MaxHeight="880" FontSize="14" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}" KeyDown="Window_KeyDown">
     <Window.Resources>
-        <Style x:Key="SectionTitle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
-            <Setter Property="Margin" Value="0,22,0,10" />
+        <!-- cabecera de sección: icono en el color de acento (Tag: un glifo o un elemento) y el título grande y a todo contraste -->
+        <Style x:Key="SectionHeader" TargetType="ContentControl">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                                <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  TextElement.FontFamily="{StaticResource IconFont}" TextElement.FontSize="16"
+                                                  TextElement.Foreground="{DynamicResource AccentBrush}" />
+                            </Border>
+                            <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center" TextElement.FontSize="18"
+                                              TextElement.FontWeight="SemiBold" TextElement.Foreground="{DynamicResource TextBrush}" />
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- línea que separa una sección de la anterior -->
+        <Style x:Key="SectionRule" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="Margin" Value="0,30,0,26" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
         <!-- desplegable con flecha (Más temas, Ver cambios de la versión); Tag: texto secundario al lado, como el número de temas -->
@@ -175,7 +198,7 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <StackPanel Margin="24,0,24,22">
                     <!-- ===== Apariencia ===== -->
-                    <TextBlock Text="Tema" Style="{StaticResource SectionTitle}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Tema" Tag="&#xE790;" Margin="0,20,0,14" />
                     <ItemsControl x:Name="ThemeList" ItemTemplate="{StaticResource ThemeCard}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -208,9 +231,10 @@
                               Click="Animations_Click" />
 
                     <!-- ===== Biblioteca ===== -->
-                    <TextBlock Text="Carpetas de música" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Carpetas de música" Tag="&#xE8B7;" />
                     <TextBlock Text="Cada carpeta aparece como un bloque propio en el panel lateral. Quitar una carpeta no borra nada del disco."
-                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,-4,0,8" />
+                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <ItemsControl x:Name="FolderList" ItemTemplate="{StaticResource FolderRow}" Margin="-10,0,-10,0" />
                     <TextBlock x:Name="NoFolders" Text="Aún no has añadido ninguna carpeta." FontSize="15" Foreground="{DynamicResource Text3Brush}"
                                Margin="0,4,0,0" />
@@ -220,7 +244,8 @@
                     </StackPanel>
 
                     <!-- ===== Títulos ===== -->
-                    <TextBlock Text="Títulos de las canciones" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Títulos de las canciones" Tag="&#xE8D2;" />
                     <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding PreferFileName}">
                         <StackPanel>
                             <TextBlock Text="Usar el nombre del archivo en lugar de los metadatos" />
@@ -230,7 +255,13 @@
                     </CheckBox>
 
                     <!-- ===== Letras ===== -->
-                    <TextBlock Text="Letras" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Letras">
+                        <ContentControl.Tag>
+                            <!-- el mismo micro de cantar del botón de la letra -->
+                            <Path Style="{StaticResource SingMicIcon}" Width="16" Height="16" StrokeThickness="1.3" Stroke="{DynamicResource AccentBrush}" />
+                        </ContentControl.Tag>
+                    </ContentControl>
                     <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}">
                         <StackPanel>
                             <TextBlock Text="Buscar letras en internet (LRCLIB)" />
@@ -240,7 +271,8 @@
                     </CheckBox>
 
                     <!-- ===== Actualizaciones ===== -->
-                    <TextBlock Text="Actualizaciones" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Actualizaciones" Tag="&#xE895;" />
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                             <!-- con versión nueva disponible: se elige (nada se instala solo) -->
@@ -267,7 +299,8 @@
                             Visibility="{Binding IsChecked, ElementName=ReleaseNotesToggle, Converter={StaticResource BoolVis}}" />
 
                     <!-- ===== Otros ===== -->
-                    <TextBlock Text="Otros" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Otros" Tag="&#xE712;" />
                     <StackPanel Orientation="Horizontal">
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Mini reproductor (Ctrl+M)" Click="Mini_Click" />
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Carpeta de datos" Click="DataFolder_Click" Margin="8,0,0,0"
@@ -275,9 +308,10 @@
                     </StackPanel>
 
                     <!-- ===== Estructura ===== -->
-                    <TextBlock Text="Estructura" Style="{StaticResource SectionTitle}" />
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Estructura" Tag="&#xE80A;" />
                     <TextBlock Text="Columnas de las listas de canciones, en el orden de tu tabla. Pulsa una para mostrarla u ocultarla; el orden y el ancho se cambian arrastrando la cabecera de la tabla."
-                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,-4,0,12" />
+                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,12" />
                     <WrapPanel x:Name="ColumnSwitches" />
                     <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Restablecer columnas" Click="ResetColumns_Click"
                             HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Orden, anchos y columnas visibles de fábrica" />
