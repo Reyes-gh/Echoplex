@@ -340,14 +340,8 @@
         <DataTemplate DataType="{x:Type vm:ListHeader}">
             <StackPanel>
                 <Grid Height="190" ClipToBounds="True" Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}}" Style="{StaticResource FadeInOnShow}">
-                    <Rectangle Margin="-60">
-                        <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding Page.Cover}" Stretch="UniformToFill" />
-                        </Rectangle.Fill>
-                        <Rectangle.Effect>
-                            <BlurEffect Radius="45" KernelType="Gaussian" />
-                        </Rectangle.Effect>
-                    </Rectangle>
+                    <!-- la portada desenfocada (radio 45) se calcula una vez, no en cada fotograma -->
+                    <local:BlurredCover Margin="-60" Source="{Binding Page.Cover}" Radius="45" />
                 </Grid>
                 <Border Height="48" Visibility="{Binding Page.Cover, Converter={StaticResource NullVis}, ConverterParameter=invert}" />
 
@@ -747,8 +741,10 @@
                             <DataTemplate DataType="{x:Type vm:HomeSection}">
                                 <StackPanel Margin="0,16,0,0">
                                     <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
-                                    <ItemsControl ItemsSource="{Binding Cards}" ItemTemplate="{StaticResource CardTemplate}"
-                                                  ItemsPanel="{StaticResource WrapPanelTemplate}" MaxHeight="230" ClipToBounds="True" />
+                                    <!-- una sola fila: solo se crean las tarjetas que caben (HomeCards_SizeChanged) -->
+                                    <ItemsControl ItemsSource="{Binding Visible}" ItemTemplate="{StaticResource CardTemplate}"
+                                                  ItemsPanel="{StaticResource WrapPanelTemplate}" MaxHeight="230" ClipToBounds="True"
+                                                  SizeChanged="HomeCards_SizeChanged" />
                                 </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -1319,15 +1315,23 @@
                 <Grid x:Name="Stage" Grid.Row="1" ClipToBounds="True">
                     <!-- aurora: manchas de color de la portada que flotan detrás del contenido -->
                     <Grid x:Name="Aurora" IsHitTestVisible="False" />
-                    <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Focusable="False" RenderTransformOrigin="0.5,0.4" />
-                    <!-- destello de la portada al abrir una página -->
-                    <Image x:Name="Bloom" IsHitTestVisible="False" Visibility="Collapsed" Stretch="UniformToFill" HorizontalAlignment="Left"
-                           VerticalAlignment="Top" Width="320" Height="320" RenderTransformOrigin="0.5,0.5" RenderOptions.BitmapScalingMode="LowQuality" />
+                    <!-- las capas que se desenfocan en las transiciones van en un contenedor propio: mientras el desenfoque es
+                         fuerte se pintan a media resolución (BitmapCache), que cuesta 4 veces menos y no se distingue -->
+                    <Grid x:Name="PageLayer">
+                        <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" Focusable="False" RenderTransformOrigin="0.5,0.4" />
+                    </Grid>
+                    <!-- destello de la portada al abrir una página (la imagen ya viene desenfocada, con margen para el halo) -->
+                    <Image x:Name="Bloom" IsHitTestVisible="False" Visibility="Collapsed" Stretch="Fill" HorizontalAlignment="Left"
+                           VerticalAlignment="Top" Width="512" Height="512" RenderTransformOrigin="0.5,0.5" RenderOptions.BitmapScalingMode="LowQuality" />
                     <!-- captura de la página que se va, para las transiciones -->
-                    <Image x:Name="TransitionShot" Stretch="Fill" IsHitTestVisible="False" Visibility="Collapsed"
-                           RenderTransformOrigin="0.5,0.4" RenderOptions.BitmapScalingMode="LowQuality" />
+                    <Grid x:Name="ShotLayer" IsHitTestVisible="False">
+                        <Image x:Name="TransitionShot" Stretch="Fill" IsHitTestVisible="False" Visibility="Collapsed"
+                               RenderTransformOrigin="0.5,0.4" RenderOptions.BitmapScalingMode="LowQuality" />
+                    </Grid>
                     <!-- teselas del estallido -->
-                    <Canvas x:Name="Shards" IsHitTestVisible="False" Visibility="Collapsed" />
+                    <Grid x:Name="ShardsLayer" IsHitTestVisible="False">
+                        <Canvas x:Name="Shards" IsHitTestVisible="False" Visibility="Collapsed" />
+                    </Grid>
                 </Grid>
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
@@ -1776,12 +1780,15 @@
                 <Viewbox Stretch="Uniform" StretchDirection="DownOnly" VerticalAlignment="Center" HorizontalAlignment="Left">
                 <StackPanel x:Name="FullLeft">
                     <Grid x:Name="FullCoverHost" Width="420" Height="420">
-                        <!-- sombra en una capa aparte: con el efecto sobre la imagen, la portada se pintaría peor -->
-                        <Border CornerRadius="12" Background="#000000" Margin="6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="60" ShadowDepth="14" Direction="270" Opacity="0.55" RenderingBias="Performance" />
-                            </Border.Effect>
-                        </Border>
+                        <!-- sombra en una capa aparte: con el efecto sobre la imagen, la portada se pintaría peor.
+                             Va en caché (MainWindow.FullView): no cambia y así no se recalcula en cada fotograma de las luces -->
+                        <Grid x:Name="FullCoverShadow">
+                            <Border CornerRadius="12" Background="#000000" Margin="6">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="60" ShadowDepth="14" Direction="270" Opacity="0.55" RenderingBias="Performance" />
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
                         <Border CornerRadius="12" Background="{DynamicResource PlaceholderBrush}">
                             <Rectangle Style="{StaticResource NoteLogo}" Width="96" Height="96" />
                         </Border>

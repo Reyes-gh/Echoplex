@@ -92,7 +92,24 @@ public partial class MainWindow : Window
         {
             ApplyTitleBar();
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(SizeMoveHook);
         };
+    }
+
+    /// <summary>Arrastrando el borde o moviendo la ventana (entre WM_ENTERSIZEMOVE y WM_EXITSIZEMOVE).</summary>
+    private bool _sizingMove;
+
+    private IntPtr SizeMoveHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        const int WM_ENTERSIZEMOVE = 0x0231, WM_EXITSIZEMOVE = 0x0232;
+        if (msg is WM_ENTERSIZEMOVE or WM_EXITSIZEMOVE)
+        {
+            // el fondo animado se detiene mientras tanto: cada paso ya repinta la ventana entera
+            _sizingMove = msg == WM_ENTERSIZEMOVE;
+            UpdateAuroraRunning();
+            UpdateFullRunning();
+        }
+        return IntPtr.Zero;
     }
 
     /// <summary>Rueda sobre el volumen: pasos más finos en volúmenes bajos (0,5 puntos por debajo del 10 %, 1 punto hasta el 25 %, 5 por encima).</summary>
@@ -408,7 +425,25 @@ public partial class MainWindow : Window
 
     private void MainArea_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        _vm.GalleryColumns = Math.Max(1, (int)((e.NewSize.Width - 56 - 40) / 192));
+        int columns = Math.Max(1, (int)((e.NewSize.Width - 56 - 40) / CardSlot));
+        if (columns == _vm.GalleryColumns) return;
+        if (_vm.CurrentPage != null) MarkReflow(); // las tarjetas se recolocan: sin volver a lanzar su entrada
+        _vm.GalleryColumns = columns;
+    }
+
+    /// <summary>Lo que ocupa una tarjeta en una fila: 176 de ancho + 16 de margen.</summary>
+    private const double CardSlot = 192;
+
+    /// <summary>
+    /// Inicio: cada sección muestra una sola fila (lo demás quedaba recortado). Antes se creaban, animaban y cargaban
+    /// todas sus tarjetas aunque no se vieran; ahora solo las que caben, las mismas que colocaría el WrapPanel.
+    /// </summary>
+    private void HomeCards_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged || sender is not FrameworkElement { DataContext: HomeSection section }) return;
+        int fit = (int)Math.Floor((e.NewSize.Width + 0.01) / CardSlot);
+        if (fit > section.Visible.Count && section.Visible.Count > 0) MarkReflow(); // al ensanchar, las nuevas aparecen sin vuelo
+        section.Fit(fit);
     }
 
     // ======================================================================

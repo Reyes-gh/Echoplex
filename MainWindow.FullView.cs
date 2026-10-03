@@ -103,6 +103,14 @@ public partial class MainWindow
             FullView.BeginAnimation(OpacityProperty, null);
             FullView.Opacity = 1;
             FullView.Visibility = Visibility.Visible;
+            // la letra (bajo su máscara de bordes) y la sombra de la portada quedan en caché a la resolución real: con las
+            // luces moviéndose detrás se repintaban en cada fotograma aunque no cambiaran (la letra se pintaba ya sin
+            // ClearType por la máscara, así que se ve igual)
+            double scale = DeviceScale;
+            if (FullLyricsScroll.CacheMode is not BitmapCache { RenderAtScale: var s } || Math.Abs(s - scale) > 0.001)
+                FullLyricsScroll.CacheMode = new BitmapCache { RenderAtScale = scale };
+            if (FullCoverShadow.CacheMode is not BitmapCache { RenderAtScale: var s2 } || Math.Abs(s2 - scale) > 0.001)
+                FullCoverShadow.CacheMode = new BitmapCache { RenderAtScale = scale };
             RefreshFullArt();
             UpdateFullRunning();
             UpdateAuroraRunning();
@@ -322,7 +330,7 @@ public partial class MainWindow
             var stops = new[] { new GradientStop(Colors.Transparent, 0), new GradientStop(Colors.Transparent, 0.5), new GradientStop(Colors.Transparent, 1) };
             var move = new TranslateTransform();
             var scale = new ScaleTransform(1, 1);
-            FullLights.Children.Add(new Ellipse
+            FullLights.Children.Add(new AuroraBlob
             {
                 Width = l.w,
                 Height = l.hgt,
@@ -373,7 +381,7 @@ public partial class MainWindow
     /// <summary>Las luces solo se mueven mientras la vista se ve (cerrada o minimizada se pausan donde estaban).</summary>
     private void UpdateFullRunning()
     {
-        bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility == Visibility.Visible;
+        bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility == Visibility.Visible && !_sizingMove;
         foreach (var c in _fullClocks)
         {
             if (c.Controller == null) continue;

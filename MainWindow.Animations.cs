@@ -57,6 +57,34 @@ public partial class MainWindow
     /// <summary>El ajuste del usuario (Ctrl+E) y la opción de Windows "Mostrar animaciones".</summary>
     private bool AnimationsEnabled => _vm.AnimationsOn && SystemParameters.ClientAreaAnimation;
 
+    /// <summary>
+    /// Píxeles reales por unidad de la interfaz (zoom de Echoplex × escala de Windows). Una BitmapCache no tiene en cuenta
+    /// ninguno de los dos: hay que dárselo en RenderAtScale para que la caché salga a la resolución real de la pantalla.
+    /// </summary>
+    private double DeviceScale => _vm.Settings.Zoom * VisualTreeHelper.GetDpi(this).DpiScaleX;
+
+    /// <summary>
+    /// Caché a media resolución real para una capa que se está desenfocando: WPF calcula los desenfoques a la resolución
+    /// de la pantalla, así que una página entera desenfocada cuesta mucho; pintada a la mitad cuesta 4 veces menos
+    /// y, con el desenfoque encima, no se distingue (0,2 niveles de diferencia media).
+    /// </summary>
+    private BitmapCache HalfResCache() => new() { RenderAtScale = 0.5 * DeviceScale };
+
+    /// <summary>Pinta la capa a media resolución hasta que <paramref name="done"/> se cumpla (se comprueba en cada fotograma).</summary>
+    private void HalfResWhile(UIElement layer, Func<bool> done)
+    {
+        var cache = HalfResCache();
+        layer.CacheMode = cache;
+        EventHandler? tick = null;
+        tick = (s, e) =>
+        {
+            if (layer.CacheMode == cache && !done()) return;
+            CompositionTarget.Rendering -= tick;
+            if (layer.CacheMode == cache) layer.CacheMode = null;
+        };
+        CompositionTarget.Rendering += tick;
+    }
+
     private static Random Rnd => Random.Shared;
 
     private void InitAnimations()
@@ -95,8 +123,9 @@ public partial class MainWindow
 
     private void UpdateAuroraRunning()
     {
-        // con la vista a pantalla completa delante, la aurora de la app no se ve: también se pausa
-        bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility != Visibility.Visible;
+        // con la vista a pantalla completa delante, la aurora de la app no se ve: también se pausa. Mientras arrastras el
+        // borde o mueves la ventana, también: cada paso ya repinta todo y la deriva (lentísima) no se nota que se detenga
+        bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility != Visibility.Visible && !_sizingMove;
         foreach (var c in _auroraClocks)
         {
             if (c.Controller == null) continue;
@@ -182,6 +211,9 @@ public partial class MainWindow
         Shards.Visibility = Visibility.Visible;
         var blur = new BlurEffect { Radius = 0, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
         Shards.Effect = blur;
+        // las teselas son trozos de una captura a media resolución: pintarlas a media resolución no cambia nada y abarata el desenfoque
+        var cache = HalfResCache();
+        ShardsLayer.CacheMode = cache;
 
         const int cols = 7, rows = 5;
         double tw = w / cols, th = h / rows;
@@ -241,6 +273,7 @@ public partial class MainWindow
             Shards.Children.Clear();
             Shards.Visibility = Visibility.Collapsed;
             Shards.Effect = null;
+            if (ShardsLayer.CacheMode == cache) ShardsLayer.CacheMode = null;
         };
         blur.BeginAnimation(BlurEffect.RadiusProperty, cleanup);
     }
@@ -255,6 +288,8 @@ public partial class MainWindow
         TransitionShot.Effect = blur;
         TransitionShot.Source = shot;
         TransitionShot.Visibility = Visibility.Visible;
+        // la captura ya es de media resolución: pintarla a media resolución no cambia nada y el desenfoque cuesta 4 veces menos
+        ShotLayer.CacheMode = HalfResCache();
         return (scale, rotate, move, blur);
     }
 
@@ -267,6 +302,7 @@ public partial class MainWindow
             TransitionShot.Visibility = Visibility.Collapsed;
             TransitionShot.Source = null;
             TransitionShot.Effect = null;
+            ShotLayer.CacheMode = null;
         };
         TransitionShot.BeginAnimation(OpacityProperty, fade);
     }
@@ -320,6 +356,8 @@ public partial class MainWindow
         PageHost.Effect = blur;
         PageHost.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
         PageHost.Opacity = 0;
+        // mientras el desenfoque es fuerte, la página se pinta a media resolución; al afinarse vuelve a la completa
+        if (startBlur > 10) HalfResWhile(PageLayer, () => PageHost.Effect != blur || blur.Radius < 6);
 
         // el enfoque frena más despacio que el movimiento: el cruce difuso entre páginas se aprecia
         var sharpen = new DoubleAnimation(startBlur, 0, cross ? TimeSpan.FromMilliseconds(680) : inTime) { BeginTime = delay, EasingFunction = cross ? Ease : Silk };
@@ -362,7 +400,7 @@ public partial class MainWindow
     /// <summary>Destello: la portada, muy difuminada, crece y se desvanece desde su posición.</summary>
     private void BloomFrom(FrameworkElement anchor, ImageSource image)
     {
-        if (!anchor.IsVisible) return;
+        if (!anchor.IsVisible || image is not BitmapSource bitmap) return;
         Point center;
         try
         {
@@ -372,11 +410,11 @@ public partial class MainWindow
         {
             return;
         }
-        Bloom.Source = image;
+        var blurred = BloomBitmap(bitmap);
+        Bloom.Source = blurred;
         Bloom.Margin = new Thickness(center.X - Bloom.Width / 2, center.Y - Bloom.Height / 2, 0, 0);
         var scale = new ScaleTransform(0.4, 0.4);
         Bloom.RenderTransform = scale;
-        Bloom.Effect = new BlurEffect { Radius = 45, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance };
         Bloom.Visibility = Visibility.Visible;
 
         var t = TimeSpan.FromMilliseconds(1100);
@@ -386,14 +424,47 @@ public partial class MainWindow
         glow.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1)) { EasingFunction = Drift });
         glow.Completed += (s, e) =>
         {
-            if (Bloom.Source != image) return;
+            if (Bloom.Source != blurred) return;
             Bloom.Visibility = Visibility.Collapsed;
             Bloom.Source = null;
-            Bloom.Effect = null;
         };
         Bloom.BeginAnimation(OpacityProperty, glow);
         Animate(scale, ScaleTransform.ScaleXProperty, 0.4, 3.4, t, Silk);
         Animate(scale, ScaleTransform.ScaleYProperty, 0.4, 3.4, t, Silk);
+    }
+
+    // el destello: portada de 320 con un desenfoque de radio 45 y margen para su halo (Bloom mide 320 + 2 × 96)
+    private const double BloomSide = 320, BloomPad = 96;
+    private BitmapSource? _bloomFrom, _bloomBitmap;
+
+    /// <summary>
+    /// La portada ya desenfocada para el destello. Con un BlurEffect en vivo, al crecer ×3,4 WPF acababa desenfocando
+    /// más de mil píxeles con radio ~150 en cada fotograma; desenfocada una vez (a media resolución) y ampliada, se ve
+    /// igual (0,4 niveles de diferencia media) y apenas cuesta.
+    /// </summary>
+    private BitmapSource BloomBitmap(BitmapSource cover)
+    {
+        if (ReferenceEquals(cover, _bloomFrom) && _bloomBitmap != null) return _bloomBitmap;
+        const int downscale = 2;
+        double total = BloomSide + 2 * BloomPad;
+        var host = new Grid { Width = total, Height = total, LayoutTransform = new ScaleTransform(1.0 / downscale, 1.0 / downscale) };
+        host.Children.Add(new Image
+        {
+            Source = cover,
+            Width = BloomSide,
+            Height = BloomSide,
+            Stretch = Stretch.UniformToFill,
+            Effect = new BlurEffect { Radius = 45, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance },
+        });
+        host.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        host.Arrange(new Rect(host.DesiredSize));
+        int px = (int)Math.Ceiling(total / downscale);
+        var bmp = new RenderTargetBitmap(px, px, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(host);
+        bmp.Freeze();
+        _bloomFrom = cover;
+        _bloomBitmap = bmp;
+        return bmp;
     }
 
     /// <summary>Al cambiar de canción, la portada de la barra da la vuelta como una carta y emite un anillo de luz.</summary>
@@ -423,7 +494,9 @@ public partial class MainWindow
         var rotate = new RotateTransform(0);
         var move = new TranslateTransform(0, 0);
         card.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
-        if (!AnimationsEnabled) return;
+        // sin vuelo: las que quedan fuera de la vista (nadie lo vería y son decenas de animaciones) y las que solo se
+        // recolocan porque ha cambiado el ancho (al redimensionar, cada cambio de columnas las volvía a lanzar todas)
+        if (!AnimationsEnabled || Reflowing || IsOutOfView(card)) return;
 
         // si hace rato que no entra ninguna (p. ej. al desplazar una galería), la cascada vuelve a empezar
         if (_cardClock.ElapsedMilliseconds > 250) _cardStagger = 0;
@@ -440,6 +513,30 @@ public partial class MainWindow
         rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(fromAngle, 0, t) { BeginTime = delay, EasingFunction = Pop });
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(fromScale, 1, t) { BeginTime = delay, EasingFunction = Pop });
+    }
+
+    // tarjetas creadas por un cambio de ancho (columnas de una galería, tarjetas de más en el inicio): aparecen sin vuelo
+    private long _reflowUntil;
+
+    private void MarkReflow() => _reflowUntil = Environment.TickCount64 + 400;
+
+    private bool Reflowing => Environment.TickCount64 < _reflowUntil;
+
+    /// <summary>¿La tarjeta queda fuera de lo que se ve de su lista (filas de reserva de una galería, secciones de abajo del inicio)?</summary>
+    private static bool IsOutOfView(FrameworkElement card)
+    {
+        DependencyObject? d = card;
+        while (d != null && d is not ScrollViewer) d = VisualTreeHelper.GetParent(d);
+        if (d is not ScrollViewer viewer || viewer.ActualHeight <= 0) return false;
+        try
+        {
+            double top = card.TransformToAncestor(viewer).Transform(new Point(0, 0)).Y;
+            return top >= viewer.ActualHeight || top + card.ActualHeight <= 0;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Al pasar el ratón, la tarjeta se inclina hacia un lado al azar y crece un poco.</summary>
@@ -506,7 +603,7 @@ public partial class MainWindow
             var brush = new RadialGradientBrush { GradientStops = new GradientStopCollection(stops) };
             var move = new TranslateTransform();
             var scale = new ScaleTransform(1, 1);
-            var blob = new Ellipse
+            var blob = new AuroraBlob
             {
                 Width = l.w,
                 Height = l.hgt,
@@ -521,7 +618,7 @@ public partial class MainWindow
             _auroraStops.Add(stops);
             if (!AnimationsEnabled) continue;
 
-            // deriva lenta e infinita, a 30 fps: suficiente para algo tan suave
+            // deriva lenta e infinita (ver Forever)
             var t = TimeSpan.FromSeconds(l.secs);
             Drive(move, TranslateTransform.XProperty, Forever(0, l.dx, t));
             Drive(move, TranslateTransform.YProperty, Forever(0, l.dy, TimeSpan.FromSeconds(l.secs * 0.77)));
@@ -541,10 +638,15 @@ public partial class MainWindow
         _auroraClocks.Add(clock);
     }
 
+    /// <summary>
+    /// Deriva lenta e infinita. A 20 fotogramas por segundo: se mueve a menos de 15 px/s y son manchas sin bordes, así que
+    /// cada paso cambia los píxeles menos de un nivel (no se distingue de 30 o 60), y cada fotograma del fondo obliga a
+    /// repintar todo lo que tiene delante: menos fotogramas, menos trabajo con la ventana quieta.
+    /// </summary>
     private static DoubleAnimation Forever(double from, double to, TimeSpan t)
     {
         var a = new DoubleAnimation(from, to, t) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = Sway };
-        Timeline.SetDesiredFrameRate(a, 30);
+        Timeline.SetDesiredFrameRate(a, 20);
         return a;
     }
 
@@ -597,6 +699,24 @@ public partial class MainWindow
 
     private static void Animate(Animatable target, DependencyProperty property, double from, double to, TimeSpan t, IEasingFunction easing) =>
         target.BeginAnimation(property, new DoubleAnimation(from, to, t) { EasingFunction = easing });
+}
+
+/// <summary>
+/// Una mancha de luz de la aurora (y de las luces de la pantalla completa): una elipse que no se recorta al hueco que
+/// le da su panel. Las manchas son más grandes que la zona central en ventanas estrechas y WPF recortaba la elipse por
+/// el borde de ese hueco; al derivar la mancha, el corte se veía como un borde recto moviéndose por la página.
+/// </summary>
+public sealed class AuroraBlob : FrameworkElement
+{
+    public Brush? Fill { get; init; }
+
+    protected override void OnRender(DrawingContext dc)
+    {
+        var size = RenderSize;
+        dc.DrawEllipse(Fill, null, new Point(size.Width / 2, size.Height / 2), size.Width / 2, size.Height / 2);
+    }
+
+    protected override Geometry GetLayoutClip(Size layoutSlotSize) => null!;
 }
 
 /// <summary>Interruptor de animaciones que heredan todos los elementos de la ventana (lo leen los estilos XAML).</summary>

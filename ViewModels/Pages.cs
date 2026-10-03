@@ -394,7 +394,30 @@ public sealed partial class GalleryPage : PageBase
     }
 }
 
-public sealed record HomeSection(string Title, List<CardVm> Cards);
+/// <summary>
+/// Una fila de tarjetas del inicio. Solo se muestra una fila; <see cref="Visible"/> tiene las que caben en ella
+/// (la vista lo ajusta al ancho) para no crear, animar ni cargar la portada de las que no se verían.
+/// </summary>
+public sealed class HomeSection
+{
+    public HomeSection(string title, List<CardVm> cards)
+    {
+        Title = title;
+        Cards = cards;
+    }
+
+    public string Title { get; }
+    public List<CardVm> Cards { get; }
+    public ObservableCollection<CardVm> Visible { get; } = new();
+
+    /// <summary>Deja a la vista las primeras <paramref name="count"/>, añadiendo o quitando por el final (las que ya están no se rehacen).</summary>
+    public void Fit(int count)
+    {
+        count = Math.Clamp(count, 0, Cards.Count);
+        while (Visible.Count > count) Visible.RemoveAt(Visible.Count - 1);
+        while (Visible.Count < count) Visible.Add(Cards[Visible.Count]);
+    }
+}
 
 public sealed record GreetChar(string Ch, int Index);
 
