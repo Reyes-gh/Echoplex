@@ -1599,7 +1599,7 @@
 
                 <DockPanel VerticalAlignment="Center" Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
                     <Grid x:Name="PlayerCover" DockPanel.Dock="Left" Width="48" Height="48" Cursor="Hand" MouseLeftButtonUp="NowPlayingCover_Click"
-                          ToolTip="Ver detalles" RenderTransformOrigin="0.5,0.5">
+                          MouseRightButtonUp="NowPlayingCover_RightClick" ToolTip="Ver detalles · clic derecho: más" RenderTransformOrigin="0.5,0.5">
                         <!-- anillo de luz al cambiar de canción -->
                         <Border x:Name="CoverGlow" CornerRadius="8" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" Opacity="0"
                                 Margin="-2" RenderTransformOrigin="0.5,0.5" IsHitTestVisible="False" />

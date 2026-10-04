@@ -270,6 +270,60 @@
                         </StackPanel>
                     </CheckBox>
 
+                    <!-- ===== Discord ===== -->
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Discord">
+                        <ContentControl.Tag>
+                            <!-- el logo de Discord, solo el contorno y con el color de acento del tema -->
+                            <Path Style="{StaticResource DiscordIcon}" Stroke="{DynamicResource AccentBrush}" />
+                        </ContentControl.Tag>
+                    </ContentControl>
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordEnabled}">
+                        <StackPanel>
+                            <TextBlock Text="Mostrar en Discord lo que escuchas" />
+                            <TextBlock Text="Tu perfil enseña la carátula, la canción, el artista, el álbum y por dónde va. Usa la app de Discord abierta en este PC: no hay que iniciar sesión en Echoplex. En pausa se mantiene un minuto y luego se quita."
+                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                    <StackPanel IsEnabled="{Binding DiscordEnabled}" Margin="0,18,0,0">
+                        <StackPanel.Style>
+                            <!-- con Discord apagado, sus opciones se ven atenuadas -->
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Opacity" Value="0.5" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="En la lista de miembros" FontWeight="SemiBold" />
+                        <TextBlock Text="Discord siempre pone «Escuchando a» delante; tú eliges lo que va detrás."
+                                   FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                        <WrapPanel>
+                            <RadioButton x:Name="DiscordShowArtist" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                         Content="El artista" Tag="artist" Checked="DiscordShow_Checked" />
+                            <RadioButton x:Name="DiscordShowTitle" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                         Content="La canción" Tag="title" Checked="DiscordShow_Checked" />
+                            <RadioButton x:Name="DiscordShowApp" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                         Content="Echoplex" Tag="app" Checked="DiscordShow_Checked" />
+                        </WrapPanel>
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordPlayState}" Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Icono de reproducción sobre la carátula" />
+                                <TextBlock Text="Un pequeño ▶ o ⏸ en la esquina de la carátula, según suene o esté en pausa. Quítalo si prefieres ver la carátula entera."
+                                           FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </CheckBox>
+                        <TextBlock Text="Carátulas" FontWeight="SemiBold" Margin="0,10,0,0" />
+                        <TextBlock Text="Discord solo enseña imágenes que estén en internet. Pon aquí el programa que sube cada carátula: recibe la ruta de la imagen por la entrada estándar y escribe su URL, igual que con foo_discord_rich. Sin programa sale el logo de Echoplex. Si usas foo_discord_rich, se aprovechan las carátulas que ya subiste con él."
+                                   FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                        <TextBox x:Name="DiscordUploadBox" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13"
+                                 Text="{Binding DiscordUploadCommand, UpdateSourceTrigger=LostFocus}" KeyDown="DiscordUploadBox_KeyDown"
+                                 ToolTip="Por ejemplo: C:\Python\python.exe &quot;C:\scripts\subir_caratula.py&quot;" />
+                        <TextBlock Text="{Binding DiscordStatus}" FontSize="13" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding DiscordStatus, Converter={StaticResource NullVis}}" />
+                    </StackPanel>
+
                     <!-- ===== Actualizaciones ===== -->
                     <Border Style="{StaticResource SectionRule}" />
                     <ContentControl Style="{StaticResource SectionHeader}" Content="Actualizaciones" Tag="&#xE895;" />

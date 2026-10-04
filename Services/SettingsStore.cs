@@ -44,6 +44,14 @@ public sealed class AppSettings
     public bool ShowBigCover { get; set; }
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
     public bool OnlineLyrics { get; set; }
+    /// <summary>Enseñar en Discord lo que suena (Rich Presence). Desactivado de serie.</summary>
+    public bool DiscordPresence { get; set; }
+    /// <summary>Qué sale en la lista de miembros de Discord tras «Escuchando a»: "artist", "title" o "app".</summary>
+    public string DiscordShow { get; set; } = "artist";
+    /// <summary>Icono de sonando / en pausa en la esquina de la carátula de Discord.</summary>
+    public bool DiscordPlayState { get; set; } = true;
+    /// <summary>Programa que sube una carátula y devuelve su URL (recibe la ruta por la entrada estándar, como en foo_discord_rich).</summary>
+    public string? DiscordUploadCommand { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
     /// <summary>Versión de la que el usuario pidió no volver a avisar («Omitir esta versión»).</summary>
@@ -74,8 +82,11 @@ public sealed class AppSettings
 
 public static class SettingsStore
 {
+    /// <summary>%LocalAppData%\Echoplex, o la carpeta de ECHOPLEX_DATA (las pruebas usan una copia y nunca tocan los datos reales).</summary>
     public static string DataDirectory { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Echoplex");
+        Environment.GetEnvironmentVariable("ECHOPLEX_DATA") is { Length: > 0 } custom
+            ? custom
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Echoplex");
 
     /// <summary>
     /// La app se llamaba Sonora: la primera vez se copian sus datos (ajustes, playlists, historial, caché)

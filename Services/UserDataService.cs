@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using System.Windows.Threading;
 using Echoplex.Models;
 
 namespace Echoplex.Services;
@@ -39,10 +40,14 @@ public sealed class UserData
 public sealed class UserDataService
 {
     private const int MaxHistory = 3000;
+    /// <summary>Copias diarias que se guardan en backups\ (una por día, la del primer guardado).</summary>
+    private const int KeepBackups = 14;
     private readonly string _file = Path.Combine(SettingsStore.DataDirectory, "userdata.json");
     private UserData _data = new();
     private HashSet<string> _favorites = new(StringComparer.OrdinalIgnoreCase);
     private bool _dirty;
+    private bool _saveQueued;
+    private string? _backupDay;
 
     public ObservableCollection<Playlist> Playlists { get; } = new();
 
@@ -107,6 +112,22 @@ public sealed class UserDataService
         }
     }
 
+    /// <summary>
+    /// Favoritas y playlists se guardan enseguida, sin esperar al guardado periódico: son lo que más duele perder si
+    /// Echoplex no llega a cerrarse bien (apagar el PC, un cuelgue). Varios cambios seguidos se guardan juntos.
+    /// </summary>
+    private void SaveSoon()
+    {
+        _dirty = true;
+        if (_saveQueued) return;
+        _saveQueued = true;
+        Dispatcher.CurrentDispatcher.BeginInvoke(() =>
+        {
+            _saveQueued = false;
+            SaveInBackground();
+        }, DispatcherPriority.Normal);
+    }
+
     private void Write(byte[]? bytes)
     {
         if (bytes == null) return;
@@ -115,6 +136,7 @@ public sealed class UserDataService
             try
             {
                 Directory.CreateDirectory(SettingsStore.DataDirectory);
+                BackupDaily();
                 var tmp = _file + ".tmp";
                 File.WriteAllBytes(tmp, bytes);
                 File.Move(tmp, _file, true);
@@ -123,6 +145,33 @@ public sealed class UserDataService
             {
                 _dirty = true; // se reintenta en el siguiente guardado
             }
+        }
+    }
+
+    /// <summary>
+    /// Antes del primer guardado de cada día, copia lo que había en backups\userdata-AAAA-MM-DD.json (se quedan las
+    /// de las dos últimas semanas): si algo se pierde, se puede volver al día anterior.
+    /// </summary>
+    private void BackupDaily()
+    {
+        var day = DateTime.Today.ToString("yyyy-MM-dd");
+        if (_backupDay == day) return;
+        try
+        {
+            if (File.Exists(_file))
+            {
+                var dir = Path.Combine(SettingsStore.DataDirectory, "backups");
+                Directory.CreateDirectory(dir);
+                var target = Path.Combine(dir, $"userdata-{day}.json");
+                if (!File.Exists(target)) File.Copy(_file, target);
+                foreach (var old in new DirectoryInfo(dir).GetFiles("userdata-*.json").OrderByDescending(f => f.Name).Skip(KeepBackups))
+                    old.Delete();
+            }
+            _backupDay = day;
+        }
+        catch
+        {
+            // sin copia hoy: se vuelve a intentar en el siguiente guardado
         }
     }
 
@@ -144,7 +193,7 @@ public sealed class UserDataService
             _data.Favorites.RemoveAll(p => string.Equals(p, song.Path, StringComparison.OrdinalIgnoreCase));
         }
         song.IsFavorite = value;
-        _dirty = true;
+        SaveSoon();
         FavoritesChanged?.Invoke();
     }
 
@@ -202,7 +251,7 @@ public sealed class UserDataService
     private void Touch(Playlist? p = null)
     {
         p?.NotifySongsChanged();
-        _dirty = true;
+        SaveSoon();
         PlaylistsChanged?.Invoke();
     }
 

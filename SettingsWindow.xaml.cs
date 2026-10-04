@@ -46,6 +46,12 @@ public partial class SettingsWindow : Window
         if (ReleaseNotesView.Current() is { } notes) ReleaseNotesBox.Child = ReleaseNotesView.Render(notes);
         else ReleaseNotesToggle.Visibility = Visibility.Collapsed;
         AnimationsBox.IsChecked = vm.AnimationsOn;
+        (vm.DiscordShow switch
+        {
+            DiscordPresence.ShowTitle => DiscordShowTitle,
+            DiscordPresence.ShowApp => DiscordShowApp,
+            _ => DiscordShowArtist,
+        }).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
         BuildColumnSwitches();
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
@@ -97,6 +103,7 @@ public partial class SettingsWindow : Window
     /// <summary>Cierra con un fundido suave (todas las vías acaban aquí: ✕, Esc, Ctrl+, o clic fuera).</summary>
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        CommitUploadCommand(); // cerrar con lo escrito sin salir de la caja también lo guarda
         if (!_allowClose)
         {
             e.Cancel = true;
@@ -209,6 +216,21 @@ public partial class SettingsWindow : Window
     {
         if (AnimationsBox.IsChecked != _vm.AnimationsOn) _vm.ToggleAnimations();
     }
+
+    private void DiscordShow_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string show }) _vm.DiscordShow = show;
+    }
+
+    private void DiscordUploadBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        CommitUploadCommand();
+        e.Handled = true;
+    }
+
+    private void CommitUploadCommand() =>
+        DiscordUploadBox.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
 
     private void AddFolder_Click(object sender, RoutedEventArgs e) => _main.AddMusicFolder();
 

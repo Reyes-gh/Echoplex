@@ -58,6 +58,15 @@ public sealed partial class MainViewModel : ObservableObject
         Player.Listened += (s, sec) => UserData.RecordListen(s, sec);
         Player.PlayCounted += s => UserData.RecordPlay(s);
 
+        Discord = new DiscordPresence(Covers.CoverBytes)
+        {
+            Show = Settings.DiscordShow,
+            ShowPlayState = Settings.DiscordPlayState,
+            UploadCommand = Settings.DiscordUploadCommand,
+        };
+        Discord.StatusChanged += text => _ui.BeginInvoke(() => DiscordStatus = text);
+        Discord.Enabled = Settings.DiscordPresence;
+
         _worker = new MetadataWorker(_cache, ui);
         _worker.Updated += () => (CurrentPage as SongListPage)?.RefreshProperties();
 
@@ -69,7 +78,9 @@ public sealed partial class MainViewModel : ObservableObject
         _searchTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Normal,
             (s, e) => { ((DispatcherTimer)s!).Stop(); if (_pendingSearch != null) RunSearch(_pendingSearch); }, ui);
         _searchTimer.Stop();
-        _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(45), DispatcherPriority.Background, (s, e) =>
+        // prioridad normal: con la de fondo, las animaciones (pantalla completa, fondos animados) podían retrasarlo
+        // indefinidamente y lo escuchado solo se guardaba al cerrar
+        _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(45), DispatcherPriority.Normal, (s, e) =>
         {
             UserData.SaveInBackground();
             Task.Run(_cache.Save);
@@ -85,6 +96,7 @@ public sealed partial class MainViewModel : ObservableObject
     public AppSettings Settings { get; }
     public LibraryService Library { get; }
     public PlayerService Player { get; }
+    public DiscordPresence Discord { get; }
     public UserDataService UserData { get; }
     public CoverService Covers { get; } = new();
     public ObservableCollection<FolderNode> Folders { get; } = new();
@@ -556,6 +568,16 @@ public sealed partial class MainViewModel : ObservableObject
         _rescanTimer.Start();
     }
 
+    /// <summary>Guarda ajustes y datos sin cerrar nada (Windows se apaga o cierra la sesión: no hay Closing).</summary>
+    public void SaveNow()
+    {
+        Settings.Volume = Player.Volume;
+        Settings.LastSong = Player.Current?.Path;
+        Settings.LastContext = Player.ContextId;
+        SettingsStore.Save(Settings);
+        UserData.Save(force: true);
+    }
+
     public void Shutdown()
     {
         Settings.Volume = Player.Volume;
@@ -570,6 +592,7 @@ public sealed partial class MainViewModel : ObservableObject
         UserData.Save(force: true);
         _cache.Save();
         foreach (var w in _watchers) w.Dispose();
+        Discord.Dispose();
         Player.Dispose();
     }
 
@@ -1458,9 +1481,12 @@ public sealed partial class MainViewModel : ObservableObject
                     NowPlayingCover = null;
                 }
                 UpdateActiveContext(); // el camino iluminado en el árbol sigue a la canción
+                WatchDiscordSong(Player.Current);
+                PushDiscord();
                 break;
             case nameof(PlayerService.IsPlaying):
                 UpdatePagePlaying();
+                PushDiscord();
                 break;
             case nameof(PlayerService.ContextId):
                 UpdatePagePlaying();
@@ -1468,6 +1494,10 @@ public sealed partial class MainViewModel : ObservableObject
                 break;
             case nameof(PlayerService.Position):
                 UpdateActiveLyric();
+                PushDiscord();
+                break;
+            case nameof(PlayerService.Duration):
+                PushDiscord();
                 break;
             case nameof(PlayerService.StopAfterCurrent):
                 if (!Player.StopAfterCurrent && SleepText == "Al acabar la canción") SleepText = null;
@@ -1563,6 +1593,117 @@ public sealed partial class MainViewModel : ObservableObject
             if (Player.Current is { } song && (value ? !HasLyrics : LyricsFromOnline)) _ = LoadLyricsAsync(song);
         }
     }
+
+    // ======================================================================
+    // Discord
+    // ======================================================================
+
+    /// <summary>Conexión con Discord, subidas de carátulas… (para Ajustes).</summary>
+    [ObservableProperty] private string _discordStatus = "";
+
+    public bool DiscordEnabled
+    {
+        get => Settings.DiscordPresence;
+        set
+        {
+            if (Settings.DiscordPresence == value) return;
+            Settings.DiscordPresence = value;
+            SettingsStore.Save(Settings);
+            Discord.Enabled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Lo que sale en la lista de miembros tras «Escuchando a»: ver <see cref="DiscordPresence.ShowArtist"/> y compañía.</summary>
+    public string DiscordShow
+    {
+        get => Settings.DiscordShow;
+        set
+        {
+            if (Settings.DiscordShow == value) return;
+            Settings.DiscordShow = value;
+            SettingsStore.Save(Settings);
+            Discord.Show = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Icono de sonando / en pausa sobre la carátula en Discord.</summary>
+    public bool DiscordPlayState
+    {
+        get => Settings.DiscordPlayState;
+        set
+        {
+            if (Settings.DiscordPlayState == value) return;
+            Settings.DiscordPlayState = value;
+            SettingsStore.Save(Settings);
+            Discord.ShowPlayState = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? DiscordUploadCommand
+    {
+        get => Settings.DiscordUploadCommand;
+        set
+        {
+            value = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (Settings.DiscordUploadCommand == value) return;
+            Settings.DiscordUploadCommand = value;
+            SettingsStore.Save(Settings);
+            Discord.UploadCommand = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private Song? _discordSong;
+
+    /// <summary>Si cambian los datos de la canción que suena (se leen al abrirla, o título ↔ nombre de archivo), Discord también.</summary>
+    private void WatchDiscordSong(Song? song)
+    {
+        if (_discordSong == song) return;
+        if (_discordSong != null) _discordSong.PropertyChanged -= OnDiscordSongChanged;
+        _discordSong = song;
+        if (song != null) song.PropertyChanged += OnDiscordSongChanged;
+    }
+
+    private void OnDiscordSongChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(Song.Title) or nameof(Song.Artist) or nameof(Song.Album)) PushDiscord();
+    }
+
+    private void PushDiscord() => Discord.Update(Player.Current is { } s
+        ? new NowPlaying(s, s.Title, s.Artist, s.Album, Player.IsPlaying, Player.Position, Player.Duration)
+        : null);
+
+    /// <summary>Se puede forzar la subida de carátulas: Discord activado y con programa de subida.</summary>
+    public bool CanRefreshDiscordCovers => Settings.DiscordPresence && Discord.CanUpload;
+
+    /// <summary>
+    /// Actualizar carátula en Discord: la imagen que ves ahora se vuelve a mandar al programa de subida y su URL nueva
+    /// sustituye a la que había en el JSON local (también a la que venía de foo_discord_rich).
+    /// </summary>
+    public async Task RefreshDiscordCoversAsync(IReadOnlyList<Song> songs)
+    {
+        if (songs.Count == 0) return;
+        var albums = songs.Select(s => s.Album.Trim()).Where(a => a.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).ToList();
+        var name = albums.Count == 1 ? $" de «{albums[0]}»" : "";
+        ShowToast($"Subiendo la carátula{name} a Discord…", 120);
+        var (uploaded, failed) = await Discord.RefreshCoversAsync(songs);
+        ShowToast(failed > 0
+            ? uploaded > 0 ? $"{uploaded} carátulas subidas y {failed} fallaron (detalles en discord.log)" : "No se pudo subir la carátula (detalles en discord.log)"
+            : uploaded == 0 ? "No hay carátula que subir"
+            : uploaded == 1 ? $"Carátula{name} actualizada en Discord" : $"{uploaded} carátulas actualizadas en Discord", 6);
+    }
+
+    /// <summary>Canciones de una tarjeta de álbum, carpeta o canción (para actualizar su carátula en Discord).</summary>
+    public IReadOnlyList<Song> SongsOfCard(CardVm card) => card.Kind switch
+    {
+        CardKind.Song when card.Song != null => new List<Song> { card.Song },
+        CardKind.Album => SongsForContext("album:" + card.Key) ?? new List<Song>(),
+        CardKind.Folder => SongsForContext("folder:" + card.Key) ?? new List<Song>(),
+        _ => new List<Song>(),
+    };
 
     /// <summary>
     /// Desfase de la letra de la canción que suena, en segundos: positivo = la letra va antes (para letras que llegan

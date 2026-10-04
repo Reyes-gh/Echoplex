@@ -128,6 +128,8 @@ public partial class MainWindow : Window
             Close(); // guarda ajustes, cola y posición como siempre
             UpdateService.Restart();
         };
+        // al apagar o cerrar la sesión de Windows no hay Closing: se guarda aquí o se perdería lo de esta sesión
+        System.Windows.Application.Current.SessionEnding += (s, args) => _vm.SaveNow();
         await _vm.InitializeAsync();
         await _vm.CheckForUpdatesOnStartupAsync();
     }
@@ -171,6 +173,26 @@ public partial class MainWindow : Window
         menu.Items.Add(Item(_vm.HasCustomCover(folder) ? "Cambiar carátula…" : "Poner carátula…", "", () => PickCustomCover(folder)));
         if (_vm.HasCustomCover(folder))
             menu.Items.Add(Item("Quitar carátula personalizada", "", () => _vm.ClearCustomCover(folder)));
+        if (_vm.CanRefreshDiscordCovers)
+            menu.Items.Add(DiscordCoverItem(() => _vm.Library.SongsUnder(folder).ToList()));
+    }
+
+    /// <summary>
+    /// «Actualizar carátula en Discord»: vuelve a mandar la carátula que se ve ahora al programa de subida y guarda su URL
+    /// nueva (sale en todos los sitios con carátula: álbum, carpeta, tarjetas, canciones y la de lo que suena).
+    /// </summary>
+    private MenuItem DiscordCoverItem(Func<IReadOnlyList<Song>> songs) =>
+        Item("Actualizar carátula en Discord", "", () => _ = _vm.RefreshDiscordCoversAsync(songs()));
+
+    /// <summary>Clic derecho en la carátula del reproductor (abajo a la izquierda).</summary>
+    private void NowPlayingCover_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_vm.Player.Current is not { } song) return;
+        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = PlacementMode.Top };
+        menu.Items.Add(Item("Ir al álbum", "", () => _vm.OpenAlbum(LibraryService.AlbumKey(song))));
+        if (_vm.CanRefreshDiscordCovers) menu.Items.Add(DiscordCoverItem(() => new List<Song> { song }));
+        menu.IsOpen = true;
+        e.Handled = true;
     }
 
     /// <summary>El recuadro con "+" de una página sin carátula.</summary>
@@ -927,6 +949,12 @@ public partial class MainWindow : Window
             menu.Items.Add(new Separator());
             menu.Items.Add(Item("Abrir en el Explorador", "", () => OpenInExplorer(p.FolderPath, false)));
         }
+        if (_vm.CanRefreshDiscordCovers && p.Playlist == null)
+        {
+            // cambiaste la carátula y Discord sigue enseñando la de antes
+            menu.Items.Add(new Separator());
+            menu.Items.Add(DiscordCoverItem(() => songs.ToList()));
+        }
         menu.IsOpen = true;
     }
 
@@ -980,6 +1008,7 @@ public partial class MainWindow : Window
             menu.Items.Add(Item("Ir al álbum", "", () => _vm.OpenAlbum(LibraryService.AlbumKey(song))));
             menu.Items.Add(Item("Ir a la carpeta", "", () => _vm.OpenFolder(song.Directory)));
         }
+        if (_vm.CanRefreshDiscordCovers) menu.Items.Add(DiscordCoverItem(() => songs));
         menu.Items.Add(new Separator());
         AddOfflineItems(menu, songs, null);
         if (single)
@@ -1134,6 +1163,11 @@ public partial class MainWindow : Window
         if (card.Kind != CardKind.Song)
             menu.Items.Add(Item("Reproducir en aleatorio", "", () => _vm.PlayCard(card, shuffle: true)));
         menu.Items.Add(Item("Abrir", "", () => _vm.OpenCard(card)));
+        if (_vm.CanRefreshDiscordCovers && card.Kind is CardKind.Album or CardKind.Folder or CardKind.Song)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(DiscordCoverItem(() => _vm.SongsOfCard(card)));
+        }
         menu.IsOpen = true;
         e.Handled = true;
     }
