@@ -45,15 +45,18 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.16`).
-2. Escribe las notas en `.github/notas/1.1.16.md` (si no, se usa la sección `### 1.1.16` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.16`** con **`Echoplex-1.1.16-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.17`).
+2. Escribe las notas en `.github/notas/1.1.17.md` (si no, se usa la sección `### 1.1.17` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.17`** con **`Echoplex-1.1.17-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.16
+- **Carátula en Discord de canciones que estaban en OneDrive**: si la canción estaba solo en la nube y su carátula va incrustada en el archivo, Discord enseñaba el logo toda la canción; ahora, en cuanto el archivo termina de bajar, sale la carátula.
 
 ### 1.1.15
 - **Discord se arregla solo**: mientras suena una canción, el estado se vuelve a mandar cada minuto con la carátula recién comprobada; si Discord enseñaba una interrogación en su lugar, como mucho al minuto sale bien. Las carátulas recién subidas se comprueban antes de mandarlas (mientras no están en internet, sale el logo) y las que subió foo_discord_rich en BMP o TIFF, que Discord no enseña, se sustituyen por una subida en PNG.

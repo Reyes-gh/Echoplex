@@ -100,6 +100,11 @@ public sealed partial class DiscordPresence : IDisposable
     private DateTime? _coverRetryAt;
     /// <summary>Desde cuándo se busca (o sube) la carátula de la canción actual; null si ya se sabe.</summary>
     private DateTime? _coverPendingSince;
+    /// <summary>
+    /// La carátula se buscó con la canción aún solo en OneDrive: su imagen incrustada no se podía leer sin descargarla.
+    /// Si no se encontró, se vuelve a buscar en cuanto termine de bajar.
+    /// </summary>
+    private bool _coverFromCloud;
     private string? _uploading;
     /// <summary>Discord rechazó un estado: se manda sin lo más nuevo (texto de la lista de miembros, botón).</summary>
     private bool _plain;
@@ -279,7 +284,7 @@ public sealed partial class DiscordPresence : IDisposable
                 {
                     _playedSong = np.Song;
                     _pausedAt = null;
-                    if (_enabled && _coverSong != np.Song) StartCover(np);
+                    if (_enabled && (_coverSong != np.Song || CoverAfterDownload(np.Song))) StartCover(np);
                     // barra de progreso: se recoloca si salta (búsqueda, otra canción, reanudar) o cambia la duración
                     long start = NowMs() - (long)(np.Position * 1000);
                     long end = np.Duration > 0 ? start + (long)(np.Duration * 1000) : 0;
@@ -301,6 +306,13 @@ public sealed partial class DiscordPresence : IDisposable
         }
         Signal();
     }
+
+    /// <summary>
+    /// La canción que suena acaba de bajar de OneDrive y al empezar no se encontró su carátula (la incrustada no se podía
+    /// leer): toca buscarla otra vez, ya con el archivo y sus etiquetas. Bajo _lock.
+    /// </summary>
+    private bool CoverAfterDownload(Song song) =>
+        _coverFromCloud && !song.IsCloud && _coverSong == song && _coverBase == null && _coverPendingSince == null;
 
     /// <summary>Hay programa de subida: se puede forzar que se vuelvan a subir las carátulas.</summary>
     public bool CanUpload => ManualCovers && _covers.Command != null;
@@ -688,6 +700,7 @@ public sealed partial class DiscordPresence : IDisposable
         _coverVersion = 0;
         _coverRetryAt = null;
         _coverPendingSince = DateTime.UtcNow;
+        _coverFromCloud = song.IsCloud;
         _ = Task.Run(async () =>
         {
             string? url = null;
