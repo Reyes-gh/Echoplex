@@ -52,6 +52,11 @@ public sealed class AppSettings
     public bool DiscordPlayState { get; set; } = true;
     /// <summary>Programa que sube una carátula y devuelve su URL (recibe la ruta por la entrada estándar, como en foo_discord_rich).</summary>
     public string? DiscordUploadCommand { get; set; }
+    /// <summary>
+    /// Carátulas manuales (con el programa de subida) en vez de buscarlas en internet. null = sin elegir todavía: quien ya
+    /// tenía un programa puesto (antes de la 1.1.13) sigue con él.
+    /// </summary>
+    public bool? DiscordManualCovers { get; set; }
     /// <summary>Al abrir, busca en GitHub una versión nueva y la instala sola.</summary>
     public bool AutoUpdate { get; set; } = true;
     /// <summary>Versión de la que el usuario pidió no volver a avisar («Omitir esta versión»).</summary>

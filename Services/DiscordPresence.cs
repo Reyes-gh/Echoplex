@@ -52,6 +52,7 @@ public sealed partial class DiscordPresence : IDisposable
 
     private readonly DiscordIpc _ipc = new();
     private readonly DiscordCovers _covers;
+    private readonly OnlineCovers _online;
     private readonly object _lock = new();
     private readonly SemaphoreSlim _signal = new(0, 1);
     private readonly CancellationTokenSource _cts = new();
@@ -77,6 +78,8 @@ public sealed partial class DiscordPresence : IDisposable
     private DateTime _changedAt;
     /// <summary>La última canción que llegó a sonar: una preparada al abrir Echoplex y sin tocar no se anuncia.</summary>
     private Song? _playedSong;
+    /// <summary>Carátulas manuales (programa de subida del usuario); si no, se buscan en internet.</summary>
+    private bool _manual;
     private Song? _coverSong;
     private string? _coverUrl;
     /// <summary>Desde cuándo se busca (o sube) la carátula de la canción actual; null si ya se sabe.</summary>
@@ -102,6 +105,8 @@ public sealed partial class DiscordPresence : IDisposable
         _logFile = Path.Combine(_dataDir, "discord.log");
         _covers = new DiscordCovers(coverBytes, _dataDir);
         _covers.Log += Log;
+        _online = new OnlineCovers(_dataDir);
+        _online.Log += Log;
         _covers.Uploading += text =>
         {
             lock (_lock) _uploading = text;
@@ -209,6 +214,30 @@ public sealed partial class DiscordPresence : IDisposable
         }
     }
 
+    /// <summary>
+    /// Carátulas manuales: se suben con el programa del usuario (y se guardan en su JSON local). Sin ellas, se buscan en
+    /// internet por artista y álbum.
+    /// </summary>
+    public bool ManualCovers
+    {
+        get
+        {
+            lock (_lock) return _manual;
+        }
+        set
+        {
+            lock (_lock)
+            {
+                if (_manual == value) return;
+                _manual = value;
+                // la canción que suena busca otra vez su carátula con el modo nuevo
+                _coverSong = null;
+                if (_enabled && _np is { Playing: true } np) StartCover(np);
+            }
+            Signal();
+        }
+    }
+
     /// <summary>Lo que suena ahora (null = nada). Desde el hilo de la interfaz, tantas veces como cambie; aquí se filtra.</summary>
     public void Update(NowPlaying? np)
     {
@@ -254,7 +283,7 @@ public sealed partial class DiscordPresence : IDisposable
     }
 
     /// <summary>Hay programa de subida: se puede forzar que se vuelvan a subir las carátulas.</summary>
-    public bool CanUpload => _covers.Command != null;
+    public bool CanUpload => ManualCovers && _covers.Command != null;
 
     /// <summary>
     /// Vuelve a subir las carátulas de estas canciones (cambiaste la imagen y Discord seguía con la vieja). Si suena una
@@ -540,6 +569,8 @@ public sealed partial class DiscordPresence : IDisposable
     {
         var song = np.Song;
         var album = np.Album;
+        var title = np.Title;
+        bool manual = _manual;
         _coverSong = song;
         _coverUrl = null;
         _coverPendingSince = DateTime.UtcNow;
@@ -548,7 +579,9 @@ public sealed partial class DiscordPresence : IDisposable
             string? url = null;
             try
             {
-                url = await _covers.ResolveAsync(song, album, _cts.Token);
+                url = manual
+                    ? await _covers.ResolveAsync(song, album, _cts.Token)
+                    : await _online.FindAsync(song.PrimaryArtist, album, title, _cts.Token);
             }
             catch (OperationCanceledException)
             {

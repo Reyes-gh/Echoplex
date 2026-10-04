@@ -14,7 +14,7 @@
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 50 más en *Más temas* (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
-- **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se suben con tu propio programa, igual que con foo_discord_rich.
+- **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
 
@@ -43,15 +43,19 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.13`).
-2. Escribe las notas en `.github/notas/1.1.13.md` (si no, se usa la sección `### 1.1.13` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.13`** con **`Echoplex-1.1.13-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.14`).
+2. Escribe las notas en `.github/notas/1.1.14.md` (si no, se usa la sección `### 1.1.14` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.14`** con **`Echoplex-1.1.14-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.13
+- **Carátulas en Discord sin programa**: de serie, Echoplex busca la carátula de cada álbum en internet (Deezer e iTunes, gratis y sin cuentas; solo se envían el artista y el álbum). Solo vale la del álbum exacto de ese artista; si no la encuentra, sale el logo de Echoplex. Las canciones sueltas sin álbum se buscan por su título. Lo encontrado se guarda en tu PC para no volver a buscarlo.
+- **Carátulas manuales**: subirlas con tu propio programa, igual que con foo_discord_rich, pasa a ser una opción en *Ajustes → Discord*. Solo en ese modo se puede usar «Actualizar carátula en Discord». Si ya tenías un programa puesto, sigue activado.
 
 ### 1.1.12
 - **Discord**: tu perfil puede mostrar lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Se activa en *Ajustes → Discord* (viene desactivado) y no hace falta iniciar sesión: usa la app de Discord abierta en el PC. Tú eliges qué sale en la lista de miembros tras «Escuchando a» (el artista, la canción o Echoplex). Un ▶ o ⏸ en la esquina de la carátula indica si suena o está en pausa, y se puede quitar para verla entera. En pausa se mantiene un minuto y luego se quita. Al cambiar de canción, el estado cambia de una vez con su carátula, y si hubo varios cambios seguidos se vuelve a mandar al poco por si Discord se saltó alguno.

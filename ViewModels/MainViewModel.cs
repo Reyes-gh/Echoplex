@@ -63,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
             Show = Settings.DiscordShow,
             ShowPlayState = Settings.DiscordPlayState,
             UploadCommand = Settings.DiscordUploadCommand,
+            ManualCovers = DiscordManualCovers,
         };
         Discord.StatusChanged += text => _ui.BeginInvoke(() => DiscordStatus = text);
         Discord.Enabled = Settings.DiscordPresence;
@@ -1642,6 +1643,23 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Carátulas manuales con el programa de subida; si no, se buscan en internet. Sin elegir aún, sigue en manual quien ya
+    /// tenía un programa puesto.
+    /// </summary>
+    public bool DiscordManualCovers
+    {
+        get => Settings.DiscordManualCovers ?? !string.IsNullOrWhiteSpace(Settings.DiscordUploadCommand);
+        set
+        {
+            if (Settings.DiscordManualCovers == value) return;
+            Settings.DiscordManualCovers = value;
+            SettingsStore.Save(Settings);
+            Discord.ManualCovers = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string? DiscordUploadCommand
     {
         get => Settings.DiscordUploadCommand;
@@ -1676,7 +1694,7 @@ public sealed partial class MainViewModel : ObservableObject
         ? new NowPlaying(s, s.Title, s.Artist, s.Album, Player.IsPlaying, Player.Position, Player.Duration)
         : null);
 
-    /// <summary>Se puede forzar la subida de carátulas: Discord activado y con programa de subida.</summary>
+    /// <summary>Se puede forzar la subida de carátulas: Discord activado, carátulas manuales y con programa de subida.</summary>
     public bool CanRefreshDiscordCovers => Settings.DiscordPresence && Discord.CanUpload;
 
     /// <summary>
