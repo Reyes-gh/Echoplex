@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lo que el recorte de publish.ps1 debe conservar aunque no parezca usado. ILLink deja en las librerías de terceros
+  solo lo que Echoplex usa, pero no ve lo que se usa desde Windows (COM) ni por reflexión.
+  required="false": se aplica solo a lo que se queda por otro motivo (no añade nada que no haga falta).
+  Si se actualiza NAudio o TagLib#, comprueba que siga todo: reproducir (normal y bit a bit) y leer etiquetas.
+-->
+<linker>
+  <!-- NAudio: Windows llama a los métodos de las interfaces COM por su posición. Si el recorte quitara uno que Echoplex
+       no usa, los siguientes se correrían de sitio y Windows llamaría al que no es: se dejan enteras. -->
+  <assembly fullname="NAudio.Wasapi">
+    <type fullname="NAudio.CoreAudioApi.Interfaces.*" preserve="all" required="false" />
+    <type fullname="NAudio.Wasapi.CoreAudioApi.Interfaces.*" preserve="all" required="false" />
+    <type fullname="NAudio.MediaFoundation.IMF*" preserve="all" required="false" />
+    <type fullname="NAudio.Dmo.I*" preserve="all" required="false" />
+    <type fullname="NAudio.Dmo.Effect.I*" preserve="all" required="false" />
+  </assembly>
+  <!-- TagLib# crea el lector de cada formato por reflexión (TagLib.File.Create): sus constructores no se ven usados -->
+  <assembly fullname="TagLibSharp">
+    <type fullname="TagLib.*File" required="false">
+      <method name=".ctor" />
+    </type>
+  </assembly>
+</linker>

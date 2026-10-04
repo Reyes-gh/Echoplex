@@ -15,12 +15,11 @@ namespace Echoplex.Services;
 ///   1. las que ya se subieron, reconocidas por el contenido de la imagen (cada portada distinta se sube una vez,
 ///      aunque dos álbumes se llamen igual o cada canción suelta traiga la suya),
 ///   2. las que subió foo_discord_rich (su JSON álbum → URL), si se usa en este PC,
-///   3. si hay programa de subida, una copia a 512 px que se le pasa como a foo_discord_rich: la ruta por la
-///      entrada estándar y la URL de vuelta por la salida.
+///   3. si hay programa de subida, la imagen original tal cual (sin reducir ni recomprimir), que se le pasa como a
+///      foo_discord_rich: la ruta por la entrada estándar y la URL de vuelta por la salida.
 /// </summary>
 internal sealed partial class DiscordCovers
 {
-    private const int MaxSide = 512;
     private static readonly TimeSpan UploadTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan FoobarRecheck = TimeSpan.FromSeconds(30);
 
@@ -74,24 +73,26 @@ internal sealed partial class DiscordCovers
     {
         if (await CoverOf(song, ct) is not { } bytes) return null;
         var key = KeyOf(bytes);
-        if (Known(key) is { } known) return known;
-        if (FoobarUrl(album) is { } fromFoobar)
+        var entry = Entry(key);
+        if (entry is { Reduced: false }) return entry.Url;
+        if (entry == null && FoobarUrl(album) is { } fromFoobar)
         {
-            Remember(key, fromFoobar, album);
+            Remember(key, fromFoobar, album, original: false);
             return fromFoobar;
         }
 
+        // sin subir aún, o subida reducida por una versión anterior: se sube la original (si no se puede, vale la que hay)
         string? command;
         lock (_lock)
         {
             command = _command;
-            if (command == null || _failed.Contains(key)) return null;
+            if (command == null || _failed.Contains(key)) return entry?.Url;
         }
         await _uploadGate.WaitAsync(ct);
         try
         {
-            if (Known(key) is { } meanwhile) return meanwhile; // la subió otra canción del mismo álbum mientras esperaba
-            return await UploadCoverAsync(bytes, key, album, command, ct);
+            if (Entry(key) is { Reduced: false } meanwhile) return meanwhile.Url; // la subió otra canción del mismo álbum mientras esperaba
+            return await UploadCoverAsync(bytes, key, album, command, ct) ?? entry?.Url;
         }
         finally
         {
@@ -156,11 +157,11 @@ internal sealed partial class DiscordCovers
     /// <summary>Huella del contenido de la imagen: la misma portada da la misma clave aunque venga de otra canción.</summary>
     private static string KeyOf(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes), 0, 16).ToLowerInvariant();
 
-    /// <summary>Prepara la copia, la sube y guarda su URL (null si falla). Con _uploadGate cogido.</summary>
+    /// <summary>Deja la imagen en un archivo, la sube y guarda su URL (null si falla). Con _uploadGate cogido.</summary>
     private async Task<string?> UploadCoverAsync(byte[] bytes, string key, string album, string command, CancellationToken ct)
     {
         Uploading?.Invoke(string.IsNullOrWhiteSpace(album) ? "Subiendo la carátula…" : $"Subiendo la carátula de «{album.Trim()}»…");
-        var file = await Task.Run(() => SaveJpeg(bytes, key, Path.Combine(_dataDir, "discord")), ct);
+        var file = await Task.Run(() => SaveOriginal(bytes, key, Path.Combine(_dataDir, "discord")), ct);
         string? url = null;
         try
         {
@@ -177,7 +178,7 @@ internal sealed partial class DiscordCovers
             lock (_lock) _failed.Add(key);
             return null;
         }
-        Remember(key, url, album);
+        Remember(key, url, album, original: true);
         return url;
     }
 
@@ -192,7 +193,22 @@ internal sealed partial class DiscordCovers
 
         [JsonPropertyName("url")]
         public string Url { get; set; } = "";
+
+        /// <summary>Subida por Echoplex con la imagen original (desde la 1.1.14).</summary>
+        [JsonPropertyName("original")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Original { get; set; }
+
+        /// <summary>
+        /// La subió reducida (JPEG de 512 px) una versión anterior: se reconoce por el nombre que le daba Echoplex,
+        /// echoplex_&lt;huella&gt;….jpg. Se vuelve a subir la original la próxima vez que suene.
+        /// </summary>
+        [JsonIgnore]
+        public bool Reduced => !Original && OldReducedUpload().IsMatch(Url);
     }
+
+    [GeneratedRegex(@"/echoplex_[0-9a-f]{16}[^/]*\.jpg$", RegexOptions.IgnoreCase)]
+    private static partial Regex OldReducedUpload();
 
     private static readonly JsonSerializerOptions CacheJson = new()
     {
@@ -200,23 +216,23 @@ internal sealed partial class DiscordCovers
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping, // tildes legibles
     };
 
-    private string? Known(string key)
+    private CoverEntry? Entry(string key)
     {
         lock (_lock)
         {
             _urls ??= LoadCache();
-            return _urls.GetValueOrDefault(key)?.Url;
+            return _urls.GetValueOrDefault(key);
         }
     }
 
     /// <summary>Guarda (o sustituye) la URL de esta imagen en el JSON local.</summary>
-    private void Remember(string key, string url, string? album)
+    private void Remember(string key, string url, string? album, bool original)
     {
         string json;
         lock (_lock)
         {
             _urls ??= LoadCache();
-            _urls[key] = new CoverEntry { Url = url, Album = string.IsNullOrWhiteSpace(album) ? null : album.Trim() };
+            _urls[key] = new CoverEntry { Url = url, Album = string.IsNullOrWhiteSpace(album) ? null : album.Trim(), Original = original };
             json = JsonSerializer.Serialize(_urls, CacheJson);
         }
         try
@@ -244,7 +260,12 @@ internal sealed partial class DiscordCovers
             {
                 if (p.Value.ValueKind == JsonValueKind.String) map[p.Name] = new CoverEntry { Url = p.Value.GetString()! };
                 else if (p.Value.ValueKind == JsonValueKind.Object && p.Value.TryGetProperty("url", out var url) && url.GetString() is { Length: > 0 } u)
-                    map[p.Name] = new CoverEntry { Url = u, Album = p.Value.TryGetProperty("album", out var a) ? a.GetString() : null };
+                    map[p.Name] = new CoverEntry
+                    {
+                        Url = u,
+                        Album = p.Value.TryGetProperty("album", out var a) ? a.GetString() : null,
+                        Original = p.Value.TryGetProperty("original", out var o) && o.ValueKind == JsonValueKind.True,
+                    };
             }
         }
         catch
@@ -332,29 +353,29 @@ internal sealed partial class DiscordCovers
 
     // ---------- subida ----------
 
-    /// <summary>Copia en JPEG de como mucho 512 px (Discord la enseña pequeña; así sube rápido y en un formato que siempre abre).</summary>
-    private static string? SaveJpeg(byte[] bytes, string key, string dir)
+    /// <summary>
+    /// La imagen tal cual (los mismos bytes: ni se reduce ni se recomprime), con la extensión de su formato. Solo si no
+    /// es un formato que Discord enseñe (JPEG, PNG, GIF o WebP; p. ej. un .bmp o .tif de carpeta) se pasa a PNG, que
+    /// no pierde nada, con su tamaño original.
+    /// </summary>
+    private static string? SaveOriginal(byte[] bytes, string key, string dir)
     {
         try
         {
-            var header = BitmapFrame.Create(new MemoryStream(bytes), BitmapCreateOptions.DelayCreation | BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
-            int w = header.PixelWidth, h = header.PixelHeight;
-            var img = new BitmapImage();
-            img.BeginInit();
-            img.CacheOption = BitmapCacheOption.OnLoad;
-            img.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            img.StreamSource = new MemoryStream(bytes);
-            if (w >= h && w > MaxSide) img.DecodePixelWidth = MaxSide;
-            else if (h > w && h > MaxSide) img.DecodePixelHeight = MaxSide;
-            img.EndInit();
-            img.Freeze();
-            BitmapSource src = img.Format == PixelFormats.Bgr24 || img.Format == PixelFormats.Bgr32
-                ? img
-                : new FormatConvertedBitmap(img, PixelFormats.Bgr24, null, 0);
-            var encoder = new JpegBitmapEncoder { QualityLevel = 90 };
-            encoder.Frames.Add(BitmapFrame.Create(src));
             Directory.CreateDirectory(dir);
-            var file = Path.Combine(dir, $"echoplex_{key[..16]}.jpg");
+            var ext = WebImageExtension(bytes);
+            var file = Path.Combine(dir, $"echoplex_{key[..16]}{ext ?? ".png"}");
+            if (ext != null)
+            {
+                File.WriteAllBytes(file, bytes);
+                return file;
+            }
+            var frame = BitmapFrame.Create(new MemoryStream(bytes), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
+            BitmapSource src = frame.Format == PixelFormats.Bgra32 || frame.Format == PixelFormats.Bgr24
+                ? frame
+                : new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(src));
             using (var fs = File.Create(file)) encoder.Save(fs);
             return file;
         }
@@ -363,6 +384,17 @@ internal sealed partial class DiscordCovers
             return null;
         }
     }
+
+    private static readonly byte[] JpegSignature = { 0xFF, 0xD8, 0xFF };
+    private static readonly byte[] PngSignature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+
+    /// <summary>Extensión de las imágenes que Discord enseña, por sus primeros bytes; null si es otro formato.</summary>
+    internal static string? WebImageExtension(ReadOnlySpan<byte> b) =>
+        b.StartsWith(JpegSignature) ? ".jpg"
+        : b.StartsWith(PngSignature) ? ".png"
+        : b.StartsWith("GIF8"u8) ? ".gif"
+        : b.Length >= 12 && b.StartsWith("RIFF"u8) && b[8..12].SequenceEqual("WEBP"u8) ? ".webp"
+        : null;
 
     private async Task<string?> UploadAsync(string command, string file, CancellationToken ct)
     {

@@ -6,7 +6,7 @@
         xmlns:m="clr-namespace:Echoplex.Models"
         Title="Echoplex" Width="1440" Height="900" MinWidth="1000" MinHeight="640"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
-        FontFamily="{StaticResource UiFont}" FontSize="14" Icon="Assets/echoplex.ico"
+        FontFamily="{StaticResource UiFont}" FontSize="14"
         WindowStartupLocation="CenterScreen" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
         PreviewKeyDown="Window_PreviewKeyDown" PreviewMouseDown="Window_PreviewMouseDown" Closing="Window_Closing" Loaded="Window_Loaded">
 

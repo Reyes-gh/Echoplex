@@ -13,7 +13,7 @@
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
     <Description>Reproductor de música local al estilo Spotify</Description>
-    <Version>1.1.13</Version>
+    <Version>1.1.14</Version>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -22,15 +22,17 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <!-- ILLink para publish.ps1, que recorta las librerías de terceros: solo se descarga, no forma parte del programa -->
+    <PackageDownload Include="Microsoft.NET.ILLink.Tasks" Version="[8.0.19]" />
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\echoplex.ico" />
+    <!-- el icono va solo en Echoplex.exe (ApplicationIcon): las ventanas sin Icon usan el del ejecutable -->
     <Resource Include="Assets\echoplex-logo.png" />
     <Resource Include="Assets\echoplex-logo-light.png" />
     <Resource Include="Assets\note.png" />
-    <!-- notas de cada versión (las de las releases de GitHub): Ajustes → Actualizaciones → Ver cambios de la versión -->
-    <EmbeddedResource Include=".github\notas\*.md" LogicalName="notas/%(Filename)%(Extension)" />
+    <!-- notas de esta versión (las de su release de GitHub): Ajustes → Actualizaciones → Ver cambios de la versión -->
+    <EmbeddedResource Include=".github\notas\$(Version).md" LogicalName="notas/$(Version).md" Condition="Exists('.github\notas\$(Version).md')" />
   </ItemGroup>
 
 </Project>

@@ -41,17 +41,23 @@ dotnet build -c Release
 .\publish.ps1 -Zip     # además, el .zip para GitHub Releases
 ```
 
+`publish.ps1` recorta con ILLink las librerías de terceros (NAudio, TagLib# y CommunityToolkit.Mvvm) para dejar solo lo que usa Echoplex; lo que hay que conservar aunque no se vea usado está en `trim.xml`. Con `-NoTrim` van enteras.
+
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.14`).
-2. Escribe las notas en `.github/notas/1.1.14.md` (si no, se usa la sección `### 1.1.14` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.14`** con **`Echoplex-1.1.14-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.15`).
+2. Escribe las notas en `.github/notas/1.1.15.md` (si no, se usa la sección `### 1.1.15` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.15`** con **`Echoplex-1.1.15-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.14
+- **Echoplex pesa casi la mitad**: el programa pasa de 2,2 MB a 1,3 MB y la descarga, de 813 KB a unos 530 KB, sin cambiar nada de cómo funciona. De NAudio, TagLib# y CommunityToolkit.Mvvm solo queda lo que usa Echoplex, el icono va una sola vez y comprimido (antes iba tres veces) y dentro del programa solo van las notas de la versión instalada.
+- **Carátulas manuales en Discord a calidad original**: se suben tal cual, la misma imagen de la carpeta o la incrustada, sin reducirla ni recomprimirla (antes, JPEG de 512 px). Las que ya se habían subido reducidas se vuelven a subir en original la próxima vez que suenen.
 
 ### 1.1.13
 - **Carátulas en Discord sin programa**: de serie, Echoplex busca la carátula de cada álbum en internet (Deezer e iTunes, gratis y sin cuentas; solo se envían el artista y el álbum). Solo vale la del álbum exacto de ese artista; si no la encuentra, sale el logo de Echoplex. Las canciones sueltas sin álbum se buscan por su título. Lo encontrado se guarda en tu PC para no volver a buscarlo.
