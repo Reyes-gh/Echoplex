@@ -42,6 +42,15 @@ public sealed partial class DiscordPresence : IDisposable
     private static TimeSpan s_coverWait = TimeSpan.FromSeconds(5);
     /// <summary>Tras varios cambios seguidos, el último se vuelve a mandar una vez pasado esto, por si Discord se saltó alguno.</summary>
     private static TimeSpan s_confirmAfter = TimeSpan.FromSeconds(16);
+    /// <summary>
+    /// Mientras suena, cada cuánto se vuelve a mandar el estado con la carátula recién comprobada y su URL renovada: si
+    /// Discord se quedó con una interrogación (pidió la imagen cuando aún no estaba o falló al traerla), la vuelve a pedir.
+    /// </summary>
+    private static TimeSpan s_refreshEvery = TimeSpan.FromSeconds(60);
+    /// <summary>Carátula que no responde (recién subida, sin conexión…): cada cuánto se vuelve a mirar. Mientras, el logo.</summary>
+    private static TimeSpan s_coverRecheck = TimeSpan.FromSeconds(15);
+    /// <summary>Las pruebas sustituyen la comprobación de que una imagen responde (URL → responde).</summary>
+    private static Func<string, bool>? s_fakeImageCheck;
 
     // Discord admite 5 cambios de estado cada 20 s: se agrupan los que lleguen seguidos y se manda el último
     private const int BurstMax = 5;
@@ -81,7 +90,14 @@ public sealed partial class DiscordPresence : IDisposable
     /// <summary>Carátulas manuales (programa de subida del usuario); si no, se buscan en internet.</summary>
     private bool _manual;
     private Song? _coverSong;
+    /// <summary>La URL que se manda: la de la carátula (con su versión) si responde; null = el logo.</summary>
     private string? _coverUrl;
+    /// <summary>La URL de la carátula tal como se encontró, sin versión (null = no tiene).</summary>
+    private string? _coverBase;
+    /// <summary>Versión en la URL que se manda (?v=…): al cambiarla, Discord vuelve a pedir la imagen.</summary>
+    private int _coverVersion;
+    /// <summary>Cuándo volver a probar la carátula que no respondía (null = ninguna pendiente).</summary>
+    private DateTime? _coverRetryAt;
     /// <summary>Desde cuándo se busca (o sube) la carátula de la canción actual; null si ya se sabe.</summary>
     private DateTime? _coverPendingSince;
     private string? _uploading;
@@ -92,6 +108,10 @@ public sealed partial class DiscordPresence : IDisposable
 
     // ---- lo enviado (solo en el bucle) ----
     private string? _sentJson;
+    /// <summary>Cuándo toca renovar la carátula que se enseña (cada <see cref="s_refreshEvery"/> desde el último envío).</summary>
+    private DateTime _nextRefreshAt;
+    /// <summary>El próximo envío solo renueva la carátula: no hace falta apuntarlo en el registro.</summary>
+    private bool _quietSend;
     private DateTime _nextConnect;
     /// <summary>Cuándo volver a mandar el último estado (tras varios seguidos, o si Discord pidió calma).</summary>
     private DateTime? _confirmAt;
@@ -322,6 +342,9 @@ public sealed partial class DiscordPresence : IDisposable
             try
             {
                 if (DateTime.UtcNow >= _iconsNextCheck && Enabled) await CheckIconsAsync(ct);
+                await MaintainCoverAsync(ct);
+                bool quiet = _quietSend; // solo vale para lo que se mande ahora mismo
+                _quietSend = false;
                 var (activity, recheck, hold) = Desired();
                 if (activity != null) wait = Shorter(wait, _iconsNextCheck - DateTime.UtcNow); // por si los iconos aparecen
                 if (recheck is { } at) wait = Shorter(wait, at - DateTime.UtcNow);
@@ -366,7 +389,8 @@ public sealed partial class DiscordPresence : IDisposable
                             await _ipc.SendAsync(SetActivity(activity), ct);
                             _sends.Enqueue(DateTime.UtcNow);
                             _sentJson = json;
-                            LogSend(activity, again);
+                            _nextRefreshAt = DateTime.UtcNow + s_refreshEvery;
+                            if (!quiet || again) LogSend(activity, again);
                             // la repetición no programa otra; un cambio seguido de otro sí
                             _confirmAt = again ? null : burst ? DateTime.UtcNow + s_confirmAfter : null;
                             if (_confirmAt is { } next) wait = Shorter(wait, next - DateTime.UtcNow);
@@ -379,6 +403,8 @@ public sealed partial class DiscordPresence : IDisposable
                         _ipc.Close();
                     }
                 }
+                // después de enviar: el envío fija cuándo toca renovar la carátula
+                if (NextCoverCheck() is { } coverAt) wait = Shorter(wait, coverAt - DateTime.UtcNow);
                 RefreshStatus();
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -455,6 +481,91 @@ public sealed partial class DiscordPresence : IDisposable
             _iconsOk = ok;
         }
         if (changed) Log(ok ? "Iconos de sonando/pausa disponibles" : "Los iconos de sonando/pausa aún no están en internet: se omiten");
+    }
+
+    /// <summary>
+    /// Mientras suena: vuelve a probar la carátula que no respondía y, cada <see cref="s_refreshEvery"/>, renueva la que se
+    /// enseña (comprobando que sigue respondiendo) para que Discord la vuelva a pedir. Si deja de responder, el logo hasta
+    /// que vuelva.
+    /// </summary>
+    private async Task MaintainCoverAsync(CancellationToken ct)
+    {
+        string url;
+        Song song;
+        int next;
+        bool refresh;
+        lock (_lock)
+        {
+            if (!_enabled || _np is not { Playing: true } np || _coverSong != np.Song || _coverBase is not { } baseUrl) return;
+            var now = DateTime.UtcNow;
+            bool retryDue = _coverRetryAt is { } at && now >= at;
+            refresh = _coverUrl != null && _ipc.IsConnected && _sentJson != null && now >= _nextRefreshAt;
+            if (!retryDue && !refresh) return;
+            url = baseUrl;
+            song = np.Song;
+            next = _coverVersion + 1;
+        }
+        // la siguiente renovación cuenta desde ahora, aunque el envío espere al límite de Discord o no cambie nada
+        if (refresh) _nextRefreshAt = DateTime.UtcNow + s_refreshEvery;
+        // la URL renovada; si ese servidor no la acepta, la de siempre
+        string? shown = null;
+        var renewed = WithVersion(url, next);
+        if (await ImageOkAsync(renewed, ct)) shown = renewed;
+        else if (renewed != url && await ImageOkAsync(url, ct)) shown = url;
+        bool recovered = false, lost = false;
+        lock (_lock)
+        {
+            if (_coverSong != song || _coverBase != url) return; // cambió de canción mientras tanto
+            if (shown != null)
+            {
+                recovered = _coverUrl == null;
+                if (shown != url) _coverVersion = next;
+                _coverUrl = shown;
+                _coverRetryAt = null;
+            }
+            else
+            {
+                lost = _coverUrl != null;
+                _coverUrl = null;
+                _coverRetryAt = DateTime.UtcNow + s_coverRecheck;
+            }
+        }
+        _quietSend = refresh && !recovered && !lost;
+        if (recovered) Log($"La carátula ya responde: {url}");
+        if (lost) Log($"La carátula ha dejado de responder ({url}): el logo hasta que vuelva");
+    }
+
+    /// <summary>Cuándo toca volver a probar o renovar la carátula de lo que suena (null = nada pendiente).</summary>
+    private DateTime? NextCoverCheck()
+    {
+        lock (_lock)
+        {
+            if (!_enabled || _np is not { Playing: true } np || _coverSong != np.Song || _coverBase == null) return null;
+            DateTime? next = _coverRetryAt;
+            if (_coverUrl != null && _sentJson != null && _ipc.IsConnected && (next == null || _nextRefreshAt < next)) next = _nextRefreshAt;
+            return next;
+        }
+    }
+
+    /// <summary>La URL con su versión (?v=…). Las que ya llevan parámetros se dejan como están, por si van firmadas.</summary>
+    private static string WithVersion(string url, int version) =>
+        version <= 0 || url.Contains('?') ? url : $"{url}?v={version}";
+
+    /// <summary>¿Responde la imagen (como la pedirá Discord)? Sin cuerpo: basta con la respuesta.</summary>
+    private static async Task<bool> ImageOkAsync(string url, CancellationToken ct)
+    {
+        if (s_fakeImageCheck is { } fake) return fake(url);
+        try
+        {
+            using var response = await Http.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode) return false;
+            var type = response.Content.Headers.ContentType?.MediaType;
+            return type == null || type.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     /// <summary>Una línea por estado mandado (para ver en discord.log qué recibió Discord y cuándo).</summary>
@@ -573,15 +684,21 @@ public sealed partial class DiscordPresence : IDisposable
         bool manual = _manual;
         _coverSong = song;
         _coverUrl = null;
+        _coverBase = null;
+        _coverVersion = 0;
+        _coverRetryAt = null;
         _coverPendingSince = DateTime.UtcNow;
         _ = Task.Run(async () =>
         {
             string? url = null;
+            bool ok = false;
             try
             {
                 url = manual
                     ? await _covers.ResolveAsync(song, album, _cts.Token)
                     : await _online.FindAsync(song.PrimaryArtist, album, title, _cts.Token);
+                // recién subida, la imagen puede tardar un poco en estar: si Discord la pide antes, enseña una interrogación
+                ok = url != null && await ImageOkAsync(url, _cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -594,9 +711,12 @@ public sealed partial class DiscordPresence : IDisposable
             lock (_lock)
             {
                 if (_coverSong != song) return; // ya suena otra
-                _coverUrl = url;
+                _coverBase = url;
+                _coverUrl = ok ? url : null;
+                _coverRetryAt = url != null && !ok ? DateTime.UtcNow + s_coverRecheck : null;
                 _coverPendingSince = null;
             }
+            if (url != null && !ok) Log($"La carátula aún no responde ({url}): el logo hasta que esté");
             Signal();
         });
     }

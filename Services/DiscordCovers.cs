@@ -74,30 +74,40 @@ internal sealed partial class DiscordCovers
         if (await CoverOf(song, ct) is not { } bytes) return null;
         var key = KeyOf(bytes);
         var entry = Entry(key);
-        if (entry is { Reduced: false }) return entry.Url;
+        if (entry is { Reduced: false } && DiscordShows(entry.Url)) return entry.Url;
         if (entry == null && FoobarUrl(album) is { } fromFoobar)
         {
             Remember(key, fromFoobar, album, original: false);
             return fromFoobar;
         }
 
-        // sin subir aún, o subida reducida por una versión anterior: se sube la original (si no se puede, vale la que hay)
+        // sin subir aún, subida reducida por una versión anterior o en un formato que Discord no enseña: se sube la
+        // original (si no se puede, vale la que hay, si Discord la enseña)
+        var fallback = entry != null && DiscordShows(entry.Url) ? entry.Url : null;
         string? command;
         lock (_lock)
         {
             command = _command;
-            if (command == null || _failed.Contains(key)) return entry?.Url;
+            if (command == null || _failed.Contains(key)) return fallback;
         }
         await _uploadGate.WaitAsync(ct);
         try
         {
-            if (Entry(key) is { Reduced: false } meanwhile) return meanwhile.Url; // la subió otra canción del mismo álbum mientras esperaba
-            return await UploadCoverAsync(bytes, key, album, command, ct) ?? entry?.Url;
+            // la subió otra canción del mismo álbum mientras esperaba
+            if (Entry(key) is { Reduced: false } meanwhile && DiscordShows(meanwhile.Url)) return meanwhile.Url;
+            return await UploadCoverAsync(bytes, key, album, command, ct) ?? fallback;
         }
         finally
         {
             _uploadGate.Release();
         }
+    }
+
+    /// <summary>¿La enseña Discord? Las BMP y TIFF (algunas que subió foo_discord_rich) salen como una interrogación.</summary>
+    internal static bool DiscordShows(string url)
+    {
+        var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.AbsolutePath : url;
+        return Path.GetExtension(path).ToLowerInvariant() is not (".bmp" or ".tif" or ".tiff");
     }
 
     /// <summary>Canciones que se miran como mucho al volver a subir, y carátulas distintas que se suben.</summary>
@@ -308,7 +318,7 @@ internal sealed partial class DiscordCovers
             var raw = JsonSerializer.Deserialize<Dictionary<string, string?>>(File.ReadAllText(file)) ?? new();
             var urls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (album, url) in raw)
-                if (url != null && IsImageUrl(url)) urls[album.Trim()] = url;
+                if (url != null && IsImageUrl(url) && DiscordShows(url)) urls[album.Trim()] = url;
             _foobar = urls;
             _foobarFile = file;
             _foobarStamp = stamp;

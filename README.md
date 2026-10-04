@@ -45,15 +45,18 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.15`).
-2. Escribe las notas en `.github/notas/1.1.15.md` (si no, se usa la sección `### 1.1.15` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.15`** con **`Echoplex-1.1.15-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.16`).
+2. Escribe las notas en `.github/notas/1.1.16.md` (si no, se usa la sección `### 1.1.16` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.16`** con **`Echoplex-1.1.16-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.15
+- **Discord se arregla solo**: mientras suena una canción, el estado se vuelve a mandar cada minuto con la carátula recién comprobada; si Discord enseñaba una interrogación en su lugar, como mucho al minuto sale bien. Las carátulas recién subidas se comprueban antes de mandarlas (mientras no están en internet, sale el logo) y las que subió foo_discord_rich en BMP o TIFF, que Discord no enseña, se sustituyen por una subida en PNG.
 
 ### 1.1.14
 - **Echoplex pesa casi la mitad**: el programa pasa de 2,2 MB a 1,3 MB y la descarga, de 813 KB a unos 530 KB, sin cambiar nada de cómo funciona. De NAudio, TagLib# y CommunityToolkit.Mvvm solo queda lo que usa Echoplex, el icono va una sola vez y comprimido (antes iba tres veces) y dentro del programa solo van las notas de la versión instalada.
