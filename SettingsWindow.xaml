@@ -37,11 +37,12 @@
             <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
-        <!-- desplegable con flecha (Más temas, Ver cambios de la versión); Tag: texto secundario al lado, como el número de temas -->
+        <!-- desplegable con flecha (Claros, Oscuros, Ver cambios de la versión); Tag: texto secundario al lado, como el número de temas -->
         <Style x:Key="DisclosureToggle" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="Focusable" Value="False" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -54,8 +55,8 @@
                                         <RotateTransform Angle="0" />
                                     </TextBlock.RenderTransform>
                                 </TextBlock>
-                                <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" TextElement.FontWeight="SemiBold" />
-                                <TextBlock Foreground="{DynamicResource Text3Brush}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center" TextElement.FontWeight="{TemplateBinding FontWeight}" />
+                                <TextBlock Foreground="{DynamicResource Text3Brush}" Margin="8,0,0,0" VerticalAlignment="Center" FontWeight="Normal"
                                            Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
                             </StackPanel>
                         </Border>
@@ -74,6 +75,12 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- familia de temas dentro de Claros u Oscuros: el mismo desplegable, más discreto -->
+        <Style x:Key="FamilyToggle" TargetType="ToggleButton" BasedOn="{StaticResource DisclosureToggle}">
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
         </Style>
 
         <!-- tarjeta de tema: una miniatura de la app con sus colores -->
@@ -207,20 +214,38 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
-                    <!-- Más temas: desplegable con el resto, por grupos -->
+                    <!-- Más temas: desplegable con el resto, en Claros y Oscuros y por familias (que también se pliegan) -->
                     <ToggleButton x:Name="MoreThemesToggle" Style="{StaticResource DisclosureToggle}" Content="Más temas" Margin="0,2,0,0" />
-                    <ItemsControl x:Name="MoreThemes" Margin="0,6,0,0"
+                    <ItemsControl x:Name="ThemeCategories" Margin="12,4,0,0"
                                   Visibility="{Binding IsChecked, ElementName=MoreThemesToggle, Converter={StaticResource BoolVis}}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Margin="0,6,0,4">
-                                    <TextBlock Text="{Binding Name}" FontSize="13" Foreground="{DynamicResource Text2Brush}" Margin="2,0,0,8" />
-                                    <ItemsControl ItemsSource="{Binding Themes}" ItemTemplate="{StaticResource ThemeCard}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
+                            <DataTemplate DataType="{x:Type local:ThemeGroup}">
+                                <StackPanel Margin="0,0,0,2">
+                                    <ToggleButton Style="{StaticResource DisclosureToggle}" IsChecked="{Binding IsOpen}" Tag="{Binding Summary}" FontSize="15">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="15" FontWeight="Normal"
+                                                       Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ToggleButton>
+                                    <ItemsControl ItemsSource="{Binding Groups}" Margin="20,2,0,6"
+                                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:ThemeGroup}">
+                                                <StackPanel>
+                                                    <ToggleButton Style="{StaticResource FamilyToggle}" Content="{Binding Name}" IsChecked="{Binding IsOpen}"
+                                                                  Tag="{Binding Summary}" />
+                                                    <ItemsControl ItemsSource="{Binding Themes}" ItemTemplate="{StaticResource ThemeCard}" Margin="8,6,0,4"
+                                                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
                             </DataTemplate>

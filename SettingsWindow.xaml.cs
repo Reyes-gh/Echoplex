@@ -17,8 +17,38 @@ public sealed partial class ThemeOption : ObservableObject
     [ObservableProperty] private bool _isSelected;
 }
 
-/// <summary>Un grupo de "Más temas" (editores de código, naturaleza…).</summary>
-public sealed record ThemeGroup(string Name, List<ThemeOption> Themes);
+/// <summary>
+/// Un grupo plegable de Más temas: Claros u Oscuros (con sus familias en <see cref="Groups"/>) o una familia
+/// (editores de código, naturaleza…) con sus temas en <see cref="Themes"/>.
+/// </summary>
+public sealed partial class ThemeGroup : ObservableObject
+{
+    public ThemeGroup(string name, string? glyph, IReadOnlyList<ThemeGroup> groups, IReadOnlyList<ThemeOption> themes)
+    {
+        Name = name;
+        Glyph = glyph;
+        Groups = groups;
+        Themes = themes;
+        UpdateSummary();
+    }
+
+    public string Name { get; }
+    /// <summary>Icono (sol o luna) de Claros y Oscuros; las familias no llevan.</summary>
+    public string? Glyph { get; }
+    public IReadOnlyList<ThemeGroup> Groups { get; }
+    public IReadOnlyList<ThemeOption> Themes { get; }
+    [ObservableProperty] private bool _isOpen;
+    /// <summary>Al lado del nombre: el número de temas y, si dentro está el que se usa, su nombre (se ve aun plegado).</summary>
+    [ObservableProperty] private string _summary = "";
+
+    public void UpdateSummary()
+    {
+        var all = Themes.Concat(Groups.SelectMany(g => g.Themes)).ToList();
+        var selected = all.FirstOrDefault(o => o.IsSelected);
+        Summary = selected != null ? $"{all.Count} · {selected.Info.Name}" : all.Count.ToString();
+        foreach (var g in Groups) g.UpdateSummary();
+    }
+}
 
 /// <summary>Ajustes: tema, animaciones, carpetas de música y poco más (lo rápido está en el menú de arriba).</summary>
 public partial class SettingsWindow : Window
@@ -26,6 +56,7 @@ public partial class SettingsWindow : Window
     private readonly MainViewModel _vm;
     private readonly MainWindow _main;
     private readonly List<ThemeOption> _themes;
+    private readonly ThemeGroup[] _categories;
 
     public SettingsWindow(MainViewModel vm, MainWindow owner)
     {
@@ -35,11 +66,12 @@ public partial class SettingsWindow : Window
         Owner = owner;
         DataContext = vm;
         _themes = Themes.All.Select(t => new ThemeOption(t) { IsSelected = t.Key == vm.ThemeKey }).ToList();
+        // arriba, los de Echoplex; el resto en Más temas, por Claros y Oscuros y por familias
         ThemeList.ItemsSource = _themes.Where(o => o.Info.File != null).ToList();
-        MoreThemes.ItemsSource = _themes.Where(o => o.Info.File == null).GroupBy(o => o.Info.Group)
-            .Select(g => new ThemeGroup(g.Key, g.ToList())).ToList();
         MoreThemesToggle.Tag = _themes.Count(o => o.Info.File == null).ToString();
-        // los desplegables (Más temas, Ver cambios de la versión) salen siempre plegados al abrir Ajustes
+        _categories = new[] { Category("Claros", "", dark: false), Category("Oscuros", "", dark: true) };
+        ThemeCategories.ItemsSource = _categories;
+        // Más temas y Ver cambios de la versión salen plegados al abrir Ajustes; dentro de Más temas, todo desplegado
         // Ver cambios de la versión: solo si las notas vienen en el ejecutable (siempre en las releases)
         var v = UpdateService.CurrentVersion;
         ReleaseNotesToggle.Content = $"Ver cambios de la versión {v.Major}.{v.Minor}.{v.Build}";
@@ -205,11 +237,30 @@ public partial class SettingsWindow : Window
     private void OnFoldersChanged(object? sender, EventArgs? e) =>
         NoFolders.Visibility = _vm.MusicFolders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Claros u Oscuros de Más temas (sin los de Echoplex, que van arriba) con sus familias, desplegados.</summary>
+    private ThemeGroup Category(string name, string glyph, bool dark)
+    {
+        var families = _themes.Where(o => o.Info.File == null && o.Info.IsDark == dark)
+            .GroupBy(o => o.Info.Group)
+            .OrderBy(g => FamilyOrder(g.Key))
+            .Select(g => new ThemeGroup(g.Key, null, Array.Empty<ThemeGroup>(), g.ToList()) { IsOpen = true })
+            .ToList();
+        return new ThemeGroup(name, glyph, families, Array.Empty<ThemeOption>()) { IsOpen = true };
+    }
+
+    private static int FamilyOrder(string family)
+    {
+        for (int i = 0; i < Themes.Families.Count; i++)
+            if (Themes.Families[i] == family) return i;
+        return int.MaxValue;
+    }
+
     private void Theme_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not ThemeOption option) return;
         _vm.SetTheme(option.Info.Key);
         foreach (var t in _themes) t.IsSelected = t == option;
+        foreach (var c in _categories) c.UpdateSummary();
     }
 
     private void Animations_Click(object sender, RoutedEventArgs e)

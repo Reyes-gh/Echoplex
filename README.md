@@ -13,7 +13,7 @@
 - **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
-- **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 50 más en *Más temas* (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
+- **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
@@ -45,15 +45,19 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.17`).
-2. Escribe las notas en `.github/notas/1.1.17.md` (si no, se usa la sección `### 1.1.17` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.17`** con **`Echoplex-1.1.17-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.18`).
+2. Escribe las notas en `.github/notas/1.1.18.md` (si no, se usa la sección `### 1.1.18` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.18`** con **`Echoplex-1.1.18-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.17
+- **Más temas, por claros y oscuros**: los cinco de siempre siguen arriba; *Más temas* va en *Claros* y *Oscuros* y, dentro, por familias, todo desplegado al abrirlo y plegable, con cuántos temas tiene cada grupo y el que usas si está dentro.
+- **29 temas nuevos** (84 en total): Catppuccin Frappé, Rosé Pine Moon, Poimandres, Darcula, Shades of Purple, Vesper, One Light, Tokyo Night Day, Night Owl Light, Vitesse Light, Noche estrellada, Tormenta, Lago, Cielo, Pradera, Niebla, Otoño, una familia nueva *suaves y pastel* (Chicle, Melocotón, Vainilla, Pistacho, Nube, Malvavisco), Virtual Boy, Super Nintendo, Windows XP, Mac OS 9, Ultravioleta y Tinta roja.
 
 ### 1.1.16
 - **Carátula en Discord de canciones que estaban en OneDrive**: si la canción estaba solo en la nube y su carátula va incrustada en el archivo, Discord enseñaba el logo toda la canción; ahora, en cuanto el archivo termina de bajar, sale la carátula.

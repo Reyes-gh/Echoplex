@@ -4,7 +4,7 @@ using System.Windows.Media;
 namespace Echoplex.Services;
 
 /// <summary>
-/// Genera el diccionario de colores completo (las mismas claves que Themes/Colors.*.xaml) de un tema de "Más temas",
+/// Genera el diccionario de colores completo (las mismas claves que Themes/Colors.*.xaml) de un tema sin diccionario propio,
 /// con las reglas de los temas hechos a mano (Neon night, 80's retro):
 /// - las capas (tarjetas, hover, seleccionado, bordes, scroll) son el mismo tono del fondo con más luz, nunca gris;
 /// - los textos secundarios van teñidos del tono del tema;
