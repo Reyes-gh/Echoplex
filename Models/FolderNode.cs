@@ -10,13 +10,14 @@ public sealed partial class FolderNode : ObservableObject
     {
         Name = name;
         Path = path;
-        Count = count;
+        _count = count;
         Parent = parent;
     }
 
     public string Name { get; }
     public string Path { get; }
-    public int Count { get; }
+    /// <summary>Canciones dentro (con subcarpetas). Cambia al reescanear: el árbol se actualiza sin rehacerse.</summary>
+    [ObservableProperty] private int _count;
     public FolderNode? Parent { get; }
     public bool IsRoot => Parent == null;
     public ObservableCollection<FolderNode> Children { get; } = new();
@@ -39,6 +40,12 @@ public sealed partial class FolderNode : ObservableObject
     /// plegada del camino o, si está todo abierto, la de la canción).
     /// </summary>
     [ObservableProperty] private bool _showsBars;
+
+    /// <summary>Todas sus canciones están solo en la nube (OneDrive): lleva la nube a la derecha.</summary>
+    [ObservableProperty] private bool _isCloudOnly;
+
+    /// <summary>Oculta en el árbol: está entera en la nube y está puesto «Mostrar solo locales».</summary>
+    [ObservableProperty] private bool _isFilteredOut;
 
     public IEnumerable<FolderNode> Descendants()
     {

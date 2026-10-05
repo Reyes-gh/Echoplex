@@ -949,6 +949,10 @@
 
         <HierarchicalDataTemplate DataType="{x:Type m:FolderNode}" ItemsSource="{Binding Children}">
             <DockPanel Loaded="TreeNode_Loaded">
+                <!-- entera en la nube (OneDrive, sin descargar): nube a la derecha del todo -->
+                <TextBlock x:Name="Cloud" DockPanel.Dock="Right" Text="&#xE753;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                           Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" Margin="6,0,10,0" Visibility="Collapsed"
+                           ToolTip="Entera en OneDrive: se descarga al reproducirla" />
                 <!-- barritas de ecualizador en todas las carpetas del camino hasta la canción (se mueven mientras suena) -->
                 <local:EqualizerBars x:Name="Speaker" DockPanel.Dock="Right" Margin="6,0,10,0" Visibility="Collapsed"
                                      Fill="{DynamicResource AccentBrush}"
@@ -976,12 +980,17 @@
                 <DataTrigger Binding="{Binding ShowsBars}" Value="True">
                     <Setter TargetName="Speaker" Property="Visibility" Value="Visible" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsCloudOnly}" Value="True">
+                    <Setter TargetName="Cloud" Property="Visibility" Value="Visible" />
+                </DataTrigger>
             </HierarchicalDataTemplate.Triggers>
         </HierarchicalDataTemplate>
 
         <Style x:Key="FolderItemStyle" TargetType="TreeViewItem" BasedOn="{StaticResource FolderTreeItem}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+            <!-- «Mostrar solo locales»: fuera las carpetas enteras en la nube -->
+            <Setter Property="Visibility" Value="{Binding IsFilteredOut, Converter={StaticResource InvBoolVis}}" />
             <Setter Property="ContextMenu">
                 <Setter.Value>
                     <ContextMenu Tag="folder" />
@@ -1276,6 +1285,11 @@
                             </DockPanel>
                             <TextBlock Text="Cargando…" FontSize="13" Foreground="{DynamicResource Text3Brush}" Margin="44,4,0,0"
                                        Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}" />
+                            <!-- solo sale si hay alguna carpeta entera en la nube (la de la nube a la derecha) -->
+                            <CheckBox Style="{StaticResource Switch}" Content="Mostrar solo locales" FontSize="13" Margin="18,6,0,0"
+                                      HorizontalAlignment="Left" Foreground="{DynamicResource SidebarTextBrush}" IsChecked="{Binding OnlyLocalFolders}"
+                                      Visibility="{Binding ShowLocalFilter, Converter={StaticResource BoolVis}}"
+                                      ToolTip="Oculta las carpetas que están enteras en OneDrive (sin descargar)" />
                             <TreeView x:Name="FolderTree" ItemsSource="{Binding Folders}" Style="{StaticResource FolderTreeView}"
                                       ItemContainerStyle="{StaticResource FolderItemStyle}" SelectedItemChanged="FolderTree_SelectedItemChanged" />
                         </StackPanel>

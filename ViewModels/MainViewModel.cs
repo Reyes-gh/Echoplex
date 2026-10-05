@@ -70,6 +70,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         _worker = new MetadataWorker(_cache, ui);
         _worker.Updated += () => (CurrentPage as SongListPage)?.RefreshProperties();
+        _cloudTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background,
+            (s, e) => { ((DispatcherTimer)s!).Stop(); UpdateCloudFolders(); }, ui);
+        _cloudTimer.Stop();
+        Song.CloudStateChanged += () => { if (!_cloudTimer.IsEnabled) _cloudTimer.Start(); };
+        _attributesTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background,
+            (s, e) => { ((DispatcherTimer)s!).Stop(); _ = RecheckCloudAsync(); }, ui);
+        _attributesTimer.Stop();
 
         _showRightPanel = Settings.ShowRightPanel;
         _rightTab = Settings.RightPanelTab is "queue" or "lyrics" or "info" ? Settings.RightPanelTab : "queue";
@@ -320,6 +327,10 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _rescanPending;
     private readonly List<FileSystemWatcher> _watchers = new();
     private DispatcherTimer? _rescanTimer;
+    private readonly DispatcherTimer _cloudTimer;
+    private readonly DispatcherTimer _attributesTimer;
+    // canciones a las que les cambiaron los atributos (OneDrive las descargó o liberó espacio): se miran juntas
+    private readonly HashSet<string> _attributesPending = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly HashSet<string> IgnoredExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -358,7 +369,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var roots = Library.Roots.Where(r => !Eq(r, path)).ToList();
         if (roots.Count == Library.Roots.Count) return;
-        if (await ApplyMusicRootsAsync(roots)) ShowToast($"Carpeta quitada de la biblioteca: {Path.GetFileName(path)}", 4);
+        if (await ApplyMusicRootsAsync(roots)) ShowToast($"Carpeta quitada de la biblioteca: {FolderName(path)}", 4);
     }
 
     private async Task<bool> ApplyMusicRootsAsync(List<string> roots)
@@ -370,7 +381,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (roots.Count == 0)
         {
             Library.Load(_cache, roots);
-            Folders.Clear();
+            UpdateTree();
             RefreshMusicFolders();
             SongCount = 0;
             CurrentPage = null;
@@ -417,9 +428,10 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = "Cargando tu biblioteca…";
             CurrentPage = null;
         }
+        LibraryService.LoadResult result;
         try
         {
-            await Task.Run(() => Library.Load(_cache, newRoots));
+            result = await Task.Run(() => Library.Load(_cache, newRoots));
         }
         catch (Exception ex)
         {
@@ -435,7 +447,14 @@ public sealed partial class MainViewModel : ObservableObject
             }
             return false;
         }
-        OnLibraryLoaded(reset, 0);
+        // sin cambios (p. ej. un archivo que no es música): ni el árbol ni la página se tocan
+        if (result.Changed || reset) OnLibraryLoaded(reset, 0);
+        else
+        {
+            foreach (var (song, cloud) in result.Cloud) song.IsCloud = cloud;
+            if (result.Cloud.Count > 0) (CurrentPage as SongListPage)?.RefreshProperties();
+            StartWatcher(); // como tras cualquier reescaneo: si uno dejó de vigilar (p. ej. tras un error), vuelve
+        }
         IsScanning = false;
         if (_rescanPending)
         {
@@ -452,15 +471,7 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyTitleModes(refreshPage: false);
 
         // una raíz por carpeta de música, cada una con sus subcarpetas
-        Folders.Clear();
-        _selectedNode = null;
-        _activeNodes.Clear();
-        foreach (var root in Library.PresentRoots)
-        {
-            var node = BuildNode(root, null);
-            node.IsExpanded = true;
-            Folders.Add(node);
-        }
+        UpdateTree();
         SongCount = Library.Songs.Count;
         RefreshMusicFolders();
 
@@ -500,23 +511,34 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>Tras un reescaneo, rehace la página visible con los datos nuevos.</summary>
+    /// <summary>Tras un reescaneo, rehace la página visible con los datos nuevos (sin volver arriba: ver <see cref="KeepingScroll"/>).</summary>
     private void RefreshCurrentPage()
     {
-        switch (CurrentPage)
+        KeepingScroll = true;
+        try
         {
-            case SongListPage { Kind: ListKind.Folder, FolderPath: { } folder }:
-                if (Library.HasFolder(folder)) OpenFolder(folder, replace: true);
-                else ReplacePage(BuildHome());
-                break;
-            case SongListPage { Kind: ListKind.Favorites }:
-                OpenFavorites(replace: true);
-                break;
-            case HomePage:
-                ReplacePage(BuildHome());
-                break;
+            switch (CurrentPage)
+            {
+                case SongListPage { Kind: ListKind.Folder, FolderPath: { } folder }:
+                    if (Library.HasFolder(folder)) OpenFolder(folder, replace: true);
+                    else ReplacePage(BuildHome());
+                    break;
+                case SongListPage { Kind: ListKind.Favorites }:
+                    OpenFavorites(replace: true);
+                    break;
+                case HomePage:
+                    ReplacePage(BuildHome());
+                    break;
+            }
+        }
+        finally
+        {
+            KeepingScroll = false;
         }
     }
+
+    /// <summary>La página se está rehaciendo por un reescaneo: la vista se queda por donde iba en vez de volver arriba.</summary>
+    public bool KeepingScroll { get; private set; }
 
     private void StartWatcher()
     {
@@ -535,12 +557,13 @@ public sealed partial class MainViewModel : ObservableObject
                 var w = new FileSystemWatcher(root)
                 {
                     IncludeSubdirectories = true,
-                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Attributes,
                     InternalBufferSize = 64 * 1024,
                 };
                 w.Created += (s, e) => OnFileSystemEvent(e.FullPath);
                 w.Deleted += (s, e) => OnFileSystemEvent(e.FullPath);
                 w.Renamed += (s, e) => OnFileSystemEvent(e.FullPath);
+                w.Changed += (s, e) => OnAttributesChanged(e.FullPath);
                 w.Error += (s, e) => _ui.BeginInvoke(ScheduleRescan);
                 w.EnableRaisingEvents = true;
                 _watchers.Add(w);
@@ -559,7 +582,64 @@ public sealed partial class MainViewModel : ObservableObject
         var ext = Path.GetExtension(path);
         // audio, o algo sin extensión conocida (probablemente una carpeta): hay que reescanear
         if (!LibraryService.AudioExtensions.Contains(ext) && IgnoredExtensions.Contains(ext)) return;
+        if (InHiddenFolder(path)) return;
         _ui.BeginInvoke(ScheduleRescan);
+    }
+
+    /// <summary>
+    /// Dentro de una carpeta oculta o de sistema (con una unidad entera como carpeta de música: System Volume
+    /// Information, $RECYCLE.BIN…): el escaneo no entra en ellas, así que lo que pase ahí no cambia la biblioteca.
+    /// </summary>
+    private bool InHiddenFolder(string path)
+    {
+        if (Library.RootOf(path) is not { } root) return false;
+        for (var dir = path; dir != null && dir.Length > root.Length; dir = Path.GetDirectoryName(dir))
+        {
+            try
+            {
+                if ((File.GetAttributes(dir) & (FileAttributes.Hidden | FileAttributes.System)) != 0) return true;
+            }
+            catch
+            {
+                // ya no existe (lo borrado) o no se puede leer: se mira su carpeta
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// A una canción le cambiaron los atributos: OneDrive la descargó o liberó espacio (también desde el Explorador).
+    /// Se juntan y se miran a la vez un segundo después, sin reescanear nada.
+    /// </summary>
+    private void OnAttributesChanged(string path)
+    {
+        if (!LibraryService.AudioExtensions.Contains(Path.GetExtension(path))) return;
+        lock (_attributesPending)
+            if (!_attributesPending.Add(path) || _attributesPending.Count > 1) return;
+        _ui.BeginInvoke(() => { if (!_attributesTimer.IsEnabled) _attributesTimer.Start(); });
+    }
+
+    private async Task RecheckCloudAsync()
+    {
+        List<string> paths;
+        lock (_attributesPending)
+        {
+            paths = _attributesPending.ToList();
+            _attributesPending.Clear();
+        }
+        var states = await Task.Run(() => paths.Select(p =>
+        {
+            try { return (path: p, cloud: (bool?)LibraryService.IsCloudOnly(File.GetAttributes(p))); }
+            catch { return (path: p, cloud: (bool?)null); } // ya no está: lo arregla el reescaneo
+        }).ToList());
+        bool changed = false;
+        foreach (var (path, cloud) in states)
+        {
+            if (cloud is not { } c || Library.Find(path) is not { } song || song.IsCloud == c) continue;
+            song.IsCloud = c;
+            changed = true;
+        }
+        if (changed) (CurrentPage as SongListPage)?.RefreshProperties();
     }
 
     private void ScheduleRescan()
@@ -602,6 +682,42 @@ public sealed partial class MainViewModel : ObservableObject
         var node = new FolderNode(Path.GetFileName(path) is { Length: > 0 } n ? n : path, path, Library.GetCount(path), parent);
         foreach (var child in Library.GetChildren(path)) node.Children.Add(BuildNode(child, node));
         return node;
+    }
+
+    /// <summary>
+    /// Pone el árbol al día sobre el que ya hay: entran las carpetas nuevas, salen las que ya no están y las demás se
+    /// quedan como estaban (desplegadas, seleccionadas, con su miniatura). Vaciarlo y rehacerlo plegaba todo y hacía
+    /// saltar el panel lateral arriba en cada reescaneo.
+    /// </summary>
+    private void UpdateTree()
+    {
+        MergeNodes(Folders, Library.PresentRoots, null);
+        if (_selectedNode != null && FindNode(_selectedNode.Path) != _selectedNode) _selectedNode = null;
+        UpdateCloudFolders();
+    }
+
+    // con mayúsculas: una carpeta renombrada solo en mayúsculas es otra (sale con su nombre nuevo)
+    private void MergeNodes(ObservableCollection<FolderNode> nodes, IReadOnlyList<string> paths, FolderNode? parent)
+    {
+        var wanted = new HashSet<string>(paths, StringComparer.Ordinal);
+        for (int i = nodes.Count - 1; i >= 0; i--)
+            if (!wanted.Contains(nodes[i].Path)) nodes.RemoveAt(i);
+        for (int i = 0; i < paths.Count; i++)
+        {
+            int at = -1;
+            for (int j = i; j < nodes.Count; j++)
+                if (string.Equals(nodes[j].Path, paths[i], StringComparison.Ordinal)) { at = j; break; }
+            if (at < 0)
+            {
+                var node = BuildNode(paths[i], parent);
+                if (parent == null) node.IsExpanded = true; // cada carpeta de música, abierta
+                nodes.Insert(i, node);
+                continue;
+            }
+            if (at != i) nodes.Move(at, i);
+            nodes[i].Count = Library.GetCount(paths[i]);
+            MergeNodes(nodes[i].Children, Library.GetChildren(paths[i]), nodes[i]);
+        }
     }
 
     private void RestoreLastSession()
@@ -1546,7 +1662,7 @@ public sealed partial class MainViewModel : ObservableObject
                 node.IsPlayingHere = true;
                 break;
             }
-            node = node.Children.FirstOrDefault(c => Eq(c.Path, dir) || dir.StartsWith(c.Path + "\\", StringComparison.OrdinalIgnoreCase));
+            node = ChildToward(node, dir);
         }
         UpdateBarsNode();
     }
@@ -2160,12 +2276,12 @@ public sealed partial class MainViewModel : ObservableObject
     public void SetFolderFileNames(string folder, bool on)
     {
         var modes = FolderModes;
-        foreach (var k in modes.Keys.Where(k => k.StartsWith(folder + "\\", StringComparison.OrdinalIgnoreCase)).ToList()) modes.Remove(k);
+        foreach (var k in modes.Keys.Where(k => LibraryService.IsUnder(k, folder)).ToList()) modes.Remove(k);
         modes[folder] = on;
         Settings.FolderFileNames = modes;
         SettingsStore.Save(Settings);
         ApplyTitleModes(refreshPage: true);
-        ShowToast($"{Path.GetFileName(folder)}: {(on ? "nombres de fichero" : "metadatos")}");
+        ShowToast($"{FolderName(folder)}: {(on ? "nombres de fichero" : "metadatos")}");
     }
 
     /// <summary>Quita el ajuste propio de la carpeta: vuelve a seguir a su carpeta padre o al ajuste general.</summary>
@@ -2241,15 +2357,19 @@ public sealed partial class MainViewModel : ObservableObject
     // Árbol de carpetas
     // ======================================================================
 
-    /// <summary>La raíz del árbol que contiene esta ruta.</summary>
+    /// <summary>La raíz del árbol que contiene esta ruta (también si la carpeta de música es una unidad entera, "F:\").</summary>
     private FolderNode? RootNodeFor(string path) =>
-        Folders.FirstOrDefault(r => Eq(r.Path, path) || path.StartsWith(r.Path + "\\", StringComparison.OrdinalIgnoreCase));
+        Folders.FirstOrDefault(r => Eq(r.Path, path) || LibraryService.IsUnder(path, r.Path));
+
+    /// <summary>La subcarpeta de este nodo que es o contiene esta ruta.</summary>
+    private static FolderNode? ChildToward(FolderNode node, string path) =>
+        node.Children.FirstOrDefault(c => Eq(c.Path, path) || LibraryService.IsUnder(path, c.Path));
 
     private FolderNode? FindNode(string path)
     {
         var node = RootNodeFor(path);
         while (node != null && !Eq(node.Path, path))
-            node = node.Children.FirstOrDefault(c => Eq(c.Path, path) || path.StartsWith(c.Path + "\\", StringComparison.OrdinalIgnoreCase));
+            node = ChildToward(node, path);
         return node;
     }
 
@@ -2262,7 +2382,7 @@ public sealed partial class MainViewModel : ObservableObject
             while (node != null && !Eq(node.Path, path))
             {
                 node.IsExpanded = true;
-                node = node.Children.FirstOrDefault(c => Eq(c.Path, path) || path.StartsWith(c.Path + "\\", StringComparison.OrdinalIgnoreCase));
+                node = ChildToward(node, path);
             }
             if (node == null) return;
             if (_selectedNode != null && _selectedNode != node) _selectedNode.IsSelected = false;
@@ -2282,6 +2402,54 @@ public sealed partial class MainViewModel : ObservableObject
         _selectedNode.IsSelected = false;
         IsSyncingTree = false;
         _selectedNode = null;
+    }
+
+    /// <summary>Hay alguna carpeta entera en la nube (si no, el interruptor «Mostrar solo locales» no hace nada y no sale).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLocalFilter))]
+    private bool _hasCloudFolders;
+
+    public bool ShowLocalFilter => HasCloudFolders || OnlyLocalFolders;
+
+    /// <summary>«Mostrar solo locales»: el árbol oculta las carpetas que están enteras en la nube.</summary>
+    public bool OnlyLocalFolders
+    {
+        get => Settings.OnlyLocalFolders;
+        set
+        {
+            if (Settings.OnlyLocalFolders == value) return;
+            Settings.OnlyLocalFolders = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowLocalFilter));
+            UpdateCloudFolders();
+        }
+    }
+
+    /// <summary>
+    /// Qué carpetas del árbol están enteras en la nube (todas sus canciones solo en OneDrive, sin descargar): llevan la
+    /// nube y, con «Mostrar solo locales», se ocultan. Se rehace al reescanear y cada vez que una canción se descarga o
+    /// libera espacio.
+    /// </summary>
+    private void UpdateCloudFolders()
+    {
+        var local = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in Library.Songs)
+            if (!s.IsCloud) local.Add(s.Directory);
+        bool any = false, onlyLocal = OnlyLocalFolders;
+        foreach (var root in Folders) Mark(root);
+        HasCloudFolders = any;
+
+        // devuelve si dentro (en ella o en sus subcarpetas) hay alguna canción en el dispositivo
+        bool Mark(FolderNode node)
+        {
+            bool hasLocal = local.Contains(node.Path);
+            foreach (var child in node.Children) hasLocal |= Mark(child);
+            node.IsCloudOnly = !hasLocal && node.Count > 0;
+            node.IsFilteredOut = onlyLocal && node.IsCloudOnly;
+            any |= node.IsCloudOnly;
+            return hasLocal;
+        }
     }
 
     // ======================================================================

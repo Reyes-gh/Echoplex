@@ -41,7 +41,10 @@ public sealed partial class LibraryService
     }
 
     public static bool IsUnder(string path, string root) =>
-        path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        path.Length > root.Length && path.StartsWith(WithSeparator(root), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>La carpeta con la barra del final: una unidad entera como carpeta de música ("F:\") ya la lleva.</summary>
+    public static string WithSeparator(string dir) => Path.EndsInDirectorySeparator(dir) ? dir : dir + Path.DirectorySeparatorChar;
 
     private static bool Eq(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
@@ -56,7 +59,7 @@ public sealed partial class LibraryService
         var root = RootOf(path);
         if (root == null) return path;
         var parts = new List<string>();
-        if (Roots.Count > 1 || Eq(root, path)) parts.Add(Path.GetFileName(root));
+        if (Roots.Count > 1 || Eq(root, path)) parts.Add(Path.GetFileName(root) is { Length: > 0 } name ? name : root.TrimEnd(Path.DirectorySeparatorChar));
         if (!Eq(root, path)) parts.AddRange(Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar));
         return string.Join(" / ", parts);
     }
@@ -67,11 +70,17 @@ public sealed partial class LibraryService
     public static bool IsCloudOnly(FileAttributes a) =>
         ((int)a & (0x400000 /* RECALL_ON_DATA_ACCESS */ | 0x40000 /* RECALL_ON_OPEN */ | (int)FileAttributes.Offline)) != 0;
 
+    /// <summary>Resultado de <see cref="Load"/>.</summary>
+    /// <param name="Changed">Hay canciones o carpetas nuevas, quitadas o cambiadas: el índice es otro (canciones nuevas incluidas).</param>
+    /// <param name="Cloud">Sin cambios: canciones de antes que pasaron a estar solo en la nube (true) o en el dispositivo (false).</param>
+    public sealed record LoadResult(bool Changed, IReadOnlyList<(Song Song, bool IsCloud)> Cloud);
+
     /// <summary>
     /// Recorre las carpetas de música (o una lista nueva, si se indica) y sustituye el índice de golpe al terminar,
     /// así la interfaz nunca ve datos a medias durante un reescaneo. Las carpetas que no existen se saltan.
+    /// Si no cambió nada (mismas carpetas y mismos archivos, con el mismo tamaño y fecha), el índice se queda como estaba.
     /// </summary>
-    public void Load(MetadataCache cache, IEnumerable<string>? newRoots = null)
+    public LoadResult Load(MetadataCache cache, IEnumerable<string>? newRoots = null)
     {
         var roots = newRoots != null ? Clean(newRoots) : Roots.ToList();
         var opts = new EnumerationOptions
@@ -122,6 +131,15 @@ public sealed partial class LibraryService
             }
             list.AddRange(songs); // en el orden de las carpetas de música
         }
+        var old = Songs;
+        if (SameFiles(old, roots, present, list))
+        {
+            var cloud = new List<(Song, bool)>();
+            for (int i = 0; i < list.Count; i++)
+                if (old[i].IsCloud != list[i].IsCloud) cloud.Add((old[i], list[i].IsCloud));
+            return new LoadResult(false, cloud);
+        }
+
         foreach (var kids in children.Values)
             kids.Sort((a, b) => NaturalComparer.Instance.Compare(Path.GetFileName(a), Path.GetFileName(b)));
         children[AllKey] = present;
@@ -138,6 +156,23 @@ public sealed partial class LibraryService
             _under = new Dictionary<string, List<Song>>(StringComparer.OrdinalIgnoreCase);
         }
         Roots = roots;
+        return new LoadResult(true, Array.Empty<(Song, bool)>());
+    }
+
+    /// <summary>
+    /// Lo recorrido es lo mismo que ya hay en el índice (las canciones salen siempre en el mismo orden). Las rutas se
+    /// comparan con mayúsculas: renombrar «cancion.mp3» a «Canción.mp3» también es un cambio.
+    /// </summary>
+    private bool SameFiles(List<Song> songs, List<string> roots, List<string> present, List<Song> list)
+    {
+        if (songs.Count != list.Count || !roots.SequenceEqual(Roots, StringComparer.OrdinalIgnoreCase)
+            || !present.SequenceEqual(PresentRoots, StringComparer.OrdinalIgnoreCase)) return false;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Song a = songs[i], b = list[i];
+            if (a.Length != b.Length || a.LastWriteTicks != b.LastWriteTicks || !string.Equals(a.Path, b.Path, StringComparison.Ordinal)) return false;
+        }
+        return true;
     }
 
     /// <summary>Carpetas de música que existen ahora mismo (las hijas de "Toda tu música").</summary>
@@ -171,7 +206,7 @@ public sealed partial class LibraryService
         {
             if (!_under.TryGetValue(dir, out var list))
             {
-                var prefix = dir + Path.DirectorySeparatorChar;
+                var prefix = WithSeparator(dir);
                 _under[dir] = list = Songs.Where(s => s.Path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
             }
             return list.ToList();

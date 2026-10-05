@@ -76,6 +76,14 @@ public sealed partial class Song : ObservableObject
     /// <summary>El archivo es un marcador de OneDrive: leerlo lo descarga.</summary>
     [ObservableProperty] private bool _isCloud;
 
+    /// <summary>
+    /// Alguna canción pasó a estar solo en la nube o en el dispositivo (se cambia siempre desde el hilo de la interfaz):
+    /// el árbol vuelve a mirar qué carpetas están enteras en la nube.
+    /// </summary>
+    public static event Action? CloudStateChanged;
+
+    partial void OnIsCloudChanged(bool value) => CloudStateChanged?.Invoke();
+
     /// <summary>Es la canción cargada en el reproductor.</summary>
     [ObservableProperty] private bool _isCurrent;
 

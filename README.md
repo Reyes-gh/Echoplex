@@ -6,13 +6,13 @@
 
 ## Características
 
-- **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio) y miniaturas de portada.
+- **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio, también una unidad entera como `F:\`) y miniaturas de portada.
 - **Páginas de carpeta por discos**: al abrir una carpeta con varios discos, cada disco aparece como un módulo con su portada y su título.
 - **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula), o las incrustadas en sus canciones si son de álbumes distintos.
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
-- **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo.
+- **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** las oculta.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
@@ -45,15 +45,20 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.18`).
-2. Escribe las notas en `.github/notas/1.1.18.md` (si no, se usa la sección `### 1.1.18` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.18`** con **`Echoplex-1.1.18-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.19`).
+2. Escribe las notas en `.github/notas/1.1.19.md` (si no, se usa la sección `### 1.1.19` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.19`** con **`Echoplex-1.1.19-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.18
+- **Carpetas en la nube, en el árbol**: las carpetas que están enteras en OneDrive (sin descargar) llevan una nube a la derecha, y el interruptor **Mostrar solo locales**, encima del árbol, las oculta. La nube se pone o se quita sola al descargar o liberar espacio, también desde el Explorador.
+- **El árbol ya no se recarga ni salta arriba**: cuando cambia algo en las carpetas de música, se actualiza sobre el que ya había (lo desplegado sigue desplegado y el panel lateral no se mueve); si lo que cambió no es música, no se toca nada, y la página que estás viendo sigue por donde ibas.
+- **Una unidad entera como carpeta de música** (`F:\`): el árbol no marcaba la carpeta de lo que suena, la propia unidad salía vacía y su menú no encontraba canciones. Lo que pasa en sus carpetas de sistema (*System Volume Information*) ya no provoca reescaneos.
 
 ### 1.1.17
 - **Más temas, por claros y oscuros**: los cinco de siempre siguen arriba; *Más temas* va en *Claros* y *Oscuros* y, dentro, por familias, todo desplegado al abrirlo y plegable, con cuántos temas tiene cada grupo y el que usas si está dentro.

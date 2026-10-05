@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private MiniPlayerWindow? _mini;
     private ImageSource? _playImage;
     private ImageSource? _pauseImage;
+    private double? _keepPageScroll;
 
     public MainWindow()
     {
@@ -71,6 +72,9 @@ public partial class MainWindow : Window
         _vm.Player.PropertyChanged += Player_PropertyChanged;
         _vm.PropertyChanged += Vm_PropertyChanged;
         _vm.PageChanging += OnPageChanging;
+        // un reescaneo rehace la página que se ve: se apunta por dónde iba para seguir ahí
+        _vm.PageChanging += (next, refresh) =>
+            _keepPageScroll = refresh && _vm.KeepingScroll ? FindDescendant<ScrollViewer>(PageHost)?.VerticalOffset : null;
         InitAnimations();
         _vm.ThemeChanged += ApplyTitleBar;
 
@@ -347,13 +351,35 @@ public partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(MainViewModel.CurrentPage):
-                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => FindDescendant<ScrollViewer>(PageHost)?.ScrollToTop());
+                var keep = _keepPageScroll;
+                _keepPageScroll = null;
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+                {
+                    var scroll = FindDescendant<ScrollViewer>(PageHost);
+                    if (scroll == null) return;
+                    if (keep is { } offset) RestoreScroll(scroll, offset, tries: 5);
+                    else scroll.ScrollToTop();
+                });
                 if (_vm.CurrentPage != null) AnimatePageIn();
                 break;
             case nameof(MainViewModel.ActiveLyric):
                 ScrollToActiveLyric();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Vuelve a dejar la página por donde iba. La lista es virtualizada y calcula su altura a medida que se mueve: la
+    /// primera vez puede quedarse corta, así que se insiste unas veces hasta llegar.
+    /// </summary>
+    private void RestoreScroll(ScrollViewer scroll, double offset, int tries)
+    {
+        scroll.ScrollToVerticalOffset(offset);
+        if (tries > 0)
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            {
+                if (scroll.IsLoaded && Math.Abs(scroll.VerticalOffset - offset) >= 1) RestoreScroll(scroll, offset, tries - 1);
+            });
     }
 
     /// <summary>Lleva la línea que suena a un tercio de la altura: deslizándose al cambiar de línea, directo al abrir la pestaña.</summary>

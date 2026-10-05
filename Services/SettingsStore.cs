@@ -42,6 +42,8 @@ public sealed class AppSettings
     public Dictionary<string, double>? LyricOffsets { get; set; }
     /// <summary>Portada de la cabecera en grande (se activa y desactiva con un clic en la portada pequeña).</summary>
     public bool ShowBigCover { get; set; }
+    /// <summary>«Mostrar solo locales» encima del árbol: oculta las carpetas que están enteras en la nube (OneDrive).</summary>
+    public bool OnlyLocalFolders { get; set; }
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
     public bool OnlineLyrics { get; set; }
     /// <summary>Enseñar en Discord lo que suena (Rich Presence). Desactivado de serie.</summary>
