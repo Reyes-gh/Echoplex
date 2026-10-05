@@ -299,6 +299,19 @@ public partial class SettingsWindow : Window
 
     private void DataFolder_Click(object sender, RoutedEventArgs e) => Explore(SettingsStore.DataDirectory);
 
+    /// <summary>La página de Echoplex en GitHub, en el navegador.</summary>
+    private void GitHub_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo($"https://github.com/{UpdateService.Repository}") { UseShellExecute = true });
+        }
+        catch
+        {
+            // sin navegador
+        }
+    }
+
     private static void Explore(string path)
     {
         try

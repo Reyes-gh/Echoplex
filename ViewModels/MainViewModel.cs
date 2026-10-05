@@ -843,7 +843,7 @@ public sealed partial class MainViewModel : ObservableObject
             SyncTree(path);
             return;
         }
-        var all = Library.SongsUnder(path);
+        var all = FolderSongs(path);
         var children = Library.GetChildren(path);
         bool hasChildren = children.Count > 0;
         int discs = all.Select(s => s.Directory).Distinct(StringComparer.OrdinalIgnoreCase).Count();
@@ -865,10 +865,36 @@ public sealed partial class MainViewModel : ObservableObject
             GroupRoot = path,
             BaseProperties = props,
             FileNamesOn = !isAll && UsesFileNames(path),
+            FavoritesOnly = !isAll && FolderFavoritesOnly,
             CoverFolder = isAll ? null : path,
         };
         if (replace) ReplacePage(page); else Navigate(page);
         _ = LoadFolderCoverAsync(page, path, children, all.FirstOrDefault());
+    }
+
+    /// <summary>«Solo favoritas» en las carpetas (el interruptor de su página): vale para todas hasta que se apague.</summary>
+    public bool FolderFavoritesOnly => Settings.FolderFavoritesOnly;
+
+    /// <summary>Desde el interruptor de la página de una carpeta: la rehace con el modo nuevo.</summary>
+    public void SetFolderFavoritesOnly(bool on)
+    {
+        if (Settings.FolderFavoritesOnly != on)
+        {
+            Settings.FolderFavoritesOnly = on;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged(nameof(FolderFavoritesOnly));
+        }
+        if (CurrentPage is SongListPage { Kind: ListKind.Folder, IsRealFolder: true, FolderPath: { } path }) OpenFolder(path, replace: true);
+    }
+
+    /// <summary>
+    /// Lo que se ve y suena de una carpeta (con sus subcarpetas): con «Solo favoritas», solo sus favoritas. Toda tu
+    /// música va siempre entera.
+    /// </summary>
+    private List<Song> FolderSongs(string path)
+    {
+        var all = Library.SongsUnder(path);
+        return FolderFavoritesOnly && !Eq(path, LibraryService.AllKey) ? all.FindAll(s => s.IsFavorite) : all;
     }
 
     public void OpenPlaylist(Playlist pl, bool replace = false)
@@ -1317,13 +1343,15 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         var sections = new List<HomeSection>();
+        // con «Mostrar solo locales», fuera lo que está entero en la nube (y cada sección se rellena con lo siguiente)
+        bool onlyLocal = OnlyLocalFolders;
 
-        var recent = Settings.RecentContexts.Select(ContextCard).Where(c => c != null).Cast<CardVm>().Take(12).ToList();
+        var recent = Settings.RecentContexts.Select(ContextCard).Where(c => c != null && (!onlyLocal || HasLocal(c))).Cast<CardVm>().Take(12).ToList();
         if (recent.Count > 0) sections.Add(new HomeSection("Reproducido recientemente", recent));
 
         var top = UserData.Stats.Where(kv => kv.Value.Count > 0)
             .OrderByDescending(kv => kv.Value.Count).ThenByDescending(kv => kv.Value.Seconds)
-            .Select(kv => Library.Find(kv.Key)).Where(s => s != null).Take(12)
+            .Select(kv => Library.Find(kv.Key)).Where(s => s != null && !(onlyLocal && s.IsCloud)).Take(12)
             .Select(s => new CardVm(CardKind.Song, s!.Path, s.Title, s.Artist, "") { Song = s }).ToList();
         if (top.Count > 0) sections.Add(new HomeSection("Tus más escuchadas", top));
 
@@ -1331,6 +1359,7 @@ public sealed partial class MainViewModel : ObservableObject
             sections.Add(new HomeSection("Tus playlists", Playlists.Select(PlaylistCard).ToList()));
 
         var albums = Library.GetAlbums();
+        if (onlyLocal) albums = albums.Where(a => a.Songs.Any(s => !s.IsCloud)).ToList();
         var newest = albums.OrderByDescending(a => a.Songs.Max(s => s.CreatedTicks)).Take(12)
             .Select(AlbumCard).ToList();
         if (newest.Count > 0) sections.Add(new HomeSection("Añadido recientemente", newest));
@@ -1339,7 +1368,8 @@ public sealed partial class MainViewModel : ObservableObject
         var rediscover = albums.OrderBy(_ => daily.Next()).Take(12).Select(AlbumCard).ToList();
         if (rediscover.Count > 0) sections.Add(new HomeSection("Redescubre", rediscover));
 
-        var folders = Library.PresentRoots.SelectMany(Library.GetChildren).Select(FolderCard).ToList();
+        var folders = Library.PresentRoots.SelectMany(Library.GetChildren)
+            .Where(p => !onlyLocal || FindNode(p) is not { IsCloudOnly: true }).Select(FolderCard).ToList();
         if (folders.Count > 0) sections.Add(new HomeSection("Carpetas", folders));
 
         return new HomePage
@@ -1367,6 +1397,19 @@ public sealed partial class MainViewModel : ObservableObject
     private static CardVm AlbumCard(AlbumInfo a) => new(CardKind.Album, a.Key, a.Name, a.Artist, "") { Song = a.Songs[0] };
 
     private static CardVm PlaylistCard(Playlist p) => new(CardKind.Playlist, p.Id, p.Name, p.CountText, "");
+
+    /// <summary>
+    /// Algo de lo que hay detrás de la tarjeta está en el dispositivo (para «Mostrar solo locales»). Carpetas, como en el
+    /// árbol; playlists, favoritas y toda tu música salen siempre.
+    /// </summary>
+    private bool HasLocal(CardVm card) => card.Kind switch
+    {
+        CardKind.Song => card.Song is not { IsCloud: true },
+        CardKind.Folder => FindNode(card.Key) is not { IsCloudOnly: true },
+        CardKind.Album => Library.GetAlbum(card.Key) is not { } album || album.Songs.Any(s => !s.IsCloud),
+        CardKind.Artist => Library.SongsByArtist(card.Key).Any(s => !s.IsCloud),
+        _ => true,
+    };
 
     private CardVm? ContextCard(string id)
     {
@@ -2411,7 +2454,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool ShowLocalFilter => HasCloudFolders || OnlyLocalFolders;
 
-    /// <summary>«Mostrar solo locales»: el árbol oculta las carpetas que están enteras en la nube.</summary>
+    /// <summary>«Mostrar solo locales»: el árbol y el Inicio ocultan lo que está entero en la nube.</summary>
     public bool OnlyLocalFolders
     {
         get => Settings.OnlyLocalFolders;
@@ -2423,6 +2466,7 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged();
             OnPropertyChanged(nameof(ShowLocalFilter));
             UpdateCloudFolders();
+            if (CurrentPage is HomePage) RefreshCurrentPage(); // sin volver arriba
         }
     }
 
@@ -2461,7 +2505,7 @@ public sealed partial class MainViewModel : ObservableObject
         var (kind, key) = SplitContext(id);
         return kind switch
         {
-            "folder" when Library.HasFolder(key) => Library.SongsUnder(key),
+            "folder" when Library.HasFolder(key) => FolderSongs(key),
             "playlist" => Playlists.FirstOrDefault(p => p.Id == key) is { } pl ? Library.Resolve(pl.Songs) : null,
             "album" => Library.GetAlbum(key)?.Songs,
             "artist" => Library.SongsByArtist(key),

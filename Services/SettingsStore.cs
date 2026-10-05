@@ -44,6 +44,8 @@ public sealed class AppSettings
     public bool ShowBigCover { get; set; }
     /// <summary>«Mostrar solo locales» encima del árbol: oculta las carpetas que están enteras en la nube (OneDrive).</summary>
     public bool OnlyLocalFolders { get; set; }
+    /// <summary>«Solo favoritas» en las carpetas: su página enseña y reproduce solo sus favoritas (con las de sus subcarpetas).</summary>
+    public bool FolderFavoritesOnly { get; set; }
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
     public bool OnlineLyrics { get; set; }
     /// <summary>Enseñar en Discord lo que suena (Rich Presence). Desactivado de serie.</summary>

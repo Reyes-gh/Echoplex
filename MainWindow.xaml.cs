@@ -29,6 +29,9 @@ public partial class MainWindow : Window
     private ImageSource? _playImage;
     private ImageSource? _pauseImage;
     private double? _keepPageScroll;
+    private TrayIcon? _tray;
+    /// <summary>Se cierra de verdad (Salir en la bandeja, actualización, apagado): si no, la X esconde la ventana en la bandeja.</summary>
+    private bool _exiting;
 
     public MainWindow()
     {
@@ -97,6 +100,13 @@ public partial class MainWindow : Window
             ApplyTitleBar();
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(SizeMoveHook);
+            // solo en la app de verdad (las pruebas crean su propia Application y la X debe cerrar)
+            if (System.Windows.Application.Current is App)
+            {
+                _tray = new TrayIcon(this);
+                _tray.Clicked += ShowFromTray;
+                _tray.MenuRequested += () => TrayIcon.ShowMenu(BuildTrayMenu());
+            }
         };
     }
 
@@ -129,11 +139,17 @@ public partial class MainWindow : Window
     {
         _vm.RestartRequested += () =>
         {
+            _exiting = true;
             Close(); // guarda ajustes, cola y posición como siempre
             UpdateService.Restart();
         };
         // al apagar o cerrar la sesión de Windows no hay Closing: se guarda aquí o se perdería lo de esta sesión
-        System.Windows.Application.Current.SessionEnding += (s, args) => _vm.SaveNow();
+        System.Windows.Application.Current.SessionEnding += (s, args) =>
+        {
+            _exiting = true;
+            SaveWindowState();
+            _vm.SaveNow();
+        };
         await _vm.InitializeAsync();
         await _vm.CheckForUpdatesOnStartupAsync();
     }
@@ -156,6 +172,13 @@ public partial class MainWindow : Window
     {
         if (_vm.CurrentPage is SongListPage { IsRealFolder: true, FolderPath: { } folder } && sender is CheckBox box)
             _vm.SetFolderFileNames(folder, box.IsChecked == true);
+    }
+
+    /// <summary>Interruptor "Solo favoritas" de la página de una carpeta.</summary>
+    private void PageFavoritesOnly_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.CurrentPage is SongListPage { IsRealFolder: true } && sender is CheckBox box)
+            _vm.SetFolderFavoritesOnly(box.IsChecked == true);
     }
 
     // ---------- carátulas personalizadas ----------
@@ -220,6 +243,23 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
+        // la X (o Alt+F4) no cierra: la ventana se esconde en la bandeja y la música sigue (Salir, en el menú del icono)
+        if (!_exiting && _tray is { IsShown: true })
+        {
+            e.Cancel = true;
+            HideToTray();
+            return;
+        }
+        _exiting = true;
+        SaveWindowState();
+        _mini?.Close();
+        _vm.Shutdown();
+        _tray?.Dispose();
+    }
+
+    /// <summary>Tamaño y paneles de la ventana, a los ajustes (se guardan con lo demás).</summary>
+    private void SaveWindowState()
+    {
         _settings?.CloseNow(); // Ajustes abierto: se cierra ya, sin esperar a su animación
         CloseFullView(animate: false); // a toda la pantalla: se guarda el tamaño de ventana de verdad, no el de la pantalla
         var s = _vm.Settings;
@@ -228,8 +268,52 @@ public partial class MainWindow : Window
         if (bounds.Width > 0) { s.Width = bounds.Width; s.Height = bounds.Height; }
         s.SidebarWidth = SidebarCol.ActualWidth;
         s.RightPanelWidth = RightPanel.Width;
-        _mini?.Close();
-        _vm.Shutdown();
+    }
+
+    // ======================================================================
+    // Bandeja (junto al reloj)
+    // ======================================================================
+
+    /// <summary>La X: la ventana se esconde y la música sigue. Se guarda todo ya, por si luego se apaga el PC.</summary>
+    private void HideToTray()
+    {
+        SaveWindowState();
+        Hide();
+        _vm.SaveNow();
+    }
+
+    /// <summary>Clic en el icono (o abrir Echoplex otra vez): vuelve la ventana. Con el mini reproductor abierto, se trae ese.</summary>
+    public void ShowFromTray()
+    {
+        if (_mini != null)
+        {
+            _mini.Activate();
+            return;
+        }
+        Show();
+        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this); // como estaba (maximizada, si lo estaba)
+        Activate();
+    }
+
+    private ContextMenu BuildTrayMenu()
+    {
+        var p = _vm.Player;
+        var menu = new ContextMenu();
+        menu.Items.Add(Item("Mostrar Echoplex", "", ShowFromTray));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item(p.IsPlaying ? "Pausar" : "Reproducir", p.IsPlaying ? "" : "", _vm.TogglePlay));
+        menu.Items.Add(Item("Siguiente", "", p.Next, enabled: p.Current != null));
+        menu.Items.Add(Item("Anterior", "", p.Previous, enabled: p.Current != null));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Salir", "", ExitApp));
+        return menu;
+    }
+
+    /// <summary>Salir de verdad: guarda todo y cierra (como hacía la X antes). Desde el menú de la bandeja o pedido desde fuera.</summary>
+    public void ExitApp()
+    {
+        _exiting = true;
+        Close();
     }
 
     // ======================================================================
@@ -339,6 +423,7 @@ public partial class MainWindow : Window
                 break;
             case nameof(p.Current):
                 Title = p.Current != null ? $"{p.Current.Title} · {p.Current.Artist} — Echoplex" : "Echoplex";
+                _tray?.SetToolTip(Title);
                 ReleaseInfoScrollLock(); // otra canción, otros detalles: la barra vuelve a ser automática
                 if (FullView.IsVisible) _fullLyrics.Stop();
                 FullLyricsScroll.ScrollToTop(); // la letra nueva empieza desde arriba
@@ -1369,7 +1454,7 @@ public partial class MainWindow : Window
         _mini.Closed += (s, e) =>
         {
             _mini = null;
-            if (!IsVisible) RestoreFromMini();
+            if (!IsVisible && !_exiting) RestoreFromMini();
         };
         _mini.Show();
         Hide();

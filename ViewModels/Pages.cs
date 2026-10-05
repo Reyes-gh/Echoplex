@@ -147,6 +147,9 @@ public sealed partial class SongListPage : PageBase
 
     /// <summary>Esta carpeta muestra nombres de fichero (propio o heredado del padre / ajuste general).</summary>
     [ObservableProperty] private bool _fileNamesOn;
+
+    /// <summary>Carpeta con «Solo favoritas»: la lista son solo sus favoritas (con las de sus subcarpetas).</summary>
+    public bool FavoritesOnly { get; init; }
     public Playlist? Playlist { get; init; }
     public string? AlbumKey { get; init; }
     public string? ArtistName { get; init; }
@@ -168,8 +171,12 @@ public sealed partial class SongListPage : PageBase
     public bool IsPlaylist => Kind == ListKind.Playlist;
     public bool CanDownload => Kind is not ListKind.History and not ListKind.Search;
     public bool IsEmpty => AllSongs.Count == 0;
+    /// <summary>La fila de botones de la cabecera: sin canciones no sale, salvo con «Solo favoritas» (para poder quitarlo).</summary>
+    public bool ShowActions => !IsEmpty || FavoritesOnly;
+    public bool ShowDownload => CanDownload && !IsEmpty;
     public string EmptyText => Kind switch
     {
+        ListKind.Folder when FavoritesOnly => "No hay favoritas en esta carpeta ni en sus subcarpetas. Apaga «Solo favoritas» para ver todas sus canciones.",
         ListKind.Playlist => "Esta playlist está vacía. Haz clic derecho en cualquier canción → Añadir a playlist.",
         ListKind.Favorites => "Aún no tienes favoritas. Pulsa el corazón de una canción para guardarla aquí.",
         ListKind.History => "Todavía no has escuchado nada.",

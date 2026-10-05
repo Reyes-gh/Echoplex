@@ -12,11 +12,12 @@
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
-- **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** las oculta.
+- **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** oculta lo que está entero en la nube, en el árbol y en Inicio.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
+- **En la bandeja**: la X no cierra Echoplex, lo esconde junto al reloj y la música sigue. Clic en su icono para volver; con el botón derecho, reproducir o pausar, siguiente, anterior y *Salir*.
 
 Todas las opciones están en **Ajustes** (engranaje abajo a la izquierda, menú *Echoplex* o `Ctrl+,`): tema, animaciones, carpetas de música, letras, Discord y actualizaciones.
 
@@ -45,15 +46,21 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.19`).
-2. Escribe las notas en `.github/notas/1.1.19.md` (si no, se usa la sección `### 1.1.19` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.19`** con **`Echoplex-1.1.19-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.20`).
+2. Escribe las notas en `.github/notas/1.1.20.md` (si no, se usa la sección `### 1.1.20` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.20`** con **`Echoplex-1.1.20-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.19
+- **La X deja Echoplex en la bandeja**: al cerrar la ventana, Echoplex sigue sonando escondido junto al reloj (en la flecha de los iconos ocultos). Clic en su icono para volver; con el botón derecho, reproducir o pausar, siguiente, anterior y **Salir**, que lo cierra del todo. Si abres Echoplex otra vez mientras está escondido, vuelve la ventana que ya tenías.
+- **Solo favoritas, dentro de las carpetas**: el interruptor **♥ Solo favoritas** de la página de una carpeta deja solo sus favoritas (y las de sus subcarpetas) para verlas y reproducirlas, sin irte a Favoritas; sigue puesto en todas las carpetas hasta que lo apagues.
+- **Mostrar solo locales, también en Inicio**: con el interruptor encendido, Inicio deja de enseñar las canciones, discos, carpetas y artistas que están enteros en la nube; cada sección se rellena con lo que sí tienes descargado.
+- **GitHub en Ajustes**: en *Ajustes → Otros*, un botón con el logo de GitHub abre la página de Echoplex.
 
 ### 1.1.18
 - **Carpetas en la nube, en el árbol**: las carpetas que están enteras en OneDrive (sin descargar) llevan una nube a la derecha, y el interruptor **Mostrar solo locales**, encima del árbol, las oculta. La nube se pone o se quita sola al descargar o liberar espacio, también desde el Explorador.

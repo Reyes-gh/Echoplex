@@ -450,21 +450,24 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <WrapPanel Margin="0,18,0,20" Visibility="{Binding Page.IsEmpty, Converter={StaticResource InvBoolVis}}">
-                        <Button Style="{StaticResource PrimaryButton}" Click="PagePlay_Click" Margin="0,0,8,8">
+                    <WrapPanel Margin="0,18,0,20" Visibility="{Binding Page.ShowActions, Converter={StaticResource BoolVis}}">
+                        <Button Style="{StaticResource PrimaryButton}" Click="PagePlay_Click" Margin="0,0,8,8"
+                                Visibility="{Binding Page.IsEmpty, Converter={StaticResource InvBoolVis}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Page.PlayGlyph}" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center"
                                            Margin="0,1,8,0" />
                                 <TextBlock Text="{Binding Page.PlayText}" />
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource SecondaryButton}" Click="PageShuffle_Click" Margin="0,0,8,8">
+                        <Button Style="{StaticResource SecondaryButton}" Click="PageShuffle_Click" Margin="0,0,8,8"
+                                Visibility="{Binding Page.IsEmpty, Converter={StaticResource InvBoolVis}}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8B1;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
                                 <TextBlock Text="Aleatorio" />
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource SecondaryButton}" Click="PageRadio_Click" Margin="0,0,8,8"
+                                Visibility="{Binding Page.IsEmpty, Converter={StaticResource InvBoolVis}}"
                                 ToolTip="Mezcla canciones parecidas a esta lista">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE895;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
@@ -472,14 +475,15 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource SecondaryButton}" Click="PageDownload_Click" Margin="0,0,8,8"
-                                Visibility="{Binding Page.CanDownload, Converter={StaticResource BoolVis}}"
+                                Visibility="{Binding Page.ShowDownload, Converter={StaticResource BoolVis}}"
                                 ToolTip="Mantener en este dispositivo o liberar espacio (OneDrive)">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
                                 <TextBlock Text="Descargar" />
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource SecondaryButton}" Click="PageMore_Click" Margin="0,0,8,8" Width="32" Padding="0" ToolTip="Más opciones">
+                        <Button Style="{StaticResource SecondaryButton}" Click="PageMore_Click" Margin="0,0,8,8" Width="32" Padding="0" ToolTip="Más opciones"
+                                Visibility="{Binding Page.IsEmpty, Converter={StaticResource InvBoolVis}}">
                             <TextBlock Text="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="13" />
                         </Button>
                         <!-- títulos de esta carpeta (y sus subcarpetas): nombre del archivo o metadatos -->
@@ -487,6 +491,17 @@
                                   IsChecked="{Binding Page.FileNamesOn, Mode=OneWay}" Click="PageFileNames_Click"
                                   Visibility="{Binding Page.IsRealFolder, Converter={StaticResource BoolVis}}"
                                   ToolTip="Títulos por nombre de archivo en esta carpeta y sus subcarpetas (en vez de los metadatos)" />
+                        <!-- solo las favoritas de la carpeta (y sus subcarpetas), aquí mismo: vale para todas las carpetas hasta que se apague -->
+                        <CheckBox Style="{StaticResource Switch}" FontSize="14" Margin="18,0,0,8" VerticalAlignment="Center"
+                                  IsChecked="{Binding Page.FavoritesOnly, Mode=OneWay}" Click="PageFavoritesOnly_Click"
+                                  Visibility="{Binding Page.IsRealFolder, Converter={StaticResource BoolVis}}"
+                                  ToolTip="Ver y reproducir solo las favoritas de esta carpeta y sus subcarpetas (en todas las carpetas, hasta que lo apagues)">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEB52;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource FavBrush}"
+                                           VerticalAlignment="Center" Margin="0,1,6,0" />
+                                <TextBlock Text="Solo favoritas" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </CheckBox>
                     </WrapPanel>
                 </StackPanel>
                 </Grid>
@@ -1285,11 +1300,11 @@
                             </DockPanel>
                             <TextBlock Text="Cargando…" FontSize="13" Foreground="{DynamicResource Text3Brush}" Margin="44,4,0,0"
                                        Visibility="{Binding IsLoading, Converter={StaticResource BoolVis}}" />
-                            <!-- solo sale si hay alguna carpeta entera en la nube (la de la nube a la derecha) -->
+                            <!-- solo sale si hay alguna carpeta entera en la nube (la de la nube a la derecha); vale para el árbol y el Inicio -->
                             <CheckBox Style="{StaticResource Switch}" Content="Mostrar solo locales" FontSize="13" Margin="18,6,0,0"
                                       HorizontalAlignment="Left" Foreground="{DynamicResource SidebarTextBrush}" IsChecked="{Binding OnlyLocalFolders}"
                                       Visibility="{Binding ShowLocalFilter, Converter={StaticResource BoolVis}}"
-                                      ToolTip="Oculta las carpetas que están enteras en OneDrive (sin descargar)" />
+                                      ToolTip="Oculta lo que está entero en OneDrive (sin descargar), en el árbol y en Inicio" />
                             <TreeView x:Name="FolderTree" ItemsSource="{Binding Folders}" Style="{StaticResource FolderTreeView}"
                                       ItemContainerStyle="{StaticResource FolderItemStyle}" SelectedItemChanged="FolderTree_SelectedItemChanged" />
                         </StackPanel>
