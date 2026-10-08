@@ -282,7 +282,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _reader = reader;
             _device = device;
             _exclusive = exclusive;
-            _provider = new PcmProvider(reader, format, _lock, TakeNext);
+            // el ecualizador solo en la salida normal: en bit a bit la señal llega intacta
+            _provider = new PcmProvider(reader, format, _lock, TakeNext, exclusive ? null : new EqualizerProcessor(reader.WaveFormat));
         }
         try { _deviceName = device.FriendlyName; } catch { _deviceName = "dispositivo de audio"; }
         return true;
@@ -298,7 +299,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             SetPlaying(true);
             return;
         }
-        var output = new WasapiOut(_device, _exclusive ? AudioClientShareMode.Exclusive : AudioClientShareMode.Shared, true, _exclusive ? 120 : 200);
+        // búfer de 100 ms en la salida normal: lo que cambia (ecualizador, saltos) se oye casi al momento
+        var output = new WasapiOut(_device, _exclusive ? AudioClientShareMode.Exclusive : AudioClientShareMode.Shared, true, _exclusive ? 120 : 100);
         output.PlaybackStopped += OnStopped;
         output.Init(_provider);
         _stopRequested = false;
@@ -502,15 +504,17 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         private WaveStream _source;
         private readonly object _lock;
         private readonly Func<WaveStream?> _takeNext;
+        private readonly EqualizerProcessor? _eq;
         private readonly int _inBytes;
         private readonly int _outBytes;
         private byte[] _buffer = Array.Empty<byte>();
 
-        public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext)
+        public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext, EqualizerProcessor? eq)
         {
             _source = source;
             _lock = sync;
             _takeNext = takeNext;
+            _eq = eq;
             WaveFormat = target;
             _inBytes = source.WaveFormat.BitsPerSample / 8;
             _outBytes = target.BitsPerSample / 8;
@@ -519,7 +523,11 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         public WaveFormat WaveFormat { get; }
 
         /// <summary>Cambia el lector (tras reabrir el archivo para saltar hacia atrás). Llamar con el cerrojo tomado.</summary>
-        public void SetSource(WaveStream source) => _source = source;
+        public void SetSource(WaveStream source)
+        {
+            _source = source;
+            _eq?.Reset();
+        }
 
         public int Read(byte[] buffer, int offset, int count)
         {
@@ -531,6 +539,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
                     _source = next;
                     n = ReadSource(buffer, offset, count);
                 }
+                // con los ajustes que haya justo ahora: el cambio se oye en este mismo bloque, sin transición
+                if (n > 0) _eq?.Process(buffer, offset, n);
                 return n;
             }
         }

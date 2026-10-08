@@ -22,6 +22,14 @@ public sealed class AppSettings
     public bool AutoRadio { get; set; } = true;
     public bool ExclusiveMode { get; set; }
     public string? ExclusiveDeviceId { get; set; }
+    /// <summary>Ecualizador de 15 bandas encendido (solo actúa en la salida normal, no en bit a bit).</summary>
+    public bool EqEnabled { get; set; }
+    /// <summary>Ganancia de cada banda en dB (25 Hz … 16 kHz); null = todo plano.</summary>
+    public double[]? EqGains { get; set; }
+    /// <summary>Preamplificador del ecualizador, en dB.</summary>
+    public double EqPreamp { get; set; }
+    /// <summary>Preajuste elegido (o "custom" si se movió alguna banda a mano).</summary>
+    public string EqPreset { get; set; } = "flat";
     /// <summary>Clave del tema (ver <see cref="Themes"/>).</summary>
     public string Theme { get; set; } = "light";
     /// <summary>Último tema oscuro elegido: al que vuelve el interruptor claro/oscuro.</summary>

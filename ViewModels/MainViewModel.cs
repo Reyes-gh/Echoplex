@@ -99,6 +99,7 @@ public sealed partial class MainViewModel : ObservableObject
         _toastTimer.Stop();
         _sleepTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal, (s, e) => SleepTick(), ui);
         _sleepTimer.Stop();
+        ApplyEq(); // el ecualizador guardado suena desde la primera canción
     }
 
     public AppSettings Settings { get; }

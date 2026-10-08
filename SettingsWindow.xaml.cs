@@ -86,6 +86,9 @@ public partial class SettingsWindow : Window
         }).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
         BuildColumnSwitches();
+        BuildEqPresets();
+        vm.PropertyChanged += OnVmChanged;
+        Closed += (s, e) => vm.PropertyChanged -= OnVmChanged;
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
         OnFoldersChanged(null, null);
         Closed += (s, e) => vm.MusicFolders.CollectionChanged -= OnFoldersChanged;
@@ -227,6 +230,71 @@ public partial class SettingsWindow : Window
             ColumnSwitches.Children.Add(chip);
         }
     }
+
+    // ======================================================================
+    // Ecualizador
+    // ======================================================================
+
+    private readonly Dictionary<string, System.Windows.Controls.RadioButton> _eqChips = new();
+
+    /// <summary>Un chip por preajuste y uno de «Personalizado» que se marca solo al mover una banda a mano.</summary>
+    private void BuildEqPresets()
+    {
+        EqPresetChips.Children.Clear();
+        _eqChips.Clear();
+        var chips = MainViewModel.EqPresets.Select(p => (p.Key, p.Name)).Append((MainViewModel.CustomPreset, "Personalizado"));
+        foreach (var (key, name) in chips)
+        {
+            var chip = new System.Windows.Controls.RadioButton
+            {
+                Style = (Style)FindResource("ColumnChip"),
+                GroupName = "EqPreset",
+                FontSize = 13,
+                Content = name,
+                Tag = key,
+            };
+            if (key == MainViewModel.CustomPreset)
+            {
+                chip.IsHitTestVisible = false; // no se elige: aparece al mover una banda
+                chip.ToolTip = "Tus propios ajustes";
+            }
+            else chip.Click += (s, e) => _vm.ApplyEqPreset(key);
+            _eqChips[key] = chip;
+            EqPresetChips.Children.Add(chip);
+        }
+        MarkEqPreset();
+    }
+
+    private void MarkEqPreset()
+    {
+        foreach (var (key, chip) in _eqChips)
+        {
+            chip.IsChecked = key == _vm.EqPresetKey;
+            if (key == MainViewModel.CustomPreset) chip.Visibility = key == _vm.EqPresetKey ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void OnVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.EqPresetKey)) MarkEqPreset();
+    }
+
+    /// <summary>Doble clic en una banda: a 0 dB.</summary>
+    private void EqSlider_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is EqBand band) band.Value = 0;
+        e.Handled = true;
+    }
+
+    /// <summary>Rueda sobre una banda: medio dB arriba o abajo (y no se desplaza la ventana).</summary>
+    private void EqSlider_Wheel(object sender, MouseWheelEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is EqBand band)
+            band.Value = Math.Clamp(band.Value + (e.Delta > 0 ? 0.5 : -0.5), -Equalizer.MaxGain, Equalizer.MaxGain);
+        e.Handled = true;
+    }
+
+    private void EqReset_Click(object sender, RoutedEventArgs e) => _vm.ResetEq();
 
     private void ResetColumns_Click(object sender, RoutedEventArgs e)
     {

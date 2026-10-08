@@ -156,6 +156,76 @@
             </Setter>
         </Style>
 
+        <!-- ===== Ecualizador: deslizadores verticales finos (como los de la barra de reproducción) ===== -->
+        <Style x:Key="EqTrackButton" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="EqSlider" TargetType="Slider">
+            <Setter Property="Orientation" Value="Vertical" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsMoveToPointEnabled" Value="True" />
+            <Setter Property="IsSnapToTickEnabled" Value="True" />
+            <Setter Property="TickFrequency" Value="0.5" />
+            <Setter Property="SmallChange" Value="0.5" />
+            <Setter Property="LargeChange" Value="1" />
+            <Setter Property="Minimum" Value="-12" />
+            <Setter Property="Maximum" Value="12" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Background="Transparent">
+                            <Border Width="4" CornerRadius="2" Background="{DynamicResource TrackBrush}" HorizontalAlignment="Center" Margin="0,7" />
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource EqTrackButton}" Command="Slider.DecreaseLarge" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Style="{StaticResource EqTrackButton}" Command="Slider.IncreaseLarge" />
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse x:Name="Knob" Width="14" Height="14" Fill="{DynamicResource AccentBrush}"
+                                                         Stroke="{DynamicResource PopupBrush}" StrokeThickness="2" />
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Knob" Property="Fill" Value="{DynamicResource AccentHoverBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- una banda: el valor arriba, el deslizador y la frecuencia abajo (doble clic: a 0 dB; rueda: medio dB) -->
+        <DataTemplate x:Key="EqBandTemplate" DataType="{x:Type vm:EqBand}">
+            <StackPanel Width="34" ToolTip="{Binding Tip}">
+                <TextBlock Text="{Binding ValueText}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource Text2Brush}"
+                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+                <Slider Style="{StaticResource EqSlider}" Height="150" Margin="0,6" HorizontalAlignment="Center"
+                        Value="{Binding Value, Mode=TwoWay}" MouseDoubleClick="EqSlider_DoubleClick" PreviewMouseWheel="EqSlider_Wheel" />
+                <TextBlock Text="{Binding Label}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource Text3Brush}" />
+            </StackPanel>
+        </DataTemplate>
+
         <DataTemplate x:Key="FolderRow" DataType="{x:Type vm:MusicFolderItem}">
             <Border x:Name="Bd" CornerRadius="6" Padding="10,8" Background="Transparent">
                 <DockPanel>
@@ -266,6 +336,60 @@
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Añadir carpeta…" Click="AddFolder_Click" />
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Volver a escanear" Click="Rescan_Click" Margin="8,0,0,0" />
+                    </StackPanel>
+
+                    <!-- ===== Ecualizador ===== -->
+                    <Border Style="{StaticResource SectionRule}" />
+                    <ContentControl Style="{StaticResource SectionHeader}" Content="Ecualizador" Tag="&#xE9E9;" />
+                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding EqEnabled}">
+                        <StackPanel>
+                            <TextBlock Text="Activar ecualizador de 15 bandas" />
+                            <TextBlock Text="Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB; la rueda del ratón la mueve medio dB."
+                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </CheckBox>
+                    <TextBlock Text="Con «Bit a bit» activado el ecualizador no se aplica: la señal llega intacta a tu dispositivo."
+                               FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Visibility="{Binding Player.ExclusiveMode, Converter={StaticResource BoolVis}}" />
+                    <StackPanel x:Name="EqPanel" Margin="0,14,0,0">
+                        <StackPanel.Style>
+                            <!-- apagado se ve atenuado, pero se puede preparar antes de encenderlo -->
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding EqEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.55" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <WrapPanel x:Name="EqPresetChips" />
+                        <Border Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                CornerRadius="8" Padding="8,12,8,10" Margin="0,6,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <!-- línea de 0 dB, a la altura del centro de los deslizadores -->
+                                <Border Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,96,0,0" Background="{DynamicResource Text3Brush}" Opacity="0.45" />
+                                <ContentControl Content="{Binding EqPreamp}" ContentTemplate="{StaticResource EqBandTemplate}" Focusable="False" />
+                                <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}" Margin="4,0,6,0" />
+                                <ItemsControl Grid.Column="2" ItemsSource="{Binding EqBands}" ItemTemplate="{StaticResource EqBandTemplate}" HorizontalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                        <DockPanel Margin="0,8,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Restablecer" Click="EqReset_Click"
+                                    ToolTip="Todas las bandas y el preamplificador a 0 dB" />
+                            <TextBlock Text="±12 dB por banda. Si al subir bandas algo satura, baja el preamplificador."
+                                       FontSize="12" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </DockPanel>
                     </StackPanel>
 
                     <!-- ===== Títulos ===== -->
