@@ -109,3 +109,26 @@ public sealed class GalleryTemplateSelector : DataTemplateSelector
     public override DataTemplate? SelectTemplate(object item, DependencyObject container) =>
         item is GalleryHeader ? HeaderTemplate : RowTemplate;
 }
+/// <summary>
+/// Tamaño mínimo del tirador de las barras de desplazamiento. WPF lo hace proporcional a lo que se ve (área visible /
+/// total) y, en listas muy largas (miles de canciones), quedaba en unos pocos píxeles: la barra parecía no estar.
+/// Devuelve el ViewportSize que le da al Track al menos <c>ConverterParameter</c> píxeles de tirador; con listas
+/// cortas no cambia nada. Valores: ViewportSize, Minimum, Maximum y la longitud de la barra.
+/// </summary>
+public sealed class ScrollThumbViewportConverter : IMultiValueConverter
+{
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (values.Length < 4 || values[0] is not double viewport || values[1] is not double min || values[2] is not double max
+            || values[3] is not double length)
+            return DependencyProperty.UnsetValue;
+        double minThumb = double.TryParse(parameter as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var p) ? p : 32;
+        double range = max - min;
+        if (double.IsNaN(viewport) || range <= 0 || length <= minThumb * 2) return viewport;
+        // el Track calcula: tirador = longitud · viewport / (rango + viewport) → viewport para que salga minThumb
+        double needed = minThumb * range / (length - minThumb);
+        return Math.Max(viewport, needed);
+    }
+
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}

@@ -243,8 +243,9 @@ public partial class MainWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
-        // la X (o Alt+F4) no cierra: la ventana se esconde en la bandeja y la música sigue (Salir, en el menú del icono)
-        if (!_exiting && _tray is { IsShown: true })
+        // con «Esconder en la bandeja» (Ajustes → Otros), la X (o Alt+F4) no cierra: la ventana se esconde junto al reloj
+        // y la música sigue (Salir, en el menú del icono); de serie, la X cierra Echoplex como siempre
+        if (!_exiting && _vm.CloseToTray && _tray is { IsShown: true })
         {
             e.Cancel = true;
             HideToTray();

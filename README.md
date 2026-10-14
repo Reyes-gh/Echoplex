@@ -11,14 +11,14 @@
 - **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula), o las incrustadas en sus canciones si son de álbumes distintos.
 - **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
-- **Ecualizador de 15 bandas**: en Ajustes, de 25 Hz a 16 kHz (±12 dB) con preamplificador y preajustes (Graves, Voces, Rock, Electrónica…). Cada cambio se oye al momento, sin transiciones.
+- **Ecualizador de 15 bandas**: en Ajustes, de 25 Hz a 16 kHz (±12 dB) con preamplificador y preajustes (Graves, Voces, Rock, Electrónica…), con la curva de las bandas dibujada y los valores también a mano. Cada cambio se oye al momento, sin transiciones.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** oculta lo que está entero en la nube, en el árbol y en Inicio.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
-- **En la bandeja**: la X no cierra Echoplex, lo esconde junto al reloj y la música sigue. Clic en su icono para volver; con el botón derecho, reproducir o pausar, siguiente, anterior y *Salir*.
+- **Cerrar o esconder en la bandeja**: tú eliges en Ajustes qué hace la X. Escondido, Echoplex sigue sonando junto al reloj: clic en su icono para volver; con el botón derecho, reproducir o pausar, siguiente, anterior y *Salir*.
 
 Todas las opciones están en **Ajustes** (engranaje abajo a la izquierda, menú *Echoplex* o `Ctrl+,`): tema, animaciones, carpetas de música, ecualizador, letras, Discord y actualizaciones.
 
@@ -47,15 +47,20 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.21`).
-2. Escribe las notas en `.github/notas/1.1.21.md` (si no, se usa la sección `### 1.1.21` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.21`** con **`Echoplex-1.1.21-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.22`).
+2. Escribe las notas en `.github/notas/1.1.22.md` (si no, se usa la sección `### 1.1.22` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.22`** con **`Echoplex-1.1.22-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.21
+- **La X cierra Echoplex, o lo esconde si lo prefieres**: en *Ajustes → Otros*, «Al pulsar la X» deja elegir entre **Cerrar Echoplex** (de serie) y **Esconderlo en la bandeja**, junto al reloj y con la música sonando. El icono de la bandeja sigue ahí mientras Echoplex está abierto.
+- **Ecualizador: valores a mano y la curva a la vista**: el número de cada banda se puede escribir (Enter para aplicarlo, Esc para dejarlo, ↑ ↓ medio dB), y una línea une las 15 bandas (sin el preamplificador) para ver la forma del sonido.
+- **Barra de desplazamiento en las carpetas grandes**: en las listas de miles de canciones el tirador de la barra quedaba en unos pocos píxeles y parecía que no había barra. Ahora tiene siempre un tamaño mínimo que se puede agarrar, para bajar del tirón.
 
 ### 1.1.20
 - **Ecualizador de 15 bandas**: en *Ajustes → Ecualizador*, de 25 Hz a 16 kHz (±12 dB por banda), con preamplificador y preajustes (Plano, Graves, Agudos, Voces, Rock, Pop, Electrónica, Acústica, Clásica y Sonoridad). Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB y la rueda del ratón la mueve medio dB. Con *Bit a bit* no se aplica, para que la señal llegue intacta.

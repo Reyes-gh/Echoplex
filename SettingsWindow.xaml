@@ -215,11 +215,47 @@
             </Setter>
         </Style>
 
-        <!-- una banda: el valor arriba, el deslizador y la frecuencia abajo (doble clic: a 0 dB; rueda: medio dB) -->
+        <!-- valor de una banda, que también se escribe: parece texto y al pasar el ratón o al escribir se ve la caja -->
+        <Style x:Key="EqValueBox" TargetType="TextBox">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Width" Value="33" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="MaxLength" Value="6" />
+            <Setter Property="Cursor" Value="IBeam" />
+            <Setter Property="ToolTip" Value="Escribe los dB (de −12 a +12) y pulsa Enter" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4" BorderThickness="1" BorderBrush="Transparent">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InputBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- una banda: el valor arriba (se puede escribir), el deslizador y la frecuencia abajo (doble clic: a 0 dB; rueda: medio dB) -->
         <DataTemplate x:Key="EqBandTemplate" DataType="{x:Type vm:EqBand}">
             <StackPanel Width="34" ToolTip="{Binding Tip}">
-                <TextBlock Text="{Binding ValueText}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource Text2Brush}"
-                           FontFamily="Segoe UI Variable Text, Segoe UI" />
+                <TextBox Style="{StaticResource EqValueBox}" Text="{Binding ValueText, Mode=OneWay}"
+                         PreviewKeyDown="EqValue_PreviewKeyDown" LostKeyboardFocus="EqValue_LostFocus"
+                         GotKeyboardFocus="EqValue_GotFocus" PreviewMouseLeftButtonDown="EqValue_MouseDown" />
                 <Slider Style="{StaticResource EqSlider}" Height="150" Margin="0,6" HorizontalAlignment="Center"
                         Value="{Binding Value, Mode=TwoWay}" MouseDoubleClick="EqSlider_DoubleClick" PreviewMouseWheel="EqSlider_Wheel" />
                 <TextBlock Text="{Binding Label}" FontSize="11" HorizontalAlignment="Center" Foreground="{DynamicResource Text3Brush}" />
@@ -371,11 +407,18 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <!-- línea de 0 dB, a la altura del centro de los deslizadores -->
-                                <Border Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,96,0,0" Background="{DynamicResource Text3Brush}" Opacity="0.45" />
+                                <!-- línea de 0 dB y la curva que une las 15 bandas (sin el preamplificador), por debajo de los deslizadores;
+                                     se dibujan en SettingsWindow.xaml.cs con cada cambio -->
+                                <Canvas x:Name="EqCurveCanvas" Grid.ColumnSpan="3" IsHitTestVisible="False" ClipToBounds="False">
+                                    <Line x:Name="EqZeroLine" Stroke="{DynamicResource Text3Brush}" StrokeThickness="1" Opacity="0.45" />
+                                    <Path x:Name="EqCurveFill" Fill="{DynamicResource AccentBrush}" Opacity="0.12" />
+                                    <Path x:Name="EqCurve" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                </Canvas>
                                 <ContentControl Content="{Binding EqPreamp}" ContentTemplate="{StaticResource EqBandTemplate}" Focusable="False" />
                                 <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}" Margin="4,0,6,0" />
-                                <ItemsControl Grid.Column="2" ItemsSource="{Binding EqBands}" ItemTemplate="{StaticResource EqBandTemplate}" HorizontalAlignment="Center">
+                                <ItemsControl x:Name="EqBandsList" Grid.Column="2" ItemsSource="{Binding EqBands}" ItemTemplate="{StaticResource EqBandTemplate}"
+                                              HorizontalAlignment="Center">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <StackPanel Orientation="Horizontal" />
@@ -387,7 +430,7 @@
                         <DockPanel Margin="0,8,0,0">
                             <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Restablecer" Click="EqReset_Click"
                                     ToolTip="Todas las bandas y el preamplificador a 0 dB" />
-                            <TextBlock Text="±12 dB por banda. Si al subir bandas algo satura, baja el preamplificador."
+                            <TextBlock Text="±12 dB por banda: arrastra o escribe el valor. Si al subir bandas algo satura, baja el preamplificador."
                                        FontSize="12" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                         </DockPanel>
                     </StackPanel>
@@ -512,6 +555,15 @@
                     <!-- ===== Otros ===== -->
                     <Border Style="{StaticResource SectionRule}" />
                     <ContentControl Style="{StaticResource SectionHeader}" Content="Otros" Tag="&#xE712;" />
+                    <TextBlock Text="Al pulsar la X" FontWeight="SemiBold" />
+                    <TextBlock Text="Cerrar sale de Echoplex del todo. Esconderlo lo deja junto al reloj, en la flecha de los iconos ocultos, y la música sigue: se vuelve con un clic en su icono y se sale con «Salir» en su menú."
+                               FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                    <WrapPanel Margin="0,0,0,14">
+                        <RadioButton x:Name="CloseExitChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
+                                     Content="Cerrar Echoplex" Checked="CloseAction_Checked" />
+                        <RadioButton x:Name="CloseTrayChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
+                                     Content="Esconderlo en la bandeja" Checked="CloseAction_Checked" />
+                    </WrapPanel>
                     <StackPanel Orientation="Horizontal">
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Mini reproductor (Ctrl+M)" Click="Mini_Click" />
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Carpeta de datos" Click="DataFolder_Click" Margin="8,0,0,0"

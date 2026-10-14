@@ -2268,6 +2268,19 @@ public sealed partial class MainViewModel : ObservableObject
         if (Player.Current is { } song) _ = LoadNowPlayingCoverAsync(song);
     }
 
+    /// <summary>La X esconde Echoplex en la bandeja en vez de cerrarlo (Ajustes → Otros).</summary>
+    public bool CloseToTray
+    {
+        get => Settings.CloseToTray;
+        set
+        {
+            if (Settings.CloseToTray == value) return;
+            Settings.CloseToTray = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>Portada en grande en la cabecera de las páginas: se queda activada (en todas) hasta otro clic.</summary>
     public bool ShowBigCover
     {

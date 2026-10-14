@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Echoplex.Services;
 using Echoplex.ViewModels;
@@ -84,11 +85,20 @@ public partial class SettingsWindow : Window
             DiscordPresence.ShowApp => DiscordShowApp,
             _ => DiscordShowArtist,
         }).IsChecked = true;
+        (vm.CloseToTray ? CloseTrayChip : CloseExitChip).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
         BuildColumnSwitches();
         BuildEqPresets();
         vm.PropertyChanged += OnVmChanged;
-        Closed += (s, e) => vm.PropertyChanged -= OnVmChanged;
+        // la curva del ecualizador sigue a las bandas al instante, se muevan como se muevan
+        foreach (var band in vm.EqBands) band.PropertyChanged += OnEqBandChanged;
+        EqBandsList.SizeChanged += (s, e) => DrawEqCurve();
+        EqBandsList.Loaded += (s, e) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, DrawEqCurve);
+        Closed += (s, e) =>
+        {
+            vm.PropertyChanged -= OnVmChanged;
+            foreach (var band in vm.EqBands) band.PropertyChanged -= OnEqBandChanged;
+        };
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
         OnFoldersChanged(null, null);
         Closed += (s, e) => vm.MusicFolders.CollectionChanged -= OnFoldersChanged;
@@ -296,6 +306,138 @@ public partial class SettingsWindow : Window
 
     private void EqReset_Click(object sender, RoutedEventArgs e) => _vm.ResetEq();
 
+    // ---------- el valor escrito a mano ----------
+
+    /// <summary>Primer clic en la caja: se selecciona todo para escribir encima.</summary>
+    private void EqValue_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox box || box.IsKeyboardFocusWithin) return;
+        box.Focus();
+        e.Handled = true;
+    }
+
+    private void EqValue_GotFocus(object sender, KeyboardFocusChangedEventArgs e) => (sender as System.Windows.Controls.TextBox)?.SelectAll();
+
+    private void EqValue_LostFocus(object sender, KeyboardFocusChangedEventArgs e) => CommitEqValue(sender as System.Windows.Controls.TextBox);
+
+    private void EqValue_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.TextBox box) return;
+        if (e.Key == Key.Enter)
+        {
+            CommitEqValue(box);
+            box.SelectAll(); // se puede seguir probando valores sin volver a hacer clic
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            // deja el valor como estaba (y no cierra Ajustes)
+            box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+            Keyboard.ClearFocus();
+            e.Handled = true;
+        }
+        else if (e.Key is Key.Up or Key.Down && box.DataContext is EqBand band)
+        {
+            // flechas: medio dB arriba o abajo, como la rueda
+            band.Value = Math.Clamp(Math.Round(band.Value + (e.Key == Key.Up ? 0.5 : -0.5), 1), -Equalizer.MaxGain, Equalizer.MaxGain);
+            box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+            box.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Aplica lo escrito ("3", "+4,5", "-2.5", "−1 dB"…), recortado a ±12 dB y a décimas; si no es un número, vuelve el de antes.</summary>
+    private static void CommitEqValue(System.Windows.Controls.TextBox? box)
+    {
+        if (box?.DataContext is not EqBand band) return;
+        if (TryParseDb(box.Text, out var db))
+            band.Value = Math.Clamp(Math.Round(db, 1), -Equalizer.MaxGain, Equalizer.MaxGain);
+        box.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateTarget();
+    }
+
+    public static bool TryParseDb(string text, out double value)
+    {
+        var t = text.Trim().Replace('−', '-').Replace(',', '.');
+        if (t.EndsWith("db", StringComparison.OrdinalIgnoreCase)) t = t[..^2].Trim();
+        return double.TryParse(t, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)
+               && double.IsFinite(value);
+    }
+
+    // ---------- la curva ----------
+
+    private void OnEqBandChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(EqBand.Value)) DrawEqCurve();
+    }
+
+    /// <summary>
+    /// Une los tiradores de las 15 bandas con una curva suave (la «onda» del ecualizador) y sombrea lo que queda entre
+    /// ella y la línea de 0 dB. La posición sale del valor de cada banda, no de dónde esté pintado el tirador: así va a la
+    /// vez que el deslizador, sin esperar a que se recoloque.
+    /// </summary>
+    private void DrawEqCurve()
+    {
+        if (!EqBandsList.IsLoaded) return;
+        var points = new List<Point>();
+        double zeroY = double.NaN;
+        for (int i = 0; i < _vm.EqBands.Count; i++)
+        {
+            if (EqBandsList.ItemContainerGenerator.ContainerFromIndex(i) is not DependencyObject container
+                || FindChild<System.Windows.Controls.Slider>(container) is not { ActualHeight: > 14 } slider)
+                return;
+            const double thumb = 14; // alto del tirador (EqSlider)
+            double range = slider.Maximum - slider.Minimum;
+            double FracY(double v) => thumb / 2 + (1 - (v - slider.Minimum) / range) * (slider.ActualHeight - thumb);
+            points.Add(slider.TranslatePoint(new Point(slider.ActualWidth / 2, FracY(_vm.EqBands[i].Value)), EqCurveCanvas));
+            if (double.IsNaN(zeroY)) zeroY = slider.TranslatePoint(new Point(0, FracY(0)), EqCurveCanvas).Y;
+        }
+        if (points.Count < 2) return;
+
+        EqZeroLine.X1 = 0;
+        EqZeroLine.X2 = EqCurveCanvas.ActualWidth;
+        EqZeroLine.Y1 = EqZeroLine.Y2 = Math.Round(zeroY) + 0.5;
+
+        var curve = new PathFigure { StartPoint = points[0] };
+        AddSmoothSegments(curve, points);
+        var line = new PathGeometry(new[] { curve });
+        line.Freeze();
+        EqCurve.Data = line;
+
+        var fill = new PathFigure { StartPoint = new Point(points[0].X, zeroY), IsClosed = true };
+        fill.Segments.Add(new LineSegment(points[0], false));
+        AddSmoothSegments(fill, points);
+        fill.Segments.Add(new LineSegment(new Point(points[^1].X, zeroY), false));
+        var area = new PathGeometry(new[] { fill });
+        area.Freeze();
+        EqCurveFill.Data = area;
+    }
+
+    /// <summary>Curva Catmull-Rom (pasa por todos los puntos) convertida a tramos de Bézier.</summary>
+    private static void AddSmoothSegments(PathFigure figure, IReadOnlyList<Point> p)
+    {
+        for (int i = 0; i < p.Count - 1; i++)
+        {
+            var p0 = p[Math.Max(0, i - 1)];
+            var p1 = p[i];
+            var p2 = p[i + 1];
+            var p3 = p[Math.Min(p.Count - 1, i + 2)];
+            var c1 = new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6);
+            var c2 = new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6);
+            figure.Segments.Add(new BezierSegment(c1, c2, p2, true));
+        }
+    }
+
+    private static T? FindChild<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) return t;
+            if (FindChild<T>(child) is { } found) return found;
+        }
+        return null;
+    }
+
     private void ResetColumns_Click(object sender, RoutedEventArgs e)
     {
         SongColumns.Reset();
@@ -340,6 +482,9 @@ public partial class SettingsWindow : Window
     {
         if (sender is FrameworkElement { Tag: string show }) _vm.DiscordShow = show;
     }
+
+    /// <summary>Qué hace la X: cerrar Echoplex o esconderlo en la bandeja.</summary>
+    private void CloseAction_Checked(object sender, RoutedEventArgs e) => _vm.CloseToTray = sender == CloseTrayChip;
 
     private void DiscordUploadBox_KeyDown(object sender, KeyEventArgs e)
     {

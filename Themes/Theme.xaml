@@ -20,6 +20,7 @@
     <local:EqualsConverter x:Key="Eq" />
     <local:EqualsToVisibilityConverter x:Key="EqVis" />
     <local:HeartGlyphConverter x:Key="HeartGlyph" />
+    <local:ScrollThumbViewportConverter x:Key="ScrollThumbViewport" />
 
     <!-- ===== Nota de Echoplex ===== -->
     <!-- La imagen es blanca sobre transparente: se usa de máscara y se pinta con el color del tema (claro, oscuro, neón…) -->
@@ -798,6 +799,15 @@
                 <ControlTemplate TargetType="ScrollBar">
                     <Grid Background="Transparent">
                         <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.ViewportSize>
+                                <!-- tirador de al menos 36 px, también en listas de miles de canciones -->
+                                <MultiBinding Converter="{StaticResource ScrollThumbViewport}" ConverterParameter="36">
+                                    <Binding Path="ViewportSize" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="Minimum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource TemplatedParent}" />
+                                </MultiBinding>
+                            </Track.ViewportSize>
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="ScrollBar.PageUpCommand" Style="{StaticResource ScrollPageButton}" />
                             </Track.DecreaseRepeatButton>
@@ -822,6 +832,15 @@
                         <ControlTemplate TargetType="ScrollBar">
                             <Grid Background="Transparent">
                                 <Track x:Name="PART_Track" IsDirectionReversed="False">
+                                    <Track.ViewportSize>
+                                        <!-- tirador de al menos 36 px, también en listas de miles de canciones -->
+                                        <MultiBinding Converter="{StaticResource ScrollThumbViewport}" ConverterParameter="36">
+                                            <Binding Path="ViewportSize" RelativeSource="{RelativeSource TemplatedParent}" />
+                                            <Binding Path="Minimum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                            <Binding Path="Maximum" RelativeSource="{RelativeSource TemplatedParent}" />
+                                            <Binding Path="ActualWidth" RelativeSource="{RelativeSource TemplatedParent}" />
+                                        </MultiBinding>
+                                    </Track.ViewportSize>
                                     <Track.DecreaseRepeatButton>
                                         <RepeatButton Command="ScrollBar.PageLeftCommand" Style="{StaticResource ScrollPageButton}" />
                                     </Track.DecreaseRepeatButton>
