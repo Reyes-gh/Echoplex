@@ -108,6 +108,41 @@ public static partial class OnlineLyricsService
 
     private static bool IsFresh(string file) => DateTime.UtcNow - File.GetLastWriteTimeUtc(file) < RetryNotFoundAfter;
 
+    /// <summary>
+    /// Hasta cuándo no se vuelve a preguntar a LRCLIB por esta canción porque la última vez no tenía la letra (o era
+    /// instrumental); null si no está en esa espera.
+    /// </summary>
+    public static DateTime? NextLookup(Song song)
+    {
+        try
+        {
+            var none = Path.Combine(CacheDir, CacheKey(song) + ".none");
+            if (!File.Exists(none) || !IsFresh(none)) return null;
+            return File.GetLastWriteTime(none) + RetryNotFoundAfter;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>«Reintentar búsqueda»: olvida que no se encontró (y el texto sin tiempos) para preguntar ya.</summary>
+    public static void Forget(Song song)
+    {
+        var key = CacheKey(song);
+        foreach (var ext in new[] { ".none", ".txt" })
+        {
+            try
+            {
+                File.Delete(Path.Combine(CacheDir, key + ext));
+            }
+            catch
+            {
+                // se volverá a intentar
+            }
+        }
+    }
+
     /// <summary>¿Tiene tiempos por línea ([mm:ss.xx])?</summary>
     private static bool IsSynced(string text) => SyncedLine().IsMatch(text);
 

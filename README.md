@@ -47,15 +47,20 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.22`).
-2. Escribe las notas en `.github/notas/1.1.22.md` (si no, se usa la sección `### 1.1.22` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.22`** con **`Echoplex-1.1.22-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.23`).
+2. Escribe las notas en `.github/notas/1.1.23.md` (si no, se usa la sección `### 1.1.23` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.23`** con **`Echoplex-1.1.23-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.22
+- **Reintentar la búsqueda de una letra**: cuando LRCLIB no tiene la letra de una canción, Echoplex lo apunta y no vuelve a preguntar por ella en 7 días. Ahora, en la pestaña *Letra*, encima de «Buscar letras en internet», sale **Reintentar búsqueda** para preguntar ya sin esperar, y a su lado un botón de información (ⓘ) que lo explica, al pasar el ratón y al pulsarlo: a veces, al buscar la letra y no encontrarla, se guarda vacía y no se vuelve a intentar hasta dentro de 7 días; con el botón se vuelve a buscar al momento. También aparece si no se pudo conectar con LRCLIB.
+- **El ecualizador ya no se mueve sin querer**: apagado no responde a nada (solo al interruptor que lo activa), y activado la rueda del ratón no mueve ninguna banda hasta que hayas hecho clic dentro del ecualizador; si no, la rueda desplaza Ajustes como en cualquier otro sitio. Los clics funcionan como siempre.
+- **El desfase de la letra no se mueve**: el botón para quitar el desfase sale ahora a la izquierda del −, así que al aparecer ya no empuja el − y el +, que se quedan siempre en el mismo sitio.
 
 ### 1.1.21
 - **La X cierra Echoplex, o lo esconde si lo prefieres**: en *Ajustes → Otros*, «Al pulsar la X» deja elegir entre **Cerrar Echoplex** (de serie) y **Esconderlo en la bandeja**, junto al reloj y con la música sonando. El icono de la bandeja sigue ahí mientras Echoplex está abierto.

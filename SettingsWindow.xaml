@@ -380,16 +380,16 @@
                     <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding EqEnabled}">
                         <StackPanel>
                             <TextBlock Text="Activar ecualizador de 15 bandas" />
-                            <TextBlock Text="Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB; la rueda del ratón la mueve medio dB."
+                            <TextBlock Text="Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB. Tras hacer clic dentro del ecualizador, la rueda del ratón mueve medio dB la banda que tengas debajo."
                                        FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
                     </CheckBox>
                     <TextBlock Text="Con «Bit a bit» activado el ecualizador no se aplica: la señal llega intacta a tu dispositivo."
                                FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
                                Visibility="{Binding Player.ExclusiveMode, Converter={StaticResource BoolVis}}" />
-                    <StackPanel x:Name="EqPanel" Margin="0,14,0,0">
+                    <StackPanel x:Name="EqPanel" Margin="0,14,0,0" IsEnabled="{Binding EqEnabled}">
                         <StackPanel.Style>
-                            <!-- apagado se ve atenuado, pero se puede preparar antes de encenderlo -->
+                            <!-- apagado se ve atenuado y no responde a nada (ni clics ni rueda): solo el interruptor de arriba -->
                             <Style TargetType="StackPanel">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding EqEnabled}" Value="False">
@@ -399,8 +399,10 @@
                             </Style>
                         </StackPanel.Style>
                         <WrapPanel x:Name="EqPresetChips" />
-                        <Border Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
-                                CornerRadius="8" Padding="8,12,8,10" Margin="0,6,0,0">
+                        <!-- la rueda solo mueve bandas tras hacer clic aquí dentro (hasta que el ratón sale): si no, desplaza Ajustes -->
+                        <Border x:Name="EqBox" Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                CornerRadius="8" Padding="8,12,8,10" Margin="0,6,0,0"
+                                PreviewMouseDown="EqBox_PreviewMouseDown" MouseLeave="EqBox_MouseLeave">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />

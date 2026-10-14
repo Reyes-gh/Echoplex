@@ -1739,6 +1739,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string? _lyricsStatus;
     /// <summary>La letra visible viene de LRCLIB (se muestra la procedencia).</summary>
     [ObservableProperty] private bool _lyricsFromOnline;
+    /// <summary>LRCLIB no dio la letra (o no se pudo conectar): se ofrece «Reintentar búsqueda».</summary>
+    [ObservableProperty] private bool _canRetryLyrics;
+    /// <summary>Explicación del botón de información junto a «Reintentar búsqueda» (la espera de 7 días).</summary>
+    [ObservableProperty] private string? _lyricsRetryInfo;
+
+    /// <summary>«Reintentar búsqueda»: olvida que LRCLIB no la tenía y pregunta ya, sin esperar a que pasen los 7 días.</summary>
+    public async Task RetryOnlineLyricsAsync()
+    {
+        if (Player.Current is not { } song || !Settings.OnlineLyrics) return;
+        OnlineLyricsService.Forget(song);
+        await LoadLyricsAsync(song);
+    }
 
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos. Desactivado de serie.</summary>
     public bool OnlineLyrics
@@ -1750,6 +1762,7 @@ public sealed partial class MainViewModel : ObservableObject
             Settings.OnlineLyrics = value;
             SettingsStore.Save(Settings);
             OnPropertyChanged();
+            if (!value) CanRetryLyrics = false;
             // al activarlo se busca ya la letra de lo que suena; al desactivarlo se quita la de internet
             if (Player.Current is { } song && (value ? !HasLyrics : LyricsFromOnline)) _ = LoadLyricsAsync(song);
         }
@@ -1912,6 +1925,7 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task LoadLyricsAsync(Song song)
     {
         int ver = ++_lyricsVersion;
+        CanRetryLyrics = false;
         LyricsOffset = Settings.LyricOffsets?.GetValueOrDefault(song.Path) ?? 0;
         var lines = await Task.Run(() => LyricsService.Load(song));
         if (ver != _lyricsVersion) return;
@@ -1931,6 +1945,12 @@ public sealed partial class MainViewModel : ObservableObject
         else
         {
             LyricsStatus = found.Error ?? (found.Instrumental ? "Instrumental según LRCLIB" : "LRCLIB tampoco tiene la letra de esta canción");
+            // sin letra: se puede volver a preguntar ya, sin esperar a que acabe la espera de 7 días
+            var next = found.Error == null ? OnlineLyricsService.NextLookup(song) : null;
+            // el mismo texto en la descripción emergente del botón (i) y en el aviso que abre al pulsarlo
+            LyricsRetryInfo = "A veces, al buscar la letra y no encontrarla, se guarda vacía y no se vuelve a intentar hasta dentro de 7 días. " +
+                              "Con este botón se vuelve a buscar al momento.";
+            CanRetryLyrics = found.Error != null || next != null;
         }
     }
 

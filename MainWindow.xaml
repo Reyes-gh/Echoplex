@@ -1487,20 +1487,36 @@
                                 <!-- desfase de la letra de esta canción (solo con letra sincronizada); se guarda por canción -->
                                 <DockPanel Margin="0,0,0,10" Visibility="{Binding LyricsSynced, Converter={StaticResource BoolVis}}"
                                            ToolTip="Desfase de la letra de esta canción. +: la letra va antes · −: va después. Mayús: pasos de 0,5 s">
+                                    <!-- quitar el desfase va a la izquierda: al aparecer no empuja el − ni el +, que se quedan quietos -->
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Style="{StaticResource IconButton}" Content="&#xE777;" FontSize="12" Margin="0,0,4,0" Click="LyricsOffsetReset_Click"
+                                                ToolTip="Quitar el desfase" Visibility="{Binding HasLyricsOffset, Converter={StaticResource BoolVis}}" />
                                         <Button Style="{StaticResource SecondaryButton}" Height="26" Padding="9,0" FontSize="13" Content="−" Tag="-1"
                                                 Click="LyricsOffset_Click" />
-                                        <TextBlock Text="{Binding LyricsOffsetText}" FontFamily="Consolas, Segoe UI" FontSize="13" MinWidth="54"
+                                        <TextBlock Text="{Binding LyricsOffsetText}" FontFamily="Consolas, Segoe UI" FontSize="13" Width="62"
                                                    TextAlignment="Center" VerticalAlignment="Center" Background="Transparent"
                                                    MouseWheel="LyricsOffset_Wheel" />
                                         <Button Style="{StaticResource SecondaryButton}" Height="26" Padding="9,0" FontSize="13" Content="+" Tag="1"
                                                 Click="LyricsOffset_Click" />
-                                        <Button Style="{StaticResource IconButton}" Content="&#xE777;" FontSize="12" Margin="4,0,0,0" Click="LyricsOffsetReset_Click"
-                                                ToolTip="Quitar el desfase" Visibility="{Binding HasLyricsOffset, Converter={StaticResource BoolVis}}" />
                                     </StackPanel>
                                     <TextBlock Text="Desfase" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
+                                <!-- LRCLIB no la tenía (y no se vuelve a preguntar en 7 días) o no hubo conexión: se puede buscar otra vez ya -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                            Visibility="{Binding CanRetryLyrics, Converter={StaticResource BoolVis}}">
+                                    <Button Style="{StaticResource SecondaryButton}" Height="28" Padding="10,0" FontSize="13" Click="LyricsRetry_Click"
+                                            ToolTip="Volver a preguntar a LRCLIB ahora por esta canción">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- dos flechas en círculo -->
+                                            <TextBlock Text="&#xE895;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
+                                            <TextBlock Text="Reintentar búsqueda" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource IconButton}" Content="&#xE946;" FontSize="14" Margin="4,0,0,0" VerticalAlignment="Center"
+                                            Click="LyricsRetryInfo_Click" ToolTip="{Binding LyricsRetryInfo}" ToolTipService.InitialShowDelay="150"
+                                            ToolTipService.ShowDuration="30000" />
+                                </StackPanel>
                                 <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}" FontSize="13"
                                           ToolTip="Busca en lrclib.net las letras que no tengan tus archivos (solo envía artista, título, álbum y duración)">
                                     <TextBlock Text="Buscar letras en internet (LRCLIB)" TextWrapping="Wrap" />

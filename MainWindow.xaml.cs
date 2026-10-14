@@ -1366,6 +1366,14 @@ public partial class MainWindow : Window
 
     private void LyricsOffsetReset_Click(object sender, RoutedEventArgs e) => _vm.SetLyricsOffset(0);
 
+    private async void LyricsRetry_Click(object sender, RoutedEventArgs e) => await _vm.RetryOnlineLyricsAsync();
+
+    /// <summary>El botón de información: lo mismo que su descripción emergente, en un aviso (por si no se espera a que salga).</summary>
+    private void LyricsRetryInfo_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.LyricsRetryInfo is { } info) DialogWindow.Info(this, "Búsqueda de letras en LRCLIB", info);
+    }
+
     // ======================================================================
     // Barra de reproducción
     // ======================================================================

@@ -296,9 +296,20 @@ public partial class SettingsWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>Rueda sobre una banda: medio dB arriba o abajo (y no se desplaza la ventana).</summary>
+    /// <summary>Se hizo clic dentro del ecualizador: desde ahora la rueda mueve bandas (hasta que el ratón sale del recuadro).</summary>
+    private bool _eqWheelArmed;
+
+    private void EqBox_PreviewMouseDown(object sender, MouseButtonEventArgs e) => _eqWheelArmed = true; // el clic sigue su camino
+
+    private void EqBox_MouseLeave(object sender, MouseEventArgs e) => _eqWheelArmed = false;
+
+    /// <summary>
+    /// Rueda sobre una banda: medio dB arriba o abajo, solo con el ecualizador activado y tras un clic dentro. Si no,
+    /// la rueda no lo toca y desplaza Ajustes como en cualquier otro sitio.
+    /// </summary>
     private void EqSlider_Wheel(object sender, MouseWheelEventArgs e)
     {
+        if (!_eqWheelArmed || !_vm.EqEnabled) return;
         if ((sender as FrameworkElement)?.DataContext is EqBand band)
             band.Value = Math.Clamp(band.Value + (e.Delta > 0 ? 0.5 : -0.5), -Equalizer.MaxGain, Equalizer.MaxGain);
         e.Handled = true;
