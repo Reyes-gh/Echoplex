@@ -11,6 +11,11 @@ public sealed class OnlineSource
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Url { get; set; } = "";
+    /// <summary>
+    /// Conectada: sus canciones se ven y suenan. Desconectada, sigue en el panel lateral (atenuada, con el mundo tachado)
+    /// pero no aporta canciones ni se le pide nada a la nube.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
 }
 
 /// <summary>Un archivo de una carpeta en línea: dónde está dentro de ella y de dónde se descarga.</summary>
@@ -30,6 +35,8 @@ public sealed class OnlineIndex
     public List<OnlineEntry> Files { get; set; } = new();
     /// <summary>Página de cada subcarpeta (ruta dentro → URL), para «Abrir en el navegador».</summary>
     public Dictionary<string, string> Folders { get; set; } = new();
+    /// <summary>OneDrive: dirección para preguntar solo por lo que ha cambiado desde este listado (una petición en vez de cientos).</summary>
+    public string? Delta { get; set; }
 }
 
 /// <summary>
@@ -47,6 +54,8 @@ public static partial class OnlineLibrary
     private static Dictionary<string, OnlineEntry> _byPath = new(StringComparer.OrdinalIgnoreCase);
     // carpeta (ruta en la biblioteca) → imágenes y letras que hay en ella
     private static Dictionary<string, List<string>> _extrasByDir = new(StringComparer.OrdinalIgnoreCase);
+    // carpeta (ruta en la biblioteca) → sus subcarpetas
+    private static Dictionary<string, HashSet<string>> _childDirs = new(StringComparer.OrdinalIgnoreCase);
 
     public static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif" };
 
@@ -75,6 +84,16 @@ public static partial class OnlineLibrary
     }
 
     public static bool IsOnlineRoot(string path) => SourceOf(path) is { } s && string.Equals(RootPath(s), path, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>¿Está conectada la carpeta en línea de esta ruta? (las del disco, siempre)</summary>
+    public static bool IsConnected(string path) => SourceOf(path) is not { Enabled: false };
+
+    /// <summary>Subcarpetas de una carpeta en línea, según su índice (en el disco no existen).</summary>
+    public static IReadOnlyList<string> SubfoldersOf(string dir)
+    {
+        lock (Lock)
+            return _childDirs.TryGetValue(dir, out var l) ? l.ToList() : Array.Empty<string>();
+    }
 
     /// <summary>El nombre que le puso el usuario, si es la raíz de una carpeta en línea.</summary>
     public static string? RootName(string path) => IsOnlineRoot(path) ? SourceOf(path)?.Name : null;
@@ -204,6 +223,7 @@ public static partial class OnlineLibrary
     {
         var byPath = new Dictionary<string, OnlineEntry>(StringComparer.OrdinalIgnoreCase);
         var extras = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var childDirs = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in _sources)
         {
             if (!_indexes.TryGetValue(s.Id, out var index)) continue;
@@ -212,6 +232,13 @@ public static partial class OnlineLibrary
             {
                 var path = System.IO.Path.Combine(root, f.Path);
                 byPath[path] = f;
+                // cada carpeta del camino, colgada de la de encima
+                for (var d = System.IO.Path.GetDirectoryName(path); d != null && d.Length > root.Length; d = System.IO.Path.GetDirectoryName(d))
+                {
+                    var up = System.IO.Path.GetDirectoryName(d)!;
+                    if (!childDirs.TryGetValue(up, out var set)) childDirs[up] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (!set.Add(d)) break; // lo de más arriba ya está
+                }
                 var ext = System.IO.Path.GetExtension(path);
                 if (ImageExtensions.Contains(ext) || ext.Equals(".lrc", StringComparison.OrdinalIgnoreCase))
                 {
@@ -223,12 +250,13 @@ public static partial class OnlineLibrary
         }
         _byPath = byPath;
         _extrasByDir = extras;
+        _childDirs = childDirs;
     }
 
     /// <summary>Canciones de una carpeta en línea (rutas en la biblioteca), para el escaneo de la biblioteca.</summary>
     public static IEnumerable<string> AudioFiles(string root, ISet<string> audioExtensions)
     {
-        if (SourceOf(root) is not { } s || IndexOf(s) is not { } index) return Array.Empty<string>();
+        if (SourceOf(root) is not { Enabled: true } s || IndexOf(s) is not { } index) return Array.Empty<string>();
         return index.Files.Where(f => audioExtensions.Contains(System.IO.Path.GetExtension(f.Path)))
             .Select(f => System.IO.Path.Combine(root, f.Path)).ToList();
     }
@@ -244,16 +272,81 @@ public static partial class OnlineLibrary
             _indexes[s.Id] = index;
             Rebuild();
         }
+        SaveIndex(s.Id, index);
+        return changed;
+    }
+
+    private static void SaveIndex(string id, OnlineIndex index)
+    {
         try
         {
             Directory.CreateDirectory(BaseDir);
-            File.WriteAllText(IndexFile(s.Id), JsonSerializer.Serialize(index));
+            File.WriteAllText(IndexFile(id), JsonSerializer.Serialize(index));
         }
         catch
         {
             // sin índice guardado: se volverá a leer al abrir
         }
-        return changed;
+    }
+
+    /// <summary>
+    /// Un índice guardado antes de que hubiera comprobación rápida (sale de un listado completo): se le pone el punto de
+    /// partida de ahora en vez de volver a recorrerlo todo. Si el listado completo nunca llegaba a terminar (Echoplex se
+    /// cerraba antes), sin esto cada arranque volvía a empezar de cero.
+    /// </summary>
+    private static async Task<bool> AdoptDeltaAsync(OnlineSource s, OnlineIndex index, CancellationToken ct)
+    {
+        try
+        {
+            var root = await OneDriveJsonAsync($"{OneDrive.Api}/shares/{OneDrive.ShareId(s.Url)}/driveitem?$select=id,parentReference", ct, root: true);
+            if (root.GetProperty("parentReference").GetProperty("driveId").GetString() is not { } drive
+                || root.GetProperty("id").GetString() is not { } id
+                || await LatestDeltaAsync(drive, id, ct) is not { } latest)
+                return false;
+            index.Delta = latest;
+            SaveIndex(s.Id, index);
+            RemoteFile.Trace?.Invoke($"OneDrive «{s.Name}»: desde ahora los cambios se comprueban en una sola petición");
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// ¿Seguro que no ha cambiado nada desde el último listado? OneDrive lo dice en una sola petición (en vez de volver a
+    /// recorrer cientos de carpetas al abrir Echoplex); de las demás no se sabe sin listarlas, así que da false.
+    /// </summary>
+    public static async Task<bool> UnchangedAsync(OnlineSource s, CancellationToken ct = default)
+    {
+        if (!OneDrive.IsLink(s.Url) || IndexOf(s) is not { } index) return false;
+        if (index.Delta is not { } link) return await AdoptDeltaAsync(s, index, ct);
+        try
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            int changes = 0;
+            string? next = link, latest = null;
+            for (int page = 0; next != null && changes == 0 && page < 50; page++)
+            {
+                var json = await OneDriveJsonAsync(next, ct, root: false);
+                changes += json.GetProperty("value").GetArrayLength();
+                if (json.TryGetProperty("@odata.deltaLink", out var d)) latest = d.GetString();
+                next = json.TryGetProperty("@odata.nextLink", out var n) ? n.GetString() : null;
+            }
+            RemoteFile.Trace?.Invoke(changes == 0
+                ? $"OneDrive «{s.Name}»: sin cambios (comprobado en {clock.ElapsedMilliseconds} ms)"
+                : $"OneDrive «{s.Name}»: hay cambios, se vuelve a listar");
+            if (changes > 0 || latest == null) return false;
+            index.Delta = latest;
+            SaveIndex(s.Id, index);
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RemoteFile.Trace?.Invoke($"OneDrive «{s.Name}»: no se pudo preguntar por los cambios ({ex.Message}), se vuelve a listar");
+            return false;
+        }
     }
 
     public static void Forget(OnlineSource s)
@@ -266,6 +359,7 @@ public static partial class OnlineLibrary
             Rebuild();
         }
         try { File.Delete(IndexFile(s.Id)); } catch { }
+        ForgetCovers(s);
     }
 
     public static void Add(OnlineSource s)

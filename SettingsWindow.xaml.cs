@@ -51,7 +51,32 @@ public sealed partial class ThemeGroup : ObservableObject
     }
 }
 
-/// <summary>Ajustes: tema, animaciones, carpetas de música y poco más (lo rápido está en el menú de arriba).</summary>
+/// <summary>Una sección de Ajustes (o un apartado de una sección) en la barra lateral.</summary>
+public sealed partial class SettingsNavItem : ObservableObject
+{
+    public SettingsNavItem(string title, object? icon, FrameworkElement anchor, SettingsNavItem? parent = null)
+    {
+        Title = title;
+        Icon = icon;
+        Anchor = anchor;
+        Parent = parent;
+    }
+
+    public string Title { get; }
+    /// <summary>Glifo de la fuente de iconos o un elemento (el micro de las letras, el logo de Discord); los apartados no llevan.</summary>
+    public object? Icon { get; }
+    /// <summary>Hasta dónde se desplaza Ajustes al elegirlo: el título de la sección o del apartado.</summary>
+    public FrameworkElement Anchor { get; }
+    public SettingsNavItem? Parent { get; }
+    public List<SettingsNavItem> Children { get; } = new();
+    /// <summary>Es donde estás: la sección resaltada y, dentro, su apartado.</summary>
+    [ObservableProperty] private bool _isActive;
+}
+
+/// <summary>
+/// Ajustes: a la izquierda las secciones y sus apartados (marcan dónde estás y llevan a cada sitio); a la derecha todo
+/// seguido, en tarjetas, para poder recorrerlo también con la rueda.
+/// </summary>
 public partial class SettingsWindow : Window
 {
     private readonly MainViewModel _vm;
@@ -77,7 +102,9 @@ public partial class SettingsWindow : Window
         var v = UpdateService.CurrentVersion;
         ReleaseNotesToggle.Content = $"Ver cambios de la versión {v.Major}.{v.Minor}.{v.Build}";
         if (ReleaseNotesView.Current() is { } notes) ReleaseNotesBox.Child = ReleaseNotesView.Render(notes);
-        else ReleaseNotesToggle.Visibility = Visibility.Collapsed;
+        else SubReleaseNotes.Visibility = ReleaseNotesGroup.Visibility = Visibility.Collapsed;
+        FitToScreen();
+        BuildNav();
         AnimationsBox.IsChecked = vm.AnimationsOn;
         (vm.DiscordShow switch
         {
@@ -112,6 +139,164 @@ public partial class SettingsWindow : Window
             AnimateIn();
         };
     }
+
+    // ======================================================================
+    // Barra lateral: secciones, apartados y dónde estás
+    // ======================================================================
+
+    private readonly List<SettingsNavItem> _nav = new();
+    // todas las secciones y apartados en el orden en que salen (para saber cuál se está viendo)
+    private readonly List<SettingsNavItem> _navFlat = new();
+
+    /// <summary>Que quepa en la pantalla (en portátiles pequeños, más baja y estrecha).</summary>
+    private void FitToScreen()
+    {
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(Width, Math.Max(760, area.Width - 40));
+        Height = Math.Min(Height, Math.Max(520, area.Height - 30));
+    }
+
+    private void BuildNav()
+    {
+        SettingsNavItem Section(string title, object icon, FrameworkElement anchor, params (string title, FrameworkElement anchor)[] subs)
+        {
+            var section = new SettingsNavItem(title, icon, anchor);
+            foreach (var (t, a) in subs)
+                if (a.Visibility == Visibility.Visible) section.Children.Add(new SettingsNavItem(t, null, a, section));
+            _nav.Add(section);
+            _navFlat.Add(section);
+            _navFlat.AddRange(section.Children);
+            return section;
+        }
+
+        Section("Apariencia", "", SecAppearance, ("Temas de Echoplex", SubThemes), ("Más temas", SubMoreThemes), ("Animaciones", SubAnimations));
+        Section("Biblioteca", "", SecLibrary, ("Carpetas de música", SubFolders), ("Carpetas en línea", SubOnline),
+            ("Títulos de las canciones", SubTitles), ("Columnas de las listas", SubColumns));
+        Section("Sonido", "", SecSound, ("Ecualizador", SubEq));
+        Section("Letras", NavIcon("SingMicIcon", 16, 1.3), SecLyrics, ("Letras en internet", SubOnlineLyrics));
+        Section("Discord", NavIcon("DiscordIcon", 17, 1.2), SecDiscord, ("Estado en Discord", SubDiscordStatus),
+            ("En la lista de miembros", SubDiscordList), ("Carátulas", SubDiscordCovers));
+        Section("General", "", SecGeneral, ("Al pulsar la X", SubCloseAction), ("Accesos", SubShortcuts));
+        Section("Actualizaciones", "", SecUpdates, ("Versión", SubVersion), ("Novedades", SubReleaseNotes));
+        NavList.ItemsSource = _nav;
+
+        ContentScroll.PreviewMouseWheel += (s, e) => StopScrollAnimation(); // la rueda manda: se corta el desplazamiento animado
+        ContentScroll.PreviewMouseDown += (s, e) => StopScrollAnimation();
+        ContentScroll.SizeChanged += (s, e) => UpdateBottomSpacer();
+        ContentPanel.SizeChanged += (s, e) => UpdateBottomSpacer();
+        Loaded += (s, e) =>
+        {
+            SetActive(_navFlat[0]);
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, UpdateBottomSpacer);
+        };
+    }
+
+    /// <summary>Un icono de trazo (el micro de las letras, el logo de Discord) del mismo color que el texto de su botón.</summary>
+    private System.Windows.Shapes.Path NavIcon(string style, double size, double stroke)
+    {
+        var path = new System.Windows.Shapes.Path { Style = (Style)FindResource(style), Width = size, Height = size, StrokeThickness = stroke };
+        path.SetBinding(System.Windows.Shapes.Shape.StrokeProperty, new System.Windows.Data.Binding(nameof(Foreground))
+        {
+            RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.FindAncestor, typeof(System.Windows.Controls.ContentControl), 1),
+        });
+        return path;
+    }
+
+    private SettingsNavItem? _active;
+
+    private void SetActive(SettingsNavItem item)
+    {
+        if (item == _active) return;
+        _active = item;
+        foreach (var n in _navFlat) n.IsActive = n == item || n == item.Parent;
+        Breadcrumb.Text = item.Parent is { } parent ? $"{parent.Title}  ›  {item.Title}" : item.Title;
+    }
+
+    /// <summary>Dónde está cada sección o apartado, medido desde arriba del contenido.</summary>
+    private double TopOf(FrameworkElement anchor) => anchor.TranslatePoint(new Point(0, 0), ContentPanel).Y + ContentPanel.Margin.Top;
+
+    private void Nav_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not SettingsNavItem item) return;
+        SetActive(item);
+        double target = Math.Clamp(TopOf(item.Anchor) - 14, 0, ContentScroll.ScrollableHeight);
+        _pinned = item;
+        ScrollContentTo(target);
+    }
+
+    // lo elegido en la barra lateral se queda marcado mientras no te muevas de ahí (al final del todo, por ejemplo,
+    // el último apartado no llega arriba y se marcaría el anterior)
+    private SettingsNavItem? _pinned;
+    private double _pinnedOffset = double.NaN;
+
+    private void ContentScroll_ScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+    {
+        if (_scrolling || _navFlat.Count == 0) return;
+        if (_pinned != null && Math.Abs(ContentScroll.VerticalOffset - _pinnedOffset) < 1) return;
+        _pinned = null;
+        // la sección o el apartado cuyo título ya ha pasado por arriba (con un poco de margen)
+        double line = ContentScroll.VerticalOffset + 60;
+        var current = _navFlat[0];
+        foreach (var n in _navFlat)
+        {
+            if (n.Anchor.Visibility != Visibility.Visible) continue;
+            if (TopOf(n.Anchor) <= line) current = n;
+            else break;
+        }
+        SetActive(current);
+    }
+
+    /// <summary>Hueco al final para que la última sección también pueda quedar arriba del todo.</summary>
+    private void UpdateBottomSpacer()
+    {
+        if (ContentPanel.ActualHeight <= 0 || ContentScroll.ViewportHeight <= 0) return;
+        double tail = ContentPanel.ActualHeight - BottomSpacer.Height - (TopOf(SecUpdates) - ContentPanel.Margin.Top);
+        double want = Math.Max(0, ContentScroll.ViewportHeight - tail - 4);
+        if (Math.Abs(want - BottomSpacer.Height) > 1) BottomSpacer.Height = want;
+    }
+
+    // ---------- desplazamiento suave ----------
+
+    private static readonly DependencyProperty ScrollOffsetProperty = DependencyProperty.Register(
+        "ScrollOffset", typeof(double), typeof(SettingsWindow),
+        new PropertyMetadata(0.0, (d, e) => ((SettingsWindow)d).ContentScroll.ScrollToVerticalOffset((double)e.NewValue)));
+
+    private bool _scrolling;
+
+    private void ScrollContentTo(double target)
+    {
+        StopScrollAnimation();
+        if (!Animated || Math.Abs(target - ContentScroll.VerticalOffset) < 2)
+        {
+            ContentScroll.ScrollToVerticalOffset(target);
+            _pinnedOffset = target;
+            return;
+        }
+        _scrolling = true;
+        double distance = Math.Abs(target - ContentScroll.VerticalOffset);
+        var anim = new DoubleAnimation(ContentScroll.VerticalOffset, target, TimeSpan.FromMilliseconds(Math.Clamp(180 + distance / 8, 220, 420)))
+        {
+            EasingFunction = EaseOut,
+        };
+        anim.Completed += (s, e) =>
+        {
+            if (!_scrolling) return;
+            _scrolling = false;
+            _pinnedOffset = ContentScroll.VerticalOffset;
+        };
+        BeginAnimation(ScrollOffsetProperty, anim);
+    }
+
+    private void StopScrollAnimation()
+    {
+        if (!_scrolling) return;
+        _scrolling = false;
+        BeginAnimation(ScrollOffsetProperty, null);
+        _pinned = null;
+    }
+
+    /// <summary>«Powered by Reyes-gh»: su página de GitHub.</summary>
+    private void Brand_Click(object sender, RoutedEventArgs e) => OpenUrl("https://github.com/Reyes-gh");
 
     // ======================================================================
     // Entrada y salida animadas
@@ -525,6 +710,13 @@ public partial class SettingsWindow : Window
         if (error != null) DialogWindow.Info(this, "No se pudo añadir la carpeta en línea", error);
     }
 
+    /// <summary>El interruptor de una carpeta en línea: conectarla o desconectarla.</summary>
+    private async void OnlineEnabled_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.CheckBox { DataContext: OnlineFolderItem item } box)
+            await _vm.SetOnlineConnectedAsync(item.Id, box.IsChecked == true);
+    }
+
     private async void RemoveOnline_Click(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is OnlineFolderItem item) await _vm.RemoveOnlineFolderAsync(item.Id);
@@ -535,7 +727,7 @@ public partial class SettingsWindow : Window
         if ((sender as FrameworkElement)?.DataContext is OnlineFolderItem item) OpenUrl(item.Url);
     }
 
-    private async void RefreshOnline_Click(object sender, RoutedEventArgs e) => await _vm.RefreshOnlineFoldersAsync(announce: true);
+    private async void RefreshOnline_Click(object sender, RoutedEventArgs e) => await _vm.RefreshOnlineFoldersAsync(announce: true, full: true);
 
     private static void OpenUrl(string url)
     {

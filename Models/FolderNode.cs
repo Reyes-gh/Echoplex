@@ -22,6 +22,9 @@ public sealed partial class FolderNode : ObservableObject
     public bool IsRoot => Parent == null;
     /// <summary>Raíz de una carpeta en línea (Drive, OneDrive, web…): lleva el icono del mundo en vez de la nota.</summary>
     public bool IsOnline => IsRoot && Services.OnlineLibrary.IsOnlineRoot(Path);
+
+    /// <summary>Carpeta en línea desconectada: sale atenuada, con el mundo tachado y sin canciones.</summary>
+    [ObservableProperty] private bool _isDisconnected;
     public ObservableCollection<FolderNode> Children { get; } = new();
 
     /// <summary>Miniatura: la primera imagen que haya dentro de la carpeta (o de sus subcarpetas).</summary>

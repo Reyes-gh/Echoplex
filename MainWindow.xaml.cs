@@ -223,6 +223,12 @@ public partial class MainWindow : Window
     }
 
     /// <summary>El recuadro con "+" de una página sin carátula.</summary>
+    /// <summary>El mundo al lado del nombre de una carpeta en línea: la conecta o la desconecta.</summary>
+    private async void PageConnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.CurrentPage is SongListPage { OnlineId: { } id } page) await _vm.SetOnlineConnectedAsync(id, !page.IsConnected);
+    }
+
     private void PageAddCover_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.CurrentPage is SongListPage { CoverFolder: { } folder }) PickCustomCover(folder);

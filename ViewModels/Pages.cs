@@ -138,6 +138,14 @@ public sealed partial class SongListPage : PageBase
     public string? Description { get; init; }
     public string? FolderPath { get; init; }
 
+    /// <summary>Raíz de una carpeta en línea: el id de su fuente (al lado del nombre va el mundo para conectarla o desconectarla).</summary>
+    public string? OnlineId { get; init; }
+    public bool IsOnlineRoot => OnlineId != null;
+    public bool IsConnected { get; init; } = true;
+    public string ConnectTip => IsConnected
+        ? "Conectada: pulsa para desconectarla (sigue en el panel lateral, pero no se ve ni suena nada de aquí)"
+        : "Desconectada: pulsa para conectarla";
+
     /// <summary>Carpeta a la que pertenece la carátula de la cabecera (carpeta o álbum): se le puede poner una a mano.</summary>
     public string? CoverFolder { get; init; }
     public bool CanSetCover => CoverFolder != null;
@@ -323,11 +331,12 @@ public sealed partial class SongListPage : PageBase
         props.Add(new PropertyItem("", "Canciones", count == 1 ? "1 canción" : $"{count:N0} canciones"));
 
         long ticks = 0;
-        int unknown = 0, cloud = 0;
+        int unknown = 0, cloud = 0, online = 0;
         foreach (var s in all)
         {
             if (s.Duration is { } d) ticks += d.Ticks; else unknown++;
             if (s.IsCloud) cloud++;
+            else if (Services.OnlineLibrary.IsOnline(s.Path)) online++;
         }
         if (ticks > 0)
         {
@@ -337,11 +346,18 @@ public sealed partial class SongListPage : PageBase
         }
         if (count > 0 && Kind != ListKind.History)
         {
-            var local = count - cloud;
-            var text = cloud == 0 ? "Todo en este dispositivo"
-                : local == 0 ? "Todo en OneDrive (se descarga al reproducir)"
-                : $"{local:N0} en el dispositivo · {cloud:N0} en OneDrive";
-            props.Add(new PropertyItem(cloud == 0 ? "" : "", "Disponibilidad", text));
+            var local = count - cloud - online;
+            // las de carpetas en línea no están en el dispositivo: suenan desde la nube sin descargarse
+            var text = online == count ? "En línea: suena desde la nube, sin descargarse"
+                : cloud == 0 && online == 0 ? "Todo en este dispositivo"
+                : local == 0 && online == 0 ? "Todo en OneDrive (se descarga al reproducir)"
+                : string.Join(" · ", new[]
+                {
+                    local > 0 ? $"{local:N0} en el dispositivo" : null,
+                    cloud > 0 ? $"{cloud:N0} en OneDrive" : null,
+                    online > 0 ? $"{online:N0} en línea" : null,
+                }.Where(x => x != null));
+            props.Add(new PropertyItem(local == count ? "" : "", "Disponibilidad", text));
         }
         // se llama a menudo mientras se leen metadatos: si nada cambió, no se rehacen las filas de la cabecera
         if (props.SequenceEqual(Properties)) return;

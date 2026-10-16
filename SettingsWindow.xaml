@@ -4,24 +4,24 @@
         xmlns:local="clr-namespace:Echoplex"
         xmlns:vm="clr-namespace:Echoplex.ViewModels"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
-        SizeToContent="Height" Width="720" MaxHeight="880" FontSize="14" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Width="1040" Height="820" FontSize="14" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}" KeyDown="Window_KeyDown">
     <Window.Resources>
         <!-- cabecera de sección: icono en el color de acento (Tag: un glifo o un elemento) y el título grande y a todo contraste -->
         <Style x:Key="SectionHeader" TargetType="ContentControl">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="IsTabStop" Value="False" />
-            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
                         <StackPanel Orientation="Horizontal">
-                            <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource AccentSoftBrush}">
+                            <Border Width="38" Height="38" CornerRadius="10" Background="{DynamicResource AccentSoftBrush}">
                                 <ContentPresenter Content="{TemplateBinding Tag}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  TextElement.FontFamily="{StaticResource IconFont}" TextElement.FontSize="16"
+                                                  TextElement.FontFamily="{StaticResource IconFont}" TextElement.FontSize="18"
                                                   TextElement.Foreground="{DynamicResource AccentBrush}" />
                             </Border>
-                            <ContentPresenter Margin="12,0,0,0" VerticalAlignment="Center" TextElement.FontSize="18"
+                            <ContentPresenter Margin="14,0,0,0" VerticalAlignment="Center" TextElement.FontSize="24"
                                               TextElement.FontWeight="SemiBold" TextElement.Foreground="{DynamicResource TextBrush}" />
                         </StackPanel>
                     </ControlTemplate>
@@ -29,13 +29,174 @@
             </Setter>
         </Style>
 
-        <!-- línea que separa una sección de la anterior -->
-        <Style x:Key="SectionRule" TargetType="Border">
+        <!-- la frase que explica de qué va la sección, bajo su título -->
+        <Style x:Key="SectionLead" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="52,0,0,18" />
+        </Style>
+
+        <!-- espacio entre una sección y la siguiente -->
+        <Style x:Key="SectionGap" TargetType="Border">
             <Setter Property="Height" Value="1" />
             <Setter Property="Background" Value="{DynamicResource CardBorderBrush}" />
-            <Setter Property="Margin" Value="0,30,0,26" />
+            <Setter Property="Margin" Value="0,18,0,30" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
+
+        <!-- título de un apartado dentro de una sección (lo que sale debajo de la sección en la barra lateral) -->
+        <Style x:Key="SubHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Margin" Value="2,0,0,8" />
+        </Style>
+
+        <!-- la tarjeta de cada apartado: agrupa sus opciones para que se vea qué va con qué -->
+        <Style x:Key="Group" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CalloutBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="20,16,20,18" />
+            <Setter Property="Margin" Value="0,0,0,22" />
+        </Style>
+
+        <!-- explicación bajo una opción -->
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+
+        <!-- línea fina entre dos opciones de la misma tarjeta -->
+        <Style x:Key="GroupRule" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="Margin" Value="0,16" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <!-- con su interruptor principal apagado, las opciones de debajo se ven atenuadas -->
+        <Style x:Key="DimWhenDisabled" TargetType="FrameworkElement">
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ===== barra lateral: una sección (icono y nombre) y debajo sus apartados ===== -->
+        <Style x:Key="NavSection" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="8" />
+                            <!-- la marca de la sección en la que estás -->
+                            <Border x:Name="Bar" Width="3" Height="18" CornerRadius="1.5" HorizontalAlignment="Left"
+                                    Background="{DynamicResource AccentBrush}" Visibility="Collapsed" />
+                            <ContentPresenter Margin="12,0,10,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="{StaticResource True}">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectedBrush}" />
+                                <Setter TargetName="Bar" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavSub" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid Background="Transparent">
+                            <!-- la guía vertical que une los apartados de una sección; se ilumina en el apartado en el que estás -->
+                            <Border x:Name="Guide" Width="2" HorizontalAlignment="Left" Margin="21,0,0,0" Background="{DynamicResource CardBorderBrush}" />
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Margin="30,1,0,1" />
+                            <ContentPresenter Margin="42,0,8,0" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Text2Brush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="{StaticResource True}">
+                                <Setter TargetName="Guide" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- «Powered by» arriba a la derecha: lleva a GitHub -->
+        <Style x:Key="BrandButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{DynamicResource HoverBrush}" CornerRadius="8" Padding="12,5,13,5">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ImageBrush x:Key="ReyesMask" ImageSource="pack://application:,,,/Echoplex;component/Assets/reyes-mark.png" Stretch="Uniform" />
+
+        <!-- un elemento de la barra lateral: la sección y, debajo, sus apartados -->
+        <DataTemplate x:Key="NavTemplate" DataType="{x:Type local:SettingsNavItem}">
+            <StackPanel Margin="0,0,0,4">
+                <Button Style="{StaticResource NavSection}" Tag="{Binding IsActive}" Click="Nav_Click">
+                    <DockPanel>
+                        <ContentControl Width="22" Content="{Binding Icon}" Focusable="False" IsTabStop="False" Margin="0,0,10,0"
+                                        HorizontalContentAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource IconFont}"
+                                        FontSize="16" FontWeight="Normal" />
+                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                </Button>
+                <ItemsControl ItemsSource="{Binding Children}" Margin="0,1,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:SettingsNavItem}">
+                            <Button Style="{StaticResource NavSub}" Tag="{Binding IsActive}" Click="Nav_Click">
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
 
         <!-- desplegable con flecha (Claros, Oscuros, Ver cambios de la versión); Tag: texto secundario al lado, como el número de temas -->
         <Style x:Key="DisclosureToggle" TargetType="ToggleButton">
@@ -299,373 +460,496 @@
                 <TranslateTransform x:Name="CardShift" />
             </TransformGroup>
         </Grid.RenderTransform>
-        <Border CornerRadius="10" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+        <Border CornerRadius="12" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
         <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
-                CornerRadius="10" RenderOptions.ClearTypeHint="Enabled">
-        <DockPanel>
-            <DockPanel DockPanel.Dock="Top" Margin="24,18,14,0" MouseLeftButtonDown="Header_MouseDown" Background="Transparent">
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="Close_Click" ToolTip="Cerrar (Esc)" />
-                <TextBlock Text="Ajustes" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
-            </DockPanel>
+                CornerRadius="12" RenderOptions.ClearTypeHint="Enabled">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="248" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-                <StackPanel Margin="24,0,24,22">
-                    <!-- ===== Apariencia ===== -->
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Tema" Tag="&#xE790;" Margin="0,20,0,14" />
-                    <ItemsControl x:Name="ThemeList" ItemTemplate="{StaticResource ThemeCard}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
+            <!-- ===== barra lateral: secciones y apartados; marca dónde estás y lleva a cada sitio ===== -->
+            <Border Background="{DynamicResource SidebarBrush}" CornerRadius="11,0,0,11" BorderBrush="{DynamicResource CardBorderBrush}"
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="22,20,16,14" Background="Transparent"
+                                MouseLeftButtonDown="Header_MouseDown">
+                        <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFont}" FontSize="20" Foreground="{DynamicResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,1,12,0" />
+                        <TextBlock Text="Ajustes" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding VersionText}" FontSize="12" Foreground="{DynamicResource Text3Brush}"
+                               Margin="24,8,16,14" TextTrimming="CharacterEllipsis" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <ItemsControl x:Name="NavList" ItemTemplate="{StaticResource NavTemplate}" Margin="12,0,12,8" Focusable="False" />
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <DockPanel Grid.Column="1">
+                <!-- arriba: dónde estás, la firma y cerrar (se arrastra la ventana desde aquí) -->
+                <DockPanel DockPanel.Dock="Top" Margin="36,16,14,6" Height="40" Background="Transparent" MouseLeftButtonDown="Header_MouseDown">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="Close_Click"
+                            ToolTip="Cerrar (Esc)" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource BrandButton}" Click="Brand_Click" VerticalAlignment="Center"
+                            ToolTip="github.com/Reyes-gh">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Powered by" FontSize="12.5" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center" />
+                            <Rectangle Width="16" Height="22" Margin="9,0,7,0" VerticalAlignment="Center" Fill="{DynamicResource TextBrush}"
+                                       OpacityMask="{StaticResource ReyesMask}" RenderOptions.BitmapScalingMode="HighQuality" />
+                            <TextBlock Text="Reyes-gh" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock x:Name="Breadcrumb" VerticalAlignment="Center" FontSize="13" Foreground="{DynamicResource Text3Brush}"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
+                              ScrollChanged="ContentScroll_ScrollChanged">
+                    <StackPanel x:Name="ContentPanel" Margin="36,14,36,0">
+
+                    <!-- ================= Apariencia ================= -->
+                    <ContentControl x:Name="SecAppearance" Style="{StaticResource SectionHeader}" Content="Apariencia" Tag="&#xE790;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Los colores de Echoplex y cómo se mueve." />
+
+                    <TextBlock x:Name="SubThemes" Style="{StaticResource SubHeader}" Text="Temas de Echoplex" />
+                    <Border Style="{StaticResource Group}" Padding="20,18,10,8">
+                        <ItemsControl x:Name="ThemeList" ItemTemplate="{StaticResource ThemeCard}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </Border>
 
                     <!-- Más temas: desplegable con el resto, en Claros y Oscuros y por familias (que también se pliegan) -->
-                    <ToggleButton x:Name="MoreThemesToggle" Style="{StaticResource DisclosureToggle}" Content="Más temas" Margin="0,2,0,0" />
-                    <ItemsControl x:Name="ThemeCategories" Margin="12,4,0,0"
-                                  Visibility="{Binding IsChecked, ElementName=MoreThemesToggle, Converter={StaticResource BoolVis}}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type local:ThemeGroup}">
-                                <StackPanel Margin="0,0,0,2">
-                                    <ToggleButton Style="{StaticResource DisclosureToggle}" IsChecked="{Binding IsOpen}" Tag="{Binding Summary}" FontSize="15">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="15" FontWeight="Normal"
-                                                       Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </ToggleButton>
-                                    <ItemsControl ItemsSource="{Binding Groups}" Margin="20,2,0,6"
-                                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type local:ThemeGroup}">
-                                                <StackPanel>
-                                                    <ToggleButton Style="{StaticResource FamilyToggle}" Content="{Binding Name}" IsChecked="{Binding IsOpen}"
-                                                                  Tag="{Binding Summary}" />
-                                                    <ItemsControl ItemsSource="{Binding Themes}" ItemTemplate="{StaticResource ThemeCard}" Margin="8,6,0,4"
-                                                                  Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                    </ItemsControl>
+                    <TextBlock x:Name="SubMoreThemes" Style="{StaticResource SubHeader}" Text="Más temas" />
+                    <Border Style="{StaticResource Group}" Padding="12,10,10,10">
+                        <StackPanel>
+                            <ToggleButton x:Name="MoreThemesToggle" Style="{StaticResource DisclosureToggle}" Content="Ver todos los temas" />
+                            <ItemsControl x:Name="ThemeCategories" Margin="12,4,0,0"
+                                          Visibility="{Binding IsChecked, ElementName=MoreThemesToggle, Converter={StaticResource BoolVis}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ThemeGroup}">
+                                        <StackPanel Margin="0,0,0,2">
+                                            <ToggleButton Style="{StaticResource DisclosureToggle}" IsChecked="{Binding IsOpen}" Tag="{Binding Summary}" FontSize="15">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="15" FontWeight="Normal"
+                                                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
                                                 </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                            </ToggleButton>
+                                            <ItemsControl ItemsSource="{Binding Groups}" Margin="20,2,0,6"
+                                                          Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type local:ThemeGroup}">
+                                                        <StackPanel>
+                                                            <ToggleButton Style="{StaticResource FamilyToggle}" Content="{Binding Name}" IsChecked="{Binding IsOpen}"
+                                                                          Tag="{Binding Summary}" />
+                                                            <ItemsControl ItemsSource="{Binding Themes}" ItemTemplate="{StaticResource ThemeCard}" Margin="8,6,0,4"
+                                                                          Visibility="{Binding IsOpen, Converter={StaticResource BoolVis}}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
-                    <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Content="Animaciones (Ctrl+E)" Margin="0,12,0,0"
-                              Click="Animations_Click" />
+                    <TextBlock x:Name="SubAnimations" Style="{StaticResource SubHeader}" Text="Animaciones" />
+                    <Border Style="{StaticResource Group}">
+                        <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Click="Animations_Click">
+                            <StackPanel>
+                                <TextBlock Text="Animaciones (Ctrl+E)" />
+                                <TextBlock Style="{StaticResource Hint}" Text="Transiciones entre páginas, luces de la pantalla completa y fundidos. Apágalas si prefieres que todo cambie al instante." />
+                            </StackPanel>
+                        </CheckBox>
+                    </Border>
 
-                    <!-- ===== Biblioteca ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Carpetas de música" Tag="&#xE8B7;" />
-                    <TextBlock Text="Cada carpeta aparece como un bloque propio en el panel lateral. Quitar una carpeta no borra nada del disco."
-                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                    <ItemsControl x:Name="FolderList" ItemTemplate="{StaticResource FolderRow}" Margin="-10,0,-10,0" />
-                    <TextBlock x:Name="NoFolders" Text="Aún no has añadido ninguna carpeta." FontSize="15" Foreground="{DynamicResource Text3Brush}"
-                               Margin="0,4,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Añadir carpeta…" Click="AddFolder_Click" />
-                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Volver a escanear" Click="Rescan_Click" Margin="8,0,0,0" />
-                    </StackPanel>
+                    <!-- ================= Biblioteca ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecLibrary" Style="{StaticResource SectionHeader}" Content="Biblioteca" Tag="&#xE8F1;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Qué música ve Echoplex y cómo te la enseña." />
+
+                    <TextBlock x:Name="SubFolders" Style="{StaticResource SubHeader}" Text="Carpetas de música" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                       Text="Cada carpeta aparece como un bloque propio en el panel lateral. Quitar una carpeta no borra nada del disco." />
+                            <ItemsControl x:Name="FolderList" ItemTemplate="{StaticResource FolderRow}" Margin="-10,0,-10,0" />
+                            <TextBlock x:Name="NoFolders" Text="Aún no has añadido ninguna carpeta." FontSize="15" Foreground="{DynamicResource Text3Brush}"
+                                       Margin="0,4,0,0" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Style="{StaticResource PrimaryButton}" FontSize="15" Content="Añadir carpeta…" Click="AddFolder_Click" />
+                                <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Volver a escanear" Click="Rescan_Click" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
                     <!-- carpetas en línea: se escuchan desde la nube, sin copiar nada al PC -->
-                    <StackPanel Orientation="Horizontal" Margin="0,24,0,4">
-                        <TextBlock Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource AccentBrush}"
-                                   VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBlock Text="Carpetas en línea" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,8"
-                               Text="Pega la dirección de una carpeta compartida de Google Drive u OneDrive («Cualquier persona con el enlace»), del listado de carpetas de un servidor web o de un archivo de audio, y ponle el nombre que quieras: saldrá así en el panel lateral. Las canciones se escuchan directamente desde la nube; no se copia nada a tu PC." />
-                    <ItemsControl x:Name="OnlineList" Margin="-10,0,-10,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type vm:OnlineFolderItem}">
-                                <Border x:Name="Bd" CornerRadius="6" Padding="10,8" Background="Transparent">
-                                    <DockPanel>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="13" Click="OpenOnline_Click"
-                                                    ToolTip="Abrir en el navegador" />
-                                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="RemoveOnline_Click"
-                                                    ToolTip="Quitar de la biblioteca (en la nube no se borra nada)" Margin="2,0,0,0" />
-                                        </StackPanel>
-                                        <Grid DockPanel.Dock="Left" Width="20" Height="20" Margin="0,0,12,0" VerticalAlignment="Center">
-                                            <TextBlock x:Name="Globe" Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="18"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Text2Brush}" />
-                                            <!-- cargando: un arco que gira -->
-                                            <Path x:Name="Spinner" Visibility="Collapsed" Width="18" Height="18" Stretch="None" RenderTransformOrigin="0.5,0.5"
-                                                  Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                                  Data="M 9,1.5 A 7.5,7.5 0 1 1 1.5,9">
-                                                <Path.RenderTransform>
-                                                    <RotateTransform x:Name="SpinnerTurn" />
-                                                </Path.RenderTransform>
-                                            </Path>
-                                        </Grid>
-                                        <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock FontSize="14" Foreground="{DynamicResource Text2Brush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Url}">
-                                                <Run Text="{Binding Detail, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Url, Mode=OneWay}" />
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </DockPanel>
-                                </Border>
-                                <DataTemplate.Triggers>
-                                    <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
-                                    </Trigger>
-                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                                        <Setter TargetName="Globe" Property="Visibility" Value="Collapsed" />
-                                        <Setter TargetName="Spinner" Property="Visibility" Value="Visible" />
-                                        <DataTrigger.EnterActions>
-                                            <BeginStoryboard x:Name="Spin">
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimation Storyboard.TargetName="SpinnerTurn" Storyboard.TargetProperty="Angle"
-                                                                     From="0" To="360" Duration="0:0:0.9" />
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </DataTrigger.EnterActions>
-                                        <DataTrigger.ExitActions>
-                                            <StopStoryboard BeginStoryboardName="Spin" />
-                                        </DataTrigger.ExitActions>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Click="AddOnline_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
-                                <TextBlock Text="Añadir carpeta en línea…" VerticalAlignment="Center" />
+                    <TextBlock x:Name="SubOnline" Style="{StaticResource SubHeader}" Text="Carpetas en línea" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                       Text="Pega la dirección de una carpeta compartida de Google Drive u OneDrive («Cualquier persona con el enlace»), del listado de carpetas de un servidor web o de un archivo de audio, y ponle el nombre que quieras: saldrá así en el panel lateral. Las canciones se escuchan directamente desde la nube; no se copia nada a tu PC." />
+                            <ItemsControl x:Name="OnlineList" Margin="-10,0,-10,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:OnlineFolderItem}">
+                                        <Border x:Name="Bd" CornerRadius="6" Padding="10,8" Background="Transparent">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- conectada o desconectada (también con el mundo de su página) -->
+                                                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Enabled}" Click="OnlineEnabled_Click"
+                                                              VerticalAlignment="Center" Margin="0,0,10,0"
+                                                              ToolTip="Conectada: sus canciones se ven y suenan. Desconectada, sigue en el panel lateral pero no se ve ni suena nada de ella." />
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="13" Click="OpenOnline_Click"
+                                                            ToolTip="Abrir en el navegador" />
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="RemoveOnline_Click"
+                                                            ToolTip="Quitar de la biblioteca (en la nube no se borra nada)" Margin="2,0,0,0" />
+                                                </StackPanel>
+                                                <Grid DockPanel.Dock="Left" Width="20" Height="20" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="Globe" Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="18"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Text2Brush}" />
+                                                    <Path x:Name="Strike" Data="M 2,2 L 18,18" Stroke="{DynamicResource Text2Brush}" StrokeThickness="1.8"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" />
+                                                    <!-- cargando: un arco que gira -->
+                                                    <Path x:Name="Spinner" Visibility="Collapsed" Width="18" Height="18" Stretch="None" RenderTransformOrigin="0.5,0.5"
+                                                          Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                          Data="M 9,1.5 A 7.5,7.5 0 1 1 1.5,9">
+                                                        <Path.RenderTransform>
+                                                            <RotateTransform x:Name="SpinnerTurn" />
+                                                        </Path.RenderTransform>
+                                                    </Path>
+                                                </Grid>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock x:Name="OnlineName" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock FontSize="14" Foreground="{DynamicResource Text2Brush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Url}">
+                                                        <Run Text="{Binding Detail, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Url, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                <Setter TargetName="Globe" Property="Visibility" Value="Collapsed" />
+                                                <Setter TargetName="Spinner" Property="Visibility" Value="Visible" />
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="Spin">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetName="SpinnerTurn" Storyboard.TargetProperty="Angle"
+                                                                             From="0" To="360" Duration="0:0:0.9" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="Spin" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                            <!-- desconectada: el mundo tachado y el nombre apagado (sin icono de carga aunque algo siga en marcha) -->
+                                            <DataTrigger Binding="{Binding Enabled}" Value="False">
+                                                <Setter TargetName="Strike" Property="Visibility" Value="Visible" />
+                                                <Setter TargetName="Globe" Property="Visibility" Value="Visible" />
+                                                <Setter TargetName="Spinner" Property="Visibility" Value="Collapsed" />
+                                                <Setter TargetName="OnlineName" Property="Foreground" Value="{DynamicResource Text3Brush}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Style="{StaticResource SecondaryButton}" FontSize="15" Click="AddOnline_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
+                                        <TextBlock Text="Añadir carpeta en línea…" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Style="{StaticResource GhostButton}" FontSize="14" Content="Comprobar cambios" Click="RefreshOnline_Click" Margin="8,0,0,0"
+                                        VerticalAlignment="Center" ToolTip="Vuelve a mirar qué hay en cada carpeta en línea" />
                             </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource GhostButton}" FontSize="14" Content="Comprobar cambios" Click="RefreshOnline_Click" Margin="8,0,0,0"
-                                VerticalAlignment="Center" ToolTip="Vuelve a mirar qué hay en cada carpeta en línea" />
-                    </StackPanel>
-
-                    <!-- ===== Ecualizador ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Ecualizador" Tag="&#xE9E9;" />
-                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding EqEnabled}">
-                        <StackPanel>
-                            <TextBlock Text="Activar ecualizador de 15 bandas" />
-                            <TextBlock Text="Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB. Tras hacer clic dentro del ecualizador, la rueda del ratón mueve medio dB la banda que tengas debajo."
-                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
-                    </CheckBox>
-                    <TextBlock Text="Con «Bit a bit» activado el ecualizador no se aplica: la señal llega intacta a tu dispositivo."
-                               FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
-                               Visibility="{Binding Player.ExclusiveMode, Converter={StaticResource BoolVis}}" />
-                    <StackPanel x:Name="EqPanel" Margin="0,14,0,0" IsEnabled="{Binding EqEnabled}">
-                        <StackPanel.Style>
-                            <!-- apagado se ve atenuado y no responde a nada (ni clics ni rueda): solo el interruptor de arriba -->
-                            <Style TargetType="StackPanel">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding EqEnabled}" Value="False">
-                                        <Setter Property="Opacity" Value="0.55" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <WrapPanel x:Name="EqPresetChips" />
-                        <!-- la rueda solo mueve bandas tras hacer clic aquí dentro (hasta que el ratón sale): si no, desplaza Ajustes -->
-                        <Border x:Name="EqBox" Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
-                                CornerRadius="8" Padding="8,12,8,10" Margin="0,6,0,0"
-                                PreviewMouseDown="EqBox_PreviewMouseDown" MouseLeave="EqBox_MouseLeave">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <!-- línea de 0 dB y la curva que une las 15 bandas (sin el preamplificador), por debajo de los deslizadores;
-                                     se dibujan en SettingsWindow.xaml.cs con cada cambio -->
-                                <Canvas x:Name="EqCurveCanvas" Grid.ColumnSpan="3" IsHitTestVisible="False" ClipToBounds="False">
-                                    <Line x:Name="EqZeroLine" Stroke="{DynamicResource Text3Brush}" StrokeThickness="1" Opacity="0.45" />
-                                    <Path x:Name="EqCurveFill" Fill="{DynamicResource AccentBrush}" Opacity="0.12" />
-                                    <Path x:Name="EqCurve" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9"
-                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                </Canvas>
-                                <ContentControl Content="{Binding EqPreamp}" ContentTemplate="{StaticResource EqBandTemplate}" Focusable="False" />
-                                <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}" Margin="4,0,6,0" />
-                                <ItemsControl x:Name="EqBandsList" Grid.Column="2" ItemsSource="{Binding EqBands}" ItemTemplate="{StaticResource EqBandTemplate}"
-                                              HorizontalAlignment="Center">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                </ItemsControl>
-                            </Grid>
-                        </Border>
-                        <DockPanel Margin="0,8,0,0">
-                            <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Restablecer" Click="EqReset_Click"
-                                    ToolTip="Todas las bandas y el preamplificador a 0 dB" />
-                            <TextBlock Text="±12 dB por banda: arrastra o escribe el valor. Si al subir bandas algo satura, baja el preamplificador."
-                                       FontSize="12" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        </DockPanel>
-                    </StackPanel>
+                    </Border>
 
-                    <!-- ===== Títulos ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Títulos de las canciones" Tag="&#xE8D2;" />
-                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding PreferFileName}">
+                    <TextBlock x:Name="SubTitles" Style="{StaticResource SubHeader}" Text="Títulos de las canciones" />
+                    <Border Style="{StaticResource Group}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding PreferFileName}">
+                            <StackPanel>
+                                <TextBlock Text="Usar el nombre del archivo en lugar de los metadatos" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Muestra el nombre del archivo sin la extensión y ordena por él (los álbumes siguen el orden de los archivos, no el número de pista)." />
+                            </StackPanel>
+                        </CheckBox>
+                    </Border>
+
+                    <TextBlock x:Name="SubColumns" Style="{StaticResource SubHeader}" Text="Columnas de las listas" />
+                    <Border Style="{StaticResource Group}">
                         <StackPanel>
-                            <TextBlock Text="Usar el nombre del archivo en lugar de los metadatos" />
-                            <TextBlock Text="Muestra el nombre del archivo sin la extensión y ordena por él (los álbumes siguen el orden de los archivos, no el número de pista)."
-                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                       Text="Columnas de las listas de canciones, en el orden de tu tabla. Pulsa una para mostrarla u ocultarla; el orden y el ancho se cambian arrastrando la cabecera de la tabla." />
+                            <WrapPanel x:Name="ColumnSwitches" />
+                            <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Restablecer columnas" Click="ResetColumns_Click"
+                                    HorizontalAlignment="Left" Margin="0,8,0,0" ToolTip="Orden, anchos y columnas visibles de fábrica" />
                         </StackPanel>
-                    </CheckBox>
+                    </Border>
 
-                    <!-- ===== Letras ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Letras">
+                    <!-- ================= Sonido ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecSound" Style="{StaticResource SectionHeader}" Content="Sonido" Tag="&#xE9E9;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Ajusta cómo suena la música." />
+
+                    <TextBlock x:Name="SubEq" Style="{StaticResource SubHeader}" Text="Ecualizador" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding EqEnabled}">
+                                <StackPanel>
+                                    <TextBlock Text="Activar ecualizador de 15 bandas" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Cada cambio se oye al momento, sin transiciones. Doble clic en una banda la deja a 0 dB. Tras hacer clic dentro del ecualizador, la rueda del ratón mueve medio dB la banda que tengas debajo." />
+                                </StackPanel>
+                            </CheckBox>
+                            <TextBlock Text="Con «Bit a bit» activado el ecualizador no se aplica: la señal llega intacta a tu dispositivo."
+                                       FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,10,0,0"
+                                       Visibility="{Binding Player.ExclusiveMode, Converter={StaticResource BoolVis}}" />
+                            <StackPanel x:Name="EqPanel" Margin="0,16,0,0" IsEnabled="{Binding EqEnabled}">
+                                <StackPanel.Style>
+                                    <!-- apagado se ve atenuado y no responde a nada (ni clics ni rueda): solo el interruptor de arriba -->
+                                    <Style TargetType="StackPanel">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding EqEnabled}" Value="False">
+                                                <Setter Property="Opacity" Value="0.55" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <WrapPanel x:Name="EqPresetChips" />
+                                <!-- la rueda solo mueve bandas tras hacer clic aquí dentro (hasta que el ratón sale): si no, desplaza Ajustes -->
+                                <Border x:Name="EqBox" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="8,12,8,10" Margin="0,6,0,0"
+                                        PreviewMouseDown="EqBox_PreviewMouseDown" MouseLeave="EqBox_MouseLeave">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <!-- línea de 0 dB y la curva que une las 15 bandas (sin el preamplificador), por debajo de los deslizadores;
+                                             se dibujan en SettingsWindow.xaml.cs con cada cambio -->
+                                        <Canvas x:Name="EqCurveCanvas" Grid.ColumnSpan="3" IsHitTestVisible="False" ClipToBounds="False">
+                                            <Line x:Name="EqZeroLine" Stroke="{DynamicResource Text3Brush}" StrokeThickness="1" Opacity="0.45" />
+                                            <Path x:Name="EqCurveFill" Fill="{DynamicResource AccentBrush}" Opacity="0.12" />
+                                            <Path x:Name="EqCurve" Stroke="{DynamicResource AccentBrush}" StrokeThickness="2" Opacity="0.9"
+                                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        </Canvas>
+                                        <ContentControl Content="{Binding EqPreamp}" ContentTemplate="{StaticResource EqBandTemplate}" Focusable="False" />
+                                        <Border Grid.Column="1" Width="1" Background="{DynamicResource CardBorderBrush}" Margin="4,0,6,0" />
+                                        <ItemsControl x:Name="EqBandsList" Grid.Column="2" ItemsSource="{Binding EqBands}" ItemTemplate="{StaticResource EqBandTemplate}"
+                                                      HorizontalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </Grid>
+                                </Border>
+                                <DockPanel Margin="0,8,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Restablecer" Click="EqReset_Click"
+                                            ToolTip="Todas las bandas y el preamplificador a 0 dB" />
+                                    <TextBlock Text="±12 dB por banda: arrastra o escribe el valor. Si al subir bandas algo satura, baja el preamplificador."
+                                               FontSize="12" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= Letras ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecLyrics" Style="{StaticResource SectionHeader}" Content="Letras">
                         <ContentControl.Tag>
                             <!-- el mismo micro de cantar del botón de la letra -->
-                            <Path Style="{StaticResource SingMicIcon}" Width="16" Height="16" StrokeThickness="1.3" Stroke="{DynamicResource AccentBrush}" />
+                            <Path Style="{StaticResource SingMicIcon}" Width="18" Height="18" StrokeThickness="1.3" Stroke="{DynamicResource AccentBrush}" />
                         </ContentControl.Tag>
                     </ContentControl>
-                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}">
-                        <StackPanel>
-                            <TextBlock Text="Buscar letras en internet (LRCLIB)" />
-                            <TextBlock Text="Si una canción no tiene letra en un .lrc ni en sus etiquetas, se busca sincronizada en lrclib.net. Solo se envían artista, título, álbum y duración; lo encontrado se guarda en tu PC para no volver a pedirlo."
-                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                        </StackPanel>
-                    </CheckBox>
+                    <TextBlock Style="{StaticResource SectionLead}" Text="De dónde salen las letras que se ven mientras suena una canción." />
 
-                    <!-- ===== Discord ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Discord">
+                    <TextBlock x:Name="SubOnlineLyrics" Style="{StaticResource SubHeader}" Text="Letras en internet" />
+                    <Border Style="{StaticResource Group}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineLyrics}">
+                            <StackPanel>
+                                <TextBlock Text="Buscar letras en internet (LRCLIB)" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="Si una canción no tiene letra en un .lrc ni en sus etiquetas, se busca sincronizada en lrclib.net. Solo se envían artista, título, álbum y duración; lo encontrado se guarda en tu PC para no volver a pedirlo." />
+                            </StackPanel>
+                        </CheckBox>
+                    </Border>
+
+                    <!-- ================= Discord ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecDiscord" Style="{StaticResource SectionHeader}" Content="Discord">
                         <ContentControl.Tag>
                             <!-- el logo de Discord, solo el contorno y con el color de acento del tema -->
-                            <Path Style="{StaticResource DiscordIcon}" Stroke="{DynamicResource AccentBrush}" />
+                            <Path Style="{StaticResource DiscordIcon}" Width="20" Height="20" Stroke="{DynamicResource AccentBrush}" />
                         </ContentControl.Tag>
                     </ContentControl>
-                    <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordEnabled}">
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Lo que escuchas, en tu perfil de Discord." />
+
+                    <TextBlock x:Name="SubDiscordStatus" Style="{StaticResource SubHeader}" Text="Estado en Discord" />
+                    <Border Style="{StaticResource Group}">
                         <StackPanel>
-                            <TextBlock Text="Mostrar en Discord lo que escuchas" />
-                            <TextBlock Text="Tu perfil enseña la carátula, la canción, el artista, el álbum y por dónde va. Usa la app de Discord abierta en este PC: no hay que iniciar sesión en Echoplex. En pausa se mantiene un minuto y luego se quita."
-                                       FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordEnabled}">
+                                <StackPanel>
+                                    <TextBlock Text="Mostrar en Discord lo que escuchas" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Tu perfil enseña la carátula, la canción, el artista, el álbum y por dónde va. Usa la app de Discord abierta en este PC: no hay que iniciar sesión en Echoplex. En pausa se mantiene un minuto y luego se quita." />
+                                </StackPanel>
+                            </CheckBox>
+                            <TextBlock Text="{Binding DiscordStatus}" FontSize="13" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" Margin="46,10,0,0"
+                                       Visibility="{Binding DiscordStatus, Converter={StaticResource NullVis}}" />
                         </StackPanel>
-                    </CheckBox>
-                    <StackPanel IsEnabled="{Binding DiscordEnabled}" Margin="0,18,0,0">
-                        <StackPanel.Style>
-                            <!-- con Discord apagado, sus opciones se ven atenuadas -->
-                            <Style TargetType="StackPanel">
-                                <Style.Triggers>
-                                    <Trigger Property="IsEnabled" Value="False">
-                                        <Setter Property="Opacity" Value="0.5" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <TextBlock Text="En la lista de miembros" FontWeight="SemiBold" />
-                        <TextBlock Text="Discord siempre pone «Escuchando a» delante; tú eliges lo que va detrás."
-                                   FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,10" />
+                    </Border>
+
+                    <TextBlock x:Name="SubDiscordList" Style="{StaticResource SubHeader}" Text="En la lista de miembros" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel Style="{StaticResource DimWhenDisabled}" IsEnabled="{Binding DiscordEnabled}">
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,10"
+                                       Text="Discord siempre pone «Escuchando a» delante; tú eliges lo que va detrás." />
+                            <WrapPanel>
+                                <RadioButton x:Name="DiscordShowArtist" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                             Content="El artista" Tag="artist" Checked="DiscordShow_Checked" />
+                                <RadioButton x:Name="DiscordShowTitle" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                             Content="La canción" Tag="title" Checked="DiscordShow_Checked" />
+                                <RadioButton x:Name="DiscordShowApp" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
+                                             Content="Echoplex" Tag="app" Checked="DiscordShow_Checked" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubDiscordCovers" Style="{StaticResource SubHeader}" Text="Carátulas" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel Style="{StaticResource DimWhenDisabled}" IsEnabled="{Binding DiscordEnabled}">
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,14"
+                                       Text="Discord solo enseña imágenes que estén en internet. De serie, Echoplex busca la carátula de cada álbum en Deezer e iTunes, gratis y sin cuentas: solo se envían el artista y el álbum. Si no encuentra la del álbum exacto, sale el logo de Echoplex." />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordPlayState}">
+                                <StackPanel>
+                                    <TextBlock Text="Icono de reproducción sobre la carátula" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Un pequeño ▶ o ⏸ en la esquina de la carátula, según suene o esté en pausa. Quítalo si prefieres ver la carátula entera." />
+                                </StackPanel>
+                            </CheckBox>
+                            <Border Style="{StaticResource GroupRule}" />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordManualCovers}">
+                                <StackPanel>
+                                    <TextBlock Text="Carátulas manuales: subirlas con tu propio programa" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Echoplex le pasa la imagen de cada carátula a tu programa, que la sube donde quieras y escribe su URL, igual que con foo_discord_rich. Las URL se guardan en un JSON local, se aprovechan las que ya subiste con foo_discord_rich y puedes cambiar una con «Actualizar carátula en Discord» (clic derecho en cualquier carátula)." />
+                                </StackPanel>
+                            </CheckBox>
+                            <TextBox x:Name="DiscordUploadBox" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="46,10,0,0"
+                                     Text="{Binding DiscordUploadCommand, UpdateSourceTrigger=LostFocus}" KeyDown="DiscordUploadBox_KeyDown"
+                                     Visibility="{Binding DiscordManualCovers, Converter={StaticResource BoolVis}}"
+                                     ToolTip="Tu programa de subida. Por ejemplo: C:\Programas\subir.exe &quot;--modo imagen&quot;" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ================= General ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecGeneral" Style="{StaticResource SectionHeader}" Content="General" Tag="&#xE770;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Cómo se comporta la ventana y accesos rápidos." />
+
+                    <TextBlock x:Name="SubCloseAction" Style="{StaticResource SubHeader}" Text="Al pulsar la X" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                       Text="Cerrar sale de Echoplex del todo. Esconderlo lo deja junto al reloj, en la flecha de los iconos ocultos, y la música sigue: se vuelve con un clic en su icono y se sale con «Salir» en su menú." />
+                            <WrapPanel>
+                                <RadioButton x:Name="CloseExitChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
+                                             Content="Cerrar Echoplex" Checked="CloseAction_Checked" />
+                                <RadioButton x:Name="CloseTrayChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
+                                             Content="Esconderlo en la bandeja" Checked="CloseAction_Checked" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubShortcuts" Style="{StaticResource SubHeader}" Text="Accesos" />
+                    <Border Style="{StaticResource Group}">
                         <WrapPanel>
-                            <RadioButton x:Name="DiscordShowArtist" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
-                                         Content="El artista" Tag="artist" Checked="DiscordShow_Checked" />
-                            <RadioButton x:Name="DiscordShowTitle" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
-                                         Content="La canción" Tag="title" Checked="DiscordShow_Checked" />
-                            <RadioButton x:Name="DiscordShowApp" Style="{StaticResource ColumnChip}" GroupName="DiscordShow" FontSize="13"
-                                         Content="Echoplex" Tag="app" Checked="DiscordShow_Checked" />
+                            <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Mini reproductor (Ctrl+M)" Click="Mini_Click" Margin="0,0,8,0" />
+                            <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Carpeta de datos" Click="DataFolder_Click" Margin="0,0,8,0"
+                                    ToolTip="Ajustes, playlists e historial (%LocalAppData%)" />
+                            <Button Style="{StaticResource SecondaryButton}" FontSize="15" Click="GitHub_Click"
+                                    ToolTip="La página de Echoplex en GitHub: código, versiones y novedades">
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- la marca de GitHub (mark-github de Octicons, licencia MIT), del color del texto del botón -->
+                                    <Path Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
+                                          Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          Data="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
+                                    <TextBlock Text="GitHub" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </WrapPanel>
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordPlayState}" Margin="0,8,0,0">
-                            <StackPanel>
-                                <TextBlock Text="Icono de reproducción sobre la carátula" />
-                                <TextBlock Text="Un pequeño ▶ o ⏸ en la esquina de la carátula, según suene o esté en pausa. Quítalo si prefieres ver la carátula entera."
-                                           FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                            </StackPanel>
-                        </CheckBox>
-                        <TextBlock Text="Carátulas" FontWeight="SemiBold" Margin="0,10,0,0" />
-                        <TextBlock Text="Discord solo enseña imágenes que estén en internet. De serie, Echoplex busca la carátula de cada álbum en Deezer e iTunes, gratis y sin cuentas: solo se envían el artista y el álbum. Si no encuentra la del álbum exacto, sale el logo de Echoplex."
-                                   FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,8" />
-                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding DiscordManualCovers}">
-                            <StackPanel>
-                                <TextBlock Text="Carátulas manuales: subirlas con tu propio programa" />
-                                <TextBlock Text="Echoplex le pasa la imagen de cada carátula a tu programa, que la sube donde quieras y escribe su URL, igual que con foo_discord_rich. Las URL se guardan en un JSON local, se aprovechan las que ya subiste con foo_discord_rich y puedes cambiar una con «Actualizar carátula en Discord» (clic derecho en cualquier carátula)."
-                                           FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                            </StackPanel>
-                        </CheckBox>
-                        <TextBox x:Name="DiscordUploadBox" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="0,10,0,0"
-                                 Text="{Binding DiscordUploadCommand, UpdateSourceTrigger=LostFocus}" KeyDown="DiscordUploadBox_KeyDown"
-                                 Visibility="{Binding DiscordManualCovers, Converter={StaticResource BoolVis}}"
-                                 ToolTip="Tu programa de subida. Por ejemplo: C:\Programas\subir.exe &quot;--modo imagen&quot;" />
-                        <TextBlock Text="{Binding DiscordStatus}" FontSize="13" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   Visibility="{Binding DiscordStatus, Converter={StaticResource NullVis}}" />
-                    </StackPanel>
+                    </Border>
 
-                    <!-- ===== Actualizaciones ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Actualizaciones" Tag="&#xE895;" />
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- con versión nueva disponible: se elige (nada se instala solo) -->
-                            <Button Style="{StaticResource PrimaryButton}" FontSize="16" Content="Actualizar ahora" Click="InstallUpdate_Click" Margin="0,0,8,0"
-                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}"
-                                    IsEnabled="{Binding IsInstallingUpdate, Converter={StaticResource Eq}, ConverterParameter=False}"
-                                    ToolTip="Descarga e instala la versión nueva y reinicia Echoplex (la cola y la posición se conservan)" />
-                            <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Omitir esta versión" Click="SkipUpdate_Click" Margin="0,0,8,0"
-                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}" ToolTip="No volver a avisar de esta versión" />
-                            <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Buscar ahora" Click="CheckUpdates_Click" />
+                    <!-- ================= Actualizaciones ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecUpdates" Style="{StaticResource SectionHeader}" Content="Actualizaciones" Tag="&#xE895;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Tu versión de Echoplex y las novedades." />
+
+                    <TextBlock x:Name="SubVersion" Style="{StaticResource SubHeader}" Text="Versión" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- con versión nueva disponible: se elige (nada se instala solo) -->
+                                    <Button Style="{StaticResource PrimaryButton}" FontSize="15" Content="Actualizar ahora" Click="InstallUpdate_Click" Margin="0,0,8,0"
+                                            Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}"
+                                            IsEnabled="{Binding IsInstallingUpdate, Converter={StaticResource Eq}, ConverterParameter=False}"
+                                            ToolTip="Descarga e instala la versión nueva y reinicia Echoplex (la cola y la posición se conservan)" />
+                                    <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Omitir esta versión" Click="SkipUpdate_Click" Margin="0,0,8,0"
+                                            Visibility="{Binding UpdateAvailable, Converter={StaticResource NullVis}}" ToolTip="No volver a avisar de esta versión" />
+                                    <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Buscar ahora" Click="CheckUpdates_Click" />
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding VersionText}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding UpdateStatus, TargetNullValue='Busca versiones nuevas en GitHub cada vez que se abre.'}"
+                                               Style="{StaticResource Hint}" Margin="0,2,12,0" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Border Style="{StaticResource GroupRule}" />
+                            <CheckBox Style="{StaticResource Switch}" Content="Buscar actualizaciones al abrir Echoplex (avisa y pregunta antes de instalar)"
+                                      IsChecked="{Binding AutoUpdate}" />
                         </StackPanel>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding VersionText}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding UpdateStatus, TargetNullValue='Busca versiones nuevas en GitHub cada vez que se abre.'}" FontSize="14"
-                                       Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,12,0" />
-                        </StackPanel>
-                    </DockPanel>
-                    <CheckBox Style="{StaticResource Switch}" Content="Buscar actualizaciones al abrir Echoplex (avisa y pregunta antes de instalar)" Margin="0,12,0,0"
-                              IsChecked="{Binding AutoUpdate}" />
+                    </Border>
+
                     <!-- notas de esta versión, las mismas de la release de GitHub -->
-                    <ToggleButton x:Name="ReleaseNotesToggle" Style="{StaticResource DisclosureToggle}" Margin="0,10,0,0" />
-                    <Border x:Name="ReleaseNotesBox" Background="{DynamicResource CalloutBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
-                            BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="0,6,0,0"
-                            Visibility="{Binding IsChecked, ElementName=ReleaseNotesToggle, Converter={StaticResource BoolVis}}" />
+                    <TextBlock x:Name="SubReleaseNotes" Style="{StaticResource SubHeader}" Text="Novedades" />
+                    <Border x:Name="ReleaseNotesGroup" Style="{StaticResource Group}" Padding="12,10,12,12">
+                        <StackPanel>
+                            <ToggleButton x:Name="ReleaseNotesToggle" Style="{StaticResource DisclosureToggle}" />
+                            <Border x:Name="ReleaseNotesBox" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource CardBorderBrush}"
+                                    BorderThickness="1" CornerRadius="8" Padding="18,14" Margin="0,8,0,0"
+                                    Visibility="{Binding IsChecked, ElementName=ReleaseNotesToggle, Converter={StaticResource BoolVis}}" />
+                        </StackPanel>
+                    </Border>
 
-                    <!-- ===== Otros ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Otros" Tag="&#xE712;" />
-                    <TextBlock Text="Al pulsar la X" FontWeight="SemiBold" />
-                    <TextBlock Text="Cerrar sale de Echoplex del todo. Esconderlo lo deja junto al reloj, en la flecha de los iconos ocultos, y la música sigue: se vuelve con un clic en su icono y se sale con «Salir» en su menú."
-                               FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,10" />
-                    <WrapPanel Margin="0,0,0,14">
-                        <RadioButton x:Name="CloseExitChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
-                                     Content="Cerrar Echoplex" Checked="CloseAction_Checked" />
-                        <RadioButton x:Name="CloseTrayChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
-                                     Content="Esconderlo en la bandeja" Checked="CloseAction_Checked" />
-                    </WrapPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Mini reproductor (Ctrl+M)" Click="Mini_Click" />
-                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Carpeta de datos" Click="DataFolder_Click" Margin="8,0,0,0"
-                                ToolTip="Ajustes, playlists e historial (%LocalAppData%)" />
-                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Click="GitHub_Click" Margin="8,0,0,0"
-                                ToolTip="La página de Echoplex en GitHub: código, versiones y novedades">
-                            <StackPanel Orientation="Horizontal">
-                                <!-- la marca de GitHub (mark-github de Octicons, licencia MIT), del color del texto del botón -->
-                                <Path Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
-                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      Data="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
-                                <TextBlock Text="GitHub" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                    <!-- hueco al final: así la última sección también puede subir hasta arriba al elegirla en la barra lateral -->
+                    <Border x:Name="BottomSpacer" Height="0" />
                     </StackPanel>
-
-                    <!-- ===== Estructura ===== -->
-                    <Border Style="{StaticResource SectionRule}" />
-                    <ContentControl Style="{StaticResource SectionHeader}" Content="Estructura" Tag="&#xE80A;" />
-                    <TextBlock Text="Columnas de las listas de canciones, en el orden de tu tabla. Pulsa una para mostrarla u ocultarla; el orden y el ancho se cambian arrastrando la cabecera de la tabla."
-                               FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,12" />
-                    <WrapPanel x:Name="ColumnSwitches" />
-                    <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Restablecer columnas" Click="ResetColumns_Click"
-                            HorizontalAlignment="Left" Margin="0,12,0,0" ToolTip="Orden, anchos y columnas visibles de fábrica" />
-                </StackPanel>
-            </ScrollViewer>
-        </DockPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
         </Border>
     </Grid>
 </Window>

@@ -420,8 +420,44 @@
                         </Button>
                     </Grid>
 
-                    <TextBlock Text="{Binding Page.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="40" FontWeight="Bold"
-                               TextWrapping="Wrap" Margin="0,18,0,4" />
+                    <!-- el nombre y, en la raíz de una carpeta en línea, el mundo para conectarla o desconectarla: conectada brilla con
+                         el color del tema; desconectada, tachado y apagado -->
+                    <WrapPanel Margin="0,18,0,4">
+                        <TextBlock Text="{Binding Page.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="40" FontWeight="Bold"
+                                   TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Click="PageConnect_Click" Cursor="Hand" Focusable="False" Margin="14,6,0,0" VerticalAlignment="Center"
+                                ToolTip="{Binding Page.ConnectTip}"
+                                Visibility="{Binding Page.IsOnlineRoot, Converter={StaticResource BoolVis}, FallbackValue=Collapsed}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Grid Width="46" Height="46" Background="Transparent">
+                                        <Border x:Name="Bg" CornerRadius="23" Background="Transparent" />
+                                        <!-- el brillo: el mismo mundo, difuminado, detrás -->
+                                        <TextBlock x:Name="Glow" Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="26"
+                                                   Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock.Effect>
+                                                <BlurEffect Radius="14" />
+                                            </TextBlock.Effect>
+                                        </TextBlock>
+                                        <TextBlock x:Name="Globe" Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="26"
+                                                   Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Path x:Name="Strike" Data="M 11,11 L 35,35" Stroke="{DynamicResource Text2Brush}" StrokeThickness="2.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" />
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding Page.IsConnected}" Value="False">
+                                            <Setter TargetName="Glow" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="Globe" Property="Foreground" Value="{DynamicResource Text2Brush}" />
+                                            <Setter TargetName="Strike" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </WrapPanel>
                     <TextBlock Text="{Binding Page.Description}" Foreground="{DynamicResource Text2Brush}" FontSize="14" TextWrapping="Wrap"
                                Visibility="{Binding Page.Description, Converter={StaticResource NullVis}}" />
 
@@ -974,7 +1010,10 @@
                                      IsAnimating="{Binding DataContext.Player.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" />
                 <Grid DockPanel.Dock="Left" Width="22" Height="22" Margin="0,0,8,0">
                     <ContentControl x:Name="Ic" Style="{StaticResource GlyphIcon}" Content="&#xE8B7;" FontSize="14" Foreground="{DynamicResource Text2Brush}" />
-                    <Border CornerRadius="3" Visibility="{Binding Cover, Converter={StaticResource NullVis}}">
+                    <!-- carpeta en línea desconectada: el mundo tachado -->
+                    <Path x:Name="Strike" Data="M 4,4 L 18,18" Stroke="{DynamicResource Text2Brush}" StrokeThickness="1.6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed" IsHitTestVisible="False" />
+                    <Border x:Name="Thumb" CornerRadius="3" Visibility="{Binding Cover, Converter={StaticResource NullVis}}">
                         <Border.Background>
                             <ImageBrush ImageSource="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                         </Border.Background>
@@ -989,6 +1028,15 @@
                 <!-- carpeta en línea (Drive, OneDrive, web…): el mundo en vez de la nota -->
                 <DataTrigger Binding="{Binding IsOnline}" Value="True">
                     <Setter TargetName="Ic" Property="Content" Value="&#xE774;" />
+                </DataTrigger>
+                <!-- desconectada: atenuada y con el mundo tachado (se conecta desde su página o en Ajustes) -->
+                <DataTrigger Binding="{Binding IsDisconnected}" Value="True">
+                    <Setter TargetName="Strike" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="Thumb" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="Ic" Property="Opacity" Value="0.7" />
+                    <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource Text3Brush}" />
+                    <Setter TargetName="Nm" Property="FontStyle" Value="Italic" />
+                    <Setter TargetName="Nm" Property="ToolTip" Value="Desconectada: no se ve ni suena nada de aquí. Conéctala desde su página o en Ajustes." />
                 </DataTrigger>
                 <!-- camino hasta la canción que suena: carpetas iluminadas en negrita -->
                 <DataTrigger Binding="{Binding IsActive}" Value="True">

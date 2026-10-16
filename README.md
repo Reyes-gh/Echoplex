@@ -48,15 +48,20 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.24`).
-2. Escribe las notas en `.github/notas/1.1.24.md` (si no, se usa la sección `### 1.1.24` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.24`** con **`Echoplex-1.1.24-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.25`).
+2. Escribe las notas en `.github/notas/1.1.25.md` (si no, se usa la sección `### 1.1.25` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.25`** con **`Echoplex-1.1.25-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.24
+- **Ajustes, renovado**: a la izquierda hay una barra lateral con todas las secciones (Apariencia, Biblioteca, Sonido, Letras, Discord, General y Actualizaciones) y sus apartados debajo; un clic te lleva directo a cada uno y, al desplazarte, marca dónde estás. Cada sección empieza con un título grande y una frase que la explica, y cada apartado agrupa sus opciones en una tarjeta propia, así se ve de un vistazo qué va con qué. Arriba se indica en qué sección y apartado estás y, a la derecha, va la firma del autor, que lleva a su GitHub.
+- **Abrir Echoplex con carpetas en línea, mucho más rápido**: comprobar si una carpeta de OneDrive ha cambiado ya es una sola petición (medio segundo) en vez de volver a recorrer todas sus subcarpetas cada vez (con una biblioteca grande, unos 40 segundos ocupando la conexión mientras cargaban las carátulas). Las carátulas de las carpetas en línea se guardan en pequeño en tu PC la primera vez y ya no se vuelven a bajar en cada arranque; la música sigue sin guardarse. Además, un corte de conexión suelto ya no hace fallar la comprobación, y las canciones cuyas etiquetas no se pueden leer ya no se descargan enteras una y otra vez buscando su carátula. Y las carátulas de tus carpetas del PC ya no esperan detrás de las que se están bajando de la nube: van por su propia cola y salen al momento.
+- **Conectar y desconectar carpetas en línea**: cada una tiene su interruptor en *Ajustes → Carpetas en línea* y, en su página, un mundo al lado del nombre que la conecta o la desconecta con un clic. Conectada, el mundo brilla con el color del tema. Desconectada sigue en el panel lateral, atenuada y con el mundo tachado, pero sus canciones no se ven ni suenan y no se le pide nada a la nube; al volver a conectarla aparecen al momento. Además, la portada de una carpeta en línea es ahora un mosaico con las carátulas de sus álbumes (antes salía una imagen suelta que hubiera en ella), y en su página la disponibilidad dice que suena desde la nube en vez de «Todo en este dispositivo».
 
 ### 1.1.23
 - **Carpetas en línea, escuchadas desde la nube**: en *Ajustes → Carpetas en línea* puedes añadir una carpeta compartida de **Google Drive** o de **OneDrive** («Cualquier persona con el enlace»), el listado de carpetas de un servidor web o el enlace a un archivo de audio, con el nombre que quieras. Sale en el panel lateral con un mundo en vez de la nota y se usa como cualquier otra carpeta (portadas, letras `.lrc`, favoritas, playlists…), pero las canciones no se copian a tu PC: suenan directamente desde la nube en cuanto llega el primer trozo (en OneDrive, en menos de medio segundo) y se puede saltar a cualquier punto. Mientras se añade o se comprueba si hay cambios, un indicador cuenta las canciones que va encontrando. Con OneDrive no hace falta iniciar sesión.

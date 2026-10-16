@@ -692,7 +692,10 @@ public sealed partial class MainViewModel : ObservableObject
     private FolderNode BuildNode(string path, FolderNode? parent)
     {
         var name = parent == null ? LibraryService.RootName(path) : Path.GetFileName(path) is { Length: > 0 } n ? n : path;
-        var node = new FolderNode(name, path, Library.GetCount(path), parent);
+        var node = new FolderNode(name, path, Library.GetCount(path), parent)
+        {
+            IsDisconnected = parent == null && !OnlineLibrary.IsConnected(path),
+        };
         foreach (var child in Library.GetChildren(path)) node.Children.Add(BuildNode(child, node));
         return node;
     }
@@ -729,6 +732,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
             if (at != i) nodes.Move(at, i);
             nodes[i].Count = Library.GetCount(paths[i]);
+            if (parent == null) nodes[i].IsDisconnected = !OnlineLibrary.IsConnected(paths[i]);
             MergeNodes(nodes[i].Children, Library.GetChildren(paths[i]), nodes[i]);
         }
     }
@@ -868,8 +872,14 @@ public sealed partial class MainViewModel : ObservableObject
             new("", "Ubicación", isAll ? $"{Library.PresentRoots.Count} carpetas de música" : isRoot ? OnlineLibrary.SourceOf(path)?.Url ?? path : Library.DisplayPath(path)),
         };
         if (hasChildren) props.Add(new PropertyItem("", "Discos", discs.ToString()));
+        var online = isRoot && OnlineLibrary.IsOnlineRoot(path) ? OnlineLibrary.SourceOf(path) : null;
         var page = new SongListPage("folder:" + path, ListKind.Folder, all)
         {
+            OnlineId = online?.Id,
+            IsConnected = online?.Enabled ?? true,
+            Description = online is { Enabled: false }
+                ? "Desconectada: sus canciones no se ven ni suenan y no se le pide nada a la nube. Pulsa el mundo para conectarla."
+                : null,
             Title = FolderName(path),
             Glyph = isAll || isRoot ?"" : "",
             Breadcrumb = isAll ? "Carpetas" : "Carpetas / " + Library.DisplayPath(path),
@@ -1146,7 +1156,8 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private async Task LoadFolderCoverAsync(SongListPage page, string path, IReadOnlyList<string> children, Song? first) =>
-        page.Cover = await FolderArtAsync(path, 600, allowDownload: true, priority: true);
+        // desconectada no tiene álbumes de los que sacar el mosaico: el icono de siempre en vez de una imagen suelta
+        page.Cover = page.IsConnected ? await FolderArtAsync(path, 600, allowDownload: true, priority: true) : null;
 
     /// <summary>
     /// Portada de una carpeta. Si tiene imagen propia, esa. Si no, y tiene varias subcarpetas, un mosaico con
@@ -1155,7 +1166,10 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task<BitmapSource?> FolderArtAsync(string path, int size, bool allowDownload, bool priority)
     {
         var children = Library.GetChildren(path);
-        if (children.Count < 2 || await Task.Run(() => Covers.FindCoverFile(path)) != null)
+        // la raíz de una carpeta en línea es una colección entera: una imagen suelta en ella no es «su portada» (salvo que la
+        // elijas tú); lleva el mosaico de sus álbumes
+        bool collection = OnlineLibrary.IsOnlineRoot(path) && !Covers.HasCustomCover(path);
+        if (children.Count < 2 || !collection && await Task.Run(() => Covers.FindCoverFile(path)) != null)
             return await LooseSongsArtAsync(path, size, priority) ?? await Covers.GetFolderCoverAsync(path, Library.SongsUnder(path), size, allowDownload, priority);
 
         var imgs = new List<BitmapSource>();
@@ -1191,9 +1205,11 @@ public sealed partial class MainViewModel : ObservableObject
         var local = Library.SongsIn(dir).Where(s => !s.IsCloud).Take(12).ToList();
         if (local.Count < 2 || await Task.Run(() => Covers.FindCoverFile(dir)) != null) return null;
         // una por álbum, en el orden de la carpeta. Mientras no se leen las etiquetas, el álbum provisional es el nombre de la
-        // carpeta: en ese caso se mira en el archivo (si no, la miniatura de una carpeta recién añadida se quedaría sin mosaico)
+        // carpeta: en ese caso se mira en el archivo (si no, la miniatura de una carpeta recién añadida se quedaría sin mosaico).
+        // Con las etiquetas ya leídas (o en la caché) no se vuelve a abrir nada, aunque el álbum se llame como la carpeta; y las
+        // de carpetas en línea nunca se leen aquí (sería bajarlas de la nube solo para esto: ya las leerá la lectura de etiquetas)
         var folderName = Path.GetFileName(dir);
-        var albums = await Task.Run(() => local.Select(s => s.MetadataLoaded && !string.Equals(s.Album, folderName, StringComparison.OrdinalIgnoreCase) ? s.Album
+        var albums = await Task.Run(() => local.Select(s => s.MetadataLoaded || OnlineLibrary.IsOnline(s.Path) ? s.Album
             : _fileAlbums.GetOrAdd(s.Path, p => MetadataReader.Read(p).B is { } b && !string.IsNullOrWhiteSpace(b) ? b : folderName)).ToList());
         var reps = local.Select((s, i) => (s, album: albums[i].Trim().ToLowerInvariant()))
             .GroupBy(x => x.album).Select(g => g.First().s).Take(12).ToList();

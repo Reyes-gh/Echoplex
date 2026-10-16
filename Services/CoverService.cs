@@ -27,6 +27,11 @@ public sealed class CoverService
     private readonly ConcurrentDictionary<string, string[]> _dirImages = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, BitmapSource?> _images = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _gate = new(3);
+    // las de carpetas en línea van por su propia cola: mientras se bajan de la nube (la primera vez, a veces varios MB),
+    // las del disco no esperan detrás de ellas
+    private readonly SemaphoreSlim _onlineGate = new(4);
+
+    private SemaphoreSlim GateFor(string path) => OnlineLibrary.IsOnline(path) ? _onlineGate : _gate;
     // las portadas grandes (cabeceras, reproductor: ~1,6 MB cada una) no se guardan todas para siempre:
     // solo las más recientes; si se vuelve a pedir una más antigua, se decodifica otra vez del mismo archivo
     private const int LargeSize = 500, MaxLarge = 80;
@@ -127,7 +132,13 @@ public sealed class CoverService
         foreach (var f in ImagesIn(dir)) yield return f;
         if (depth > 6) yield break;
         string[] subs;
-        try
+        // en línea: las subcarpetas que dice su índice (en el disco no existen)
+        if (OnlineLibrary.IsOnline(dir))
+            subs = OnlineLibrary.SubfoldersOf(dir)
+                .Where(s => !ArtFolders.Contains(Path.GetFileName(s).ToLowerInvariant()))
+                .OrderBy(s => s, NaturalComparer.Instance)
+                .ToArray();
+        else try
         {
             subs = Directory.EnumerateDirectories(dir)
                 .Where(s => (new DirectoryInfo(s).Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0)
@@ -154,14 +165,15 @@ public sealed class CoverService
     public async Task<BitmapSource?> GetSongCoverAsync(Song song, IEnumerable<Song> siblings, int size, bool allowDownload = true, bool priority = false, bool deepImages = false)
     {
         if (priority) return await Task.Run(() => SongCover(song, siblings, size, allowDownload, deepImages));
-        await _gate.WaitAsync();
+        var gate = GateFor(song.Path);
+        await gate.WaitAsync();
         try
         {
             return await Task.Run(() => SongCover(song, siblings, size, allowDownload, deepImages));
         }
         finally
         {
-            _gate.Release();
+            gate.Release();
         }
     }
 
@@ -170,14 +182,15 @@ public sealed class CoverService
     {
         if (song.IsCloud) return null;
         if (priority) return await Task.Run(() => EmbeddedCover(song, size));
-        await _gate.WaitAsync();
+        var gate = GateFor(song.Path);
+        await gate.WaitAsync();
         try
         {
             return await Task.Run(() => EmbeddedCover(song, size));
         }
         finally
         {
-            _gate.Release();
+            gate.Release();
         }
     }
 
@@ -186,13 +199,13 @@ public sealed class CoverService
     {
         try
         {
-            if (FindCoverFile(song.Directory) is { } file) return OnlineLibrary.IsOnline(file) ? OnlineLibrary.ReadAllBytes(file) : File.ReadAllBytes(file);
+            if (FindCoverFile(song.Directory) is { } file) return OnlineLibrary.IsOnline(file) ? OnlineLibrary.CoverBytes(file, embedded: false) : File.ReadAllBytes(file);
         }
         catch
         {
             // imagen ilegible: se prueba la incrustada
         }
-        return song.IsCloud ? null : MetadataReader.ReadPicture(song.Path);
+        return song.IsCloud ? null : OnlineLibrary.IsOnline(song.Path) ? OnlineLibrary.CoverBytes(song.Path, embedded: true) : MetadataReader.ReadPicture(song.Path);
     }
 
     private BitmapSource? SongCover(Song song, IEnumerable<Song> siblings, int size, bool allowDownload, bool deepImages)
@@ -222,14 +235,15 @@ public sealed class CoverService
     public async Task<BitmapSource?> GetFolderCoverAsync(string dir, IEnumerable<Song> songsUnder, int size, bool allowDownload = true, bool priority = false)
     {
         if (priority) return await Task.Run(() => FolderCover(dir, songsUnder, size, allowDownload, recurse: true));
-        await _gate.WaitAsync();
+        var gate = GateFor(dir);
+        await gate.WaitAsync();
         try
         {
             return await Task.Run(() => FolderCover(dir, songsUnder, size, allowDownload, recurse: true));
         }
         finally
         {
-            _gate.Release();
+            gate.Release();
         }
     }
 
@@ -283,7 +297,8 @@ public sealed class CoverService
     {
         var key = $"embedded:{song.Path}|{size}"; // por canción: en una carpeta de sueltas cada una trae la suya
         if (_images.TryGetValue(key, out var cached)) return cached;
-        var bytes = MetadataReader.ReadPicture(song.Path);
+        // en línea: la guardada en el disco si ya se bajó una vez (si no, se baja y se guarda)
+        var bytes = OnlineLibrary.IsOnline(song.Path) ? OnlineLibrary.CoverBytes(song.Path, embedded: true) : MetadataReader.ReadPicture(song.Path);
         var img = bytes != null ? Decode(new MemoryStream(bytes), size) : null;
         if (img != null) Remember(key, img, size); // si falla, se puede probar con otra canción del mismo álbum
         return img;
@@ -296,7 +311,7 @@ public sealed class CoverService
         BitmapSource? img = null;
         try
         {
-            var bytes = OnlineLibrary.IsOnline(path) ? OnlineLibrary.ReadAllBytes(path) : File.ReadAllBytes(path);
+            var bytes = OnlineLibrary.IsOnline(path) ? OnlineLibrary.CoverBytes(path, embedded: false) : File.ReadAllBytes(path);
             if (bytes != null) img = Decode(new MemoryStream(bytes), size);
         }
         catch

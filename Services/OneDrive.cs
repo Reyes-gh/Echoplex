@@ -165,12 +165,14 @@ public static class OneDrive
 
 /// <summary>
 /// Lo que pasa por todas las peticiones de las carpetas en línea: pone el permiso de invitado de OneDrive a las que lo
-/// necesitan (y, si OneDrive lo rechaza porque caducó o el enlace no estaba canjeado, pide otro y repite una vez) y,
-/// si el servidor pide calma (429/503, pasa al leer miles de canciones seguidas), espera lo que diga y repite.
+/// necesitan (y, si OneDrive lo rechaza porque caducó o el enlace no estaba canjeado, pide otro y repite una vez); si el
+/// servidor pide calma (429/503, pasa al leer miles de canciones seguidas), espera lo que diga y repite; y si se corta la
+/// conexión, lo vuelve a intentar (un corte suelto no tumba un listado de cientos de carpetas).
 /// </summary>
 internal sealed class OnlineHttpHandler : DelegatingHandler
 {
     private const int Retries = 4;
+    private const int ConnectionRetries = 2;
 
     public OnlineHttpHandler(HttpMessageHandler inner) : base(inner) { }
 
@@ -179,7 +181,9 @@ internal sealed class OnlineHttpHandler : DelegatingHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
-        var resp = await SendAuthorizedAsync(request, ct).ConfigureAwait(false);
+        // el permiso que ya trae (al pedirlo o canjear un enlace) se respeta tal cual, también al repetir
+        bool own = request.Headers.Authorization != null;
+        var resp = await SendOnceAsync(request, own, ct).ConfigureAwait(false);
         for (int attempt = 1; attempt <= Retries && request.Content == null && (int)resp.StatusCode is 429 or 503; attempt++)
         {
             var wait = resp.Headers.RetryAfter?.Delta
@@ -188,14 +192,31 @@ internal sealed class OnlineHttpHandler : DelegatingHandler
             resp.Dispose();
             RemoteFile.Trace?.Invoke($"{request.RequestUri?.Host} pide esperar {wait.TotalSeconds:0.#} s (intento {attempt} de {Retries})");
             await Task.Delay(wait, ct).ConfigureAwait(false);
-            resp = await SendAuthorizedAsync(Copy(request), ct).ConfigureAwait(false);
+            resp = await SendOnceAsync(Copy(request, own), own, ct).ConfigureAwait(false);
         }
         return resp;
     }
 
-    private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage request, CancellationToken ct)
+    private async Task<HttpResponseMessage> SendOnceAsync(HttpRequestMessage request, bool own, CancellationToken ct)
     {
-        if (request.RequestUri is not { } uri || !OneDrive.NeedsAuthorization(uri) || request.Headers.Authorization != null)
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await SendAuthorizedAsync(request, own, ct).ConfigureAwait(false);
+            }
+            catch (HttpRequestException ex) when (attempt <= ConnectionRetries && request.Content == null && !ct.IsCancellationRequested)
+            {
+                RemoteFile.Trace?.Invoke($"{request.RequestUri?.Host}: se cortó la conexión ({ex.Message}), otra vez (intento {attempt} de {ConnectionRetries})");
+                await Task.Delay(TimeSpan.FromMilliseconds(600 * attempt), ct).ConfigureAwait(false);
+                request = Copy(request, own);
+            }
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpRequestMessage request, bool own, CancellationToken ct)
+    {
+        if (own || request.RequestUri is not { } uri || !OneDrive.NeedsAuthorization(uri))
             return await base.SendAsync(request, ct).ConfigureAwait(false);
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Badger", await OneDrive.TokenAsync(false, ct).ConfigureAwait(false));
@@ -204,16 +225,17 @@ internal sealed class OnlineHttpHandler : DelegatingHandler
             return resp;
 
         resp.Dispose();
-        var retry = Copy(request);
+        var retry = Copy(request, keepAuthorization: false);
         retry.Headers.Authorization = new AuthenticationHeaderValue("Badger", await OneDrive.TokenAsync(true, ct).ConfigureAwait(false));
         return await base.SendAsync(retry, ct).ConfigureAwait(false);
     }
 
-    // una petición ya enviada no se puede volver a enviar: otra igual (sin el permiso, que se pone de nuevo)
-    private static HttpRequestMessage Copy(HttpRequestMessage request)
+    // una petición ya enviada no se puede volver a enviar: otra igual (sin el permiso de invitado, que se pone de nuevo,
+    // salvo que lo trajera quien la hizo)
+    private static HttpRequestMessage Copy(HttpRequestMessage request, bool keepAuthorization)
     {
         var copy = new HttpRequestMessage(request.Method, request.RequestUri) { Version = request.Version };
-        foreach (var h in request.Headers.Where(h => h.Key != "Authorization"))
+        foreach (var h in request.Headers.Where(h => keepAuthorization || h.Key != "Authorization"))
             copy.Headers.TryAddWithoutValidation(h.Key, h.Value);
         return copy;
     }

@@ -13,7 +13,7 @@
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
     <Description>Reproductor de música local para Windows</Description>
-    <Version>1.1.23</Version>
+    <Version>1.1.24</Version>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -31,6 +31,7 @@
     <Resource Include="Assets\echoplex-logo.png" />
     <Resource Include="Assets\echoplex-logo-light.png" />
     <Resource Include="Assets\note.png" />
+    <Resource Include="Assets\reyes-mark.png" />
     <!-- notas de esta versión (las de su release de GitHub): Ajustes → Actualizaciones → Ver cambios de la versión -->
     <EmbeddedResource Include=".github\notas\$(Version).md" LogicalName="notas/$(Version).md" Condition="Exists('.github\notas\$(Version).md')" />
   </ItemGroup>

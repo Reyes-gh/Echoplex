@@ -30,6 +30,32 @@ public static class MetadataReader
         }
     }
 
+    /// <summary>
+    /// Como <see cref="ReadPicture"/>, pero distingue «no trae carátula» (true y null) de «no se pudo leer» (false). Un
+    /// archivo que TagLib no entiende cuenta como sin carátula: no va a cambiar, y releerlo lo recorre entero cada vez.
+    /// </summary>
+    public static bool TryReadPicture(string path, out byte[]? picture)
+    {
+        try
+        {
+            using var f = Open(path);
+            var pics = f.Tag.Pictures;
+            var p = pics.FirstOrDefault(x => x.Type == TagLib.PictureType.FrontCover) ?? pics.FirstOrDefault();
+            picture = p?.Data?.Data;
+            return true;
+        }
+        catch (Exception ex) when (ex is TagLib.CorruptFileException or TagLib.UnsupportedFormatException)
+        {
+            picture = null;
+            return true;
+        }
+        catch
+        {
+            picture = null;
+            return false;
+        }
+    }
+
     public static byte[]? ReadPicture(string path)
     {
         try

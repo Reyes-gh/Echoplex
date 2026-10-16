@@ -55,7 +55,7 @@ public sealed class RemoteFile : IDisposable
         {
             AutomaticDecompression = DecompressionMethods.None,
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            MaxConnectionsPerServer = 8,
+            MaxConnectionsPerServer = 12, // el primer listado, las carátulas y lo que suena, a la vez sin esperarse
         }))
         {
             // una descarga continua de una canción larga puede durar minutos: el límite lo pone cada lectura

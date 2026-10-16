@@ -34,7 +34,12 @@ public sealed partial class OnlineFolderItem : ObservableObject
     /// <summary>Algo en marcha: se ve el icono de carga.</summary>
     [ObservableProperty] private bool _isBusy;
 
-    public string Detail => Status ?? (Count == 1 ? "1 canción" : $"{Count:N0} canciones");
+    /// <summary>Conectada (su interruptor en Ajustes); desconectada lleva el mundo tachado.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Detail))]
+    private bool _enabled = true;
+
+    public string Detail => !Enabled ? "Desconectada" : Status ?? (Count == 1 ? "1 canción" : $"{Count:N0} canciones");
 }
 
 public sealed partial class MainViewModel
@@ -67,6 +72,7 @@ public sealed partial class MainViewModel
                 OnlineFolders.Insert(_adding != null ? OnlineFolders.IndexOf(_adding) : OnlineFolders.Count, item);
             }
             item.Count = Library.GetCount(OnlineLibrary.RootPath(s));
+            item.Enabled = s.Enabled;
             var status = _onlineStatus.GetValueOrDefault(s.Id);
             item.Status = status.Text;
             item.IsBusy = status.Busy;
@@ -114,6 +120,24 @@ public sealed partial class MainViewModel
             if (!_onlineMetaTimer.IsEnabled) _onlineMetaTimer.Start();
         }
         else _onlineMetaTimer?.Stop();
+    }
+
+    /// <summary>
+    /// Conecta o desconecta una carpeta en línea (desde su página o en Ajustes). Desconectada sigue en el panel lateral,
+    /// atenuada y con el mundo tachado, pero sus canciones no se ven ni suenan y no se le pide nada a la nube. Al
+    /// conectarla vuelven sus canciones (del índice guardado) y se mira si ha cambiado algo.
+    /// </summary>
+    public async Task SetOnlineConnectedAsync(string id, bool connected)
+    {
+        if (OnlineLibrary.Sources.FirstOrDefault(s => s.Id == id) is not { } source || source.Enabled == connected) return;
+        source.Enabled = connected;
+        SaveOnlineSources();
+        RefreshOnlineFolders();
+        await RescanAsync(announce: false);
+        var root = OnlineLibrary.RootPath(source);
+        if (CurrentPage is SongListPage { FolderPath: { } open } && Eq(open, root)) OpenFolder(root, replace: true);
+        ShowToast(connected ? $"«{source.Name}» conectada" : $"«{source.Name}» desconectada", 3);
+        if (connected) await RefreshOnlineFoldersAsync(announce: false);
     }
 
     private void SaveOnlineSources()
@@ -183,19 +207,26 @@ public sealed partial class MainViewModel
     /// Vuelve a mirar qué hay en cada carpeta en línea (al abrir Echoplex y con «Comprobar cambios»). Si cambió algo,
     /// la biblioteca se pone al día; si no hay conexión, se queda con lo que ya sabía.
     /// </summary>
-    public async Task RefreshOnlineFoldersAsync(bool announce)
+    /// <param name="full">Recorrerlas enteras aunque OneDrive diga que no ha cambiado nada («Comprobar cambios» en Ajustes).</param>
+    public async Task RefreshOnlineFoldersAsync(bool announce, bool full = false)
     {
         if (_refreshingOnline) return;
         _refreshingOnline = true;
         bool changed = false;
         try
         {
-            foreach (var source in OnlineLibrary.Sources)
+            foreach (var source in OnlineLibrary.Sources.Where(s => s.Enabled)) // a las desconectadas no se les pide nada
             {
                 var id = source.Id;
                 SetOnlineStatus(id, "Comprobando si hay cambios…", busy: true);
                 try
                 {
+                    // OneDrive dice en una petición si algo cambió: si no, no se recorre nada
+                    if (!full && await Task.Run(() => OnlineLibrary.UnchangedAsync(source)))
+                    {
+                        SetOnlineStatus(id, null);
+                        continue;
+                    }
                     var index = await Task.Run(() => OnlineLibrary.ListAsync(source.Url, (found, folder) => _ui.BeginInvoke(() =>
                         SetOnlineStatus(id, $"Comprobando si hay cambios… {found:N0} canciones", busy: true))));
                     changed |= OnlineLibrary.SetIndex(source, index);

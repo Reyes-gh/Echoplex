@@ -24,6 +24,8 @@ public static partial class OnlineLibrary
         if (!root.TryGetProperty("parentReference", out var parent) || !parent.TryGetProperty("driveId", out var d) || d.GetString() is not { } drive)
             throw new InvalidOperationException("OneDrive no dice dónde está la carpeta: prueba a copiar el enlace otra vez desde «Compartir»");
         index.Folders[""] = WebOf(root) ?? link;
+        // antes de recorrer: lo que cambie mientras se lista saldrá en la próxima comprobación
+        index.Delta = await LatestDeltaAsync(drive, root.GetProperty("id").GetString()!, ct);
 
         var files = new List<OnlineEntry>();
         var gate = new SemaphoreSlim(4);
@@ -89,6 +91,20 @@ public static partial class OnlineLibrary
         resp.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(timeout.Token));
         return doc.RootElement.Clone();
+    }
+
+    /// <summary>El punto de partida para preguntar luego solo por los cambios (sin recorrer nada: OneDrive lo da al momento).</summary>
+    private static async Task<string?> LatestDeltaAsync(string drive, string rootId, CancellationToken ct)
+    {
+        try
+        {
+            var json = await OneDriveJsonAsync($"{OneDrive.Api}/drives/{drive}/items/{rootId}/delta?token=latest", ct, root: false);
+            return json.TryGetProperty("@odata.deltaLink", out var d) ? d.GetString() : null;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null; // sin él, al abrir se vuelve a listar todo, como antes
+        }
     }
 
     // dirección fija de descarga (la otra caduca a la hora); se descarga con el permiso de invitado en la cabecera
