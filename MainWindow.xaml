@@ -986,6 +986,10 @@
                 <DataTrigger Binding="{Binding IsRoot}" Value="True">
                     <Setter TargetName="Ic" Property="Content" Value="&#xE8D6;" />
                 </DataTrigger>
+                <!-- carpeta en línea (Drive, OneDrive, web…): el mundo en vez de la nota -->
+                <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                    <Setter TargetName="Ic" Property="Content" Value="&#xE774;" />
+                </DataTrigger>
                 <!-- camino hasta la canción que suena: carpetas iluminadas en negrita -->
                 <DataTrigger Binding="{Binding IsActive}" Value="True">
                     <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource AccentBrush}" />

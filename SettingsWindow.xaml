@@ -374,6 +374,79 @@
                         <Button Style="{StaticResource SecondaryButton}" FontSize="16" Content="Volver a escanear" Click="Rescan_Click" Margin="8,0,0,0" />
                     </StackPanel>
 
+                    <!-- carpetas en línea: se escuchan desde la nube, sin copiar nada al PC -->
+                    <StackPanel Orientation="Horizontal" Margin="0,24,0,4">
+                        <TextBlock Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{DynamicResource AccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Carpetas en línea" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Text="Pega la dirección de una carpeta compartida de Google Drive u OneDrive («Cualquier persona con el enlace»), del listado de carpetas de un servidor web o de un archivo de audio, y ponle el nombre que quieras: saldrá así en el panel lateral. Las canciones se escuchan directamente desde la nube; no se copia nada a tu PC." />
+                    <ItemsControl x:Name="OnlineList" Margin="-10,0,-10,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:OnlineFolderItem}">
+                                <Border x:Name="Bd" CornerRadius="6" Padding="10,8" Background="Transparent">
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE8A7;" FontSize="13" Click="OpenOnline_Click"
+                                                    ToolTip="Abrir en el navegador" />
+                                            <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="13" Click="RemoveOnline_Click"
+                                                    ToolTip="Quitar de la biblioteca (en la nube no se borra nada)" Margin="2,0,0,0" />
+                                        </StackPanel>
+                                        <Grid DockPanel.Dock="Left" Width="20" Height="20" Margin="0,0,12,0" VerticalAlignment="Center">
+                                            <TextBlock x:Name="Globe" Text="&#xE774;" FontFamily="{StaticResource IconFont}" FontSize="18"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Text2Brush}" />
+                                            <!-- cargando: un arco que gira -->
+                                            <Path x:Name="Spinner" Visibility="Collapsed" Width="18" Height="18" Stretch="None" RenderTransformOrigin="0.5,0.5"
+                                                  Stroke="{DynamicResource AccentBrush}" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  Data="M 9,1.5 A 7.5,7.5 0 1 1 1.5,9">
+                                                <Path.RenderTransform>
+                                                    <RotateTransform x:Name="SpinnerTurn" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                        </Grid>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="14" Foreground="{DynamicResource Text2Brush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Url}">
+                                                <Run Text="{Binding Detail, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Url, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                    </Trigger>
+                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                        <Setter TargetName="Globe" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="Spinner" Property="Visibility" Value="Visible" />
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="Spin">
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetName="SpinnerTurn" Storyboard.TargetProperty="Angle"
+                                                                     From="0" To="360" Duration="0:0:0.9" />
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="Spin" />
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Style="{StaticResource SecondaryButton}" FontSize="16" Click="AddOnline_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="13" VerticalAlignment="Center" Margin="0,1,8,0" />
+                                <TextBlock Text="Añadir carpeta en línea…" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource GhostButton}" FontSize="14" Content="Comprobar cambios" Click="RefreshOnline_Click" Margin="8,0,0,0"
+                                VerticalAlignment="Center" ToolTip="Vuelve a mirar qué hay en cada carpeta en línea" />
+                    </StackPanel>
+
                     <!-- ===== Ecualizador ===== -->
                     <Border Style="{StaticResource SectionRule}" />
                     <ContentControl Style="{StaticResource SectionHeader}" Content="Ecualizador" Tag="&#xE9E9;" />

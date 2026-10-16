@@ -72,6 +72,11 @@ public sealed class CoverService
     /// </summary>
     private string[] ImagesIn(string dir) => _dirImages.GetOrAdd(dir, d =>
     {
+        // carpeta en línea: las imágenes que dice su índice, las de nombre de portada primero
+        if (OnlineLibrary.IsOnline(d))
+            return OnlineLibrary.ImagesIn(d)
+                .OrderByDescending(p => Preferred.Any(Path.GetFileNameWithoutExtension(p).ToLowerInvariant().Contains) ? 1 : 0)
+                .ThenBy(p => p, NaturalComparer.Instance).ToArray();
         try
         {
             var root = new DirectoryInfo(d);
@@ -181,7 +186,7 @@ public sealed class CoverService
     {
         try
         {
-            if (FindCoverFile(song.Directory) is { } file) return File.ReadAllBytes(file);
+            if (FindCoverFile(song.Directory) is { } file) return OnlineLibrary.IsOnline(file) ? OnlineLibrary.ReadAllBytes(file) : File.ReadAllBytes(file);
         }
         catch
         {
@@ -291,7 +296,8 @@ public sealed class CoverService
         BitmapSource? img = null;
         try
         {
-            img = Decode(new MemoryStream(File.ReadAllBytes(path)), size);
+            var bytes = OnlineLibrary.IsOnline(path) ? OnlineLibrary.ReadAllBytes(path) : File.ReadAllBytes(path);
+            if (bytes != null) img = Decode(new MemoryStream(bytes), size);
         }
         catch
         {

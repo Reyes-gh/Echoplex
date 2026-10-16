@@ -87,6 +87,7 @@ public partial class SettingsWindow : Window
         }).IsChecked = true;
         (vm.CloseToTray ? CloseTrayChip : CloseExitChip).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
+        OnlineList.ItemsSource = vm.OnlineFolders;
         BuildColumnSwitches();
         BuildEqPresets();
         vm.PropertyChanged += OnVmChanged;
@@ -510,6 +511,43 @@ public partial class SettingsWindow : Window
     private void AddFolder_Click(object sender, RoutedEventArgs e) => _main.AddMusicFolder();
 
     private async void Rescan_Click(object sender, RoutedEventArgs e) => await _vm.RescanAsync(announce: true);
+
+    // ---------- carpetas en línea ----------
+
+    /// <summary>Pide la URL y el nombre (el de la carpeta en el panel lateral) y la añade.</summary>
+    private async void AddOnline_Click(object sender, RoutedEventArgs e)
+    {
+        var answer = DialogWindow.PromptTwo(this, "Añadir carpeta en línea",
+            "Una carpeta compartida de Google Drive u OneDrive («Cualquier persona con el enlace»), el listado de carpetas de un servidor web o un archivo de audio. Se escucha desde la nube, sin copiar nada a tu PC.",
+            "Dirección (URL)", "Nombre en el panel lateral", $"Música en línea {_vm.OnlineFolders.Count + 1}", "Añadir");
+        if (answer is not { } a) return;
+        var error = await _vm.AddOnlineFolderAsync(a.First, a.Second);
+        if (error != null) DialogWindow.Info(this, "No se pudo añadir la carpeta en línea", error);
+    }
+
+    private async void RemoveOnline_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is OnlineFolderItem item) await _vm.RemoveOnlineFolderAsync(item.Id);
+    }
+
+    private void OpenOnline_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is OnlineFolderItem item) OpenUrl(item.Url);
+    }
+
+    private async void RefreshOnline_Click(object sender, RoutedEventArgs e) => await _vm.RefreshOnlineFoldersAsync(announce: true);
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch
+        {
+            // sin navegador
+        }
+    }
 
     private async void RemoveFolder_Click(object sender, RoutedEventArgs e)
     {

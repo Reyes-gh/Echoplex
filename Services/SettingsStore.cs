@@ -26,6 +26,8 @@ public sealed class AppSettings
     public bool EqEnabled { get; set; }
     /// <summary>La X esconde Echoplex en la bandeja (la música sigue) en vez de cerrarlo. De serie, cierra.</summary>
     public bool CloseToTray { get; set; }
+    /// <summary>Carpetas en línea (Drive, servidores web…): su nombre en el árbol y su URL. Se escuchan desde la nube.</summary>
+    public List<OnlineSource>? OnlineSources { get; set; }
     /// <summary>Ganancia de cada banda en dB (25 Hz … 16 kHz); null = todo plano.</summary>
     public double[]? EqGains { get; set; }
     /// <summary>Preamplificador del ecualizador, en dB.</summary>

@@ -13,7 +13,11 @@
             <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock x:Name="MessageText" FontSize="14" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
                        LineHeight="21" />
+            <TextBlock x:Name="InputLabel" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,0" Visibility="Collapsed" />
             <TextBox x:Name="Input" Style="{StaticResource DialogBox}" Margin="0,16,0,0" Visibility="Collapsed" />
+            <!-- segundo campo (p. ej. el nombre de una carpeta en línea) -->
+            <TextBlock x:Name="Input2Label" FontSize="13" FontWeight="SemiBold" Margin="0,14,0,0" Visibility="Collapsed" />
+            <TextBox x:Name="Input2" Style="{StaticResource DialogBox}" Margin="0,6,0,0" Visibility="Collapsed" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
                 <Button x:Name="CancelButton" Style="{StaticResource SecondaryButton}" Content="Cancelar" Click="Cancel_Click" MinWidth="84" />
                 <Button x:Name="OkButton" Style="{StaticResource PrimaryButton}" Content="Aceptar" Click="Ok_Click" Margin="8,0,0,0" MinWidth="84" />

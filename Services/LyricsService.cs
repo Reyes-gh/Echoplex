@@ -18,11 +18,16 @@ public static partial class LyricsService
     {
         try
         {
-            var lrc = FindLrc(song.Path);
-            if (lrc != null) return Parse(File.ReadAllText(lrc));
+            if (OnlineLibrary.IsOnline(song.Path))
+            {
+                // carpeta en línea: su .lrc (si lo hay en la carpeta) o la letra de sus etiquetas, leídos de la nube
+                if (OnlineLibrary.LrcFor(song.Path) is { } remoteLrc && OnlineLibrary.ReadAllBytes(remoteLrc) is { } bytes)
+                    return Parse(System.Text.Encoding.UTF8.GetString(bytes));
+            }
+            else if (FindLrc(song.Path) is { } lrc) return Parse(File.ReadAllText(lrc));
             if (!song.IsCloud)
             {
-                using var f = TagLib.File.Create(song.Path);
+                using var f = MetadataReader.Open(song.Path);
                 var text = f.Tag.Lyrics;
                 if (!string.IsNullOrWhiteSpace(text)) return Parse(text);
             }

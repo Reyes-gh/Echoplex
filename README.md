@@ -14,6 +14,7 @@
 - **Ecualizador de 15 bandas**: en Ajustes, de 25 Hz a 16 kHz (±12 dB) con preamplificador y preajustes (Graves, Voces, Rock, Electrónica…), con la curva de las bandas dibujada y los valores también a mano. Cada cambio se oye al momento, sin transiciones.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** oculta lo que está entero en la nube, en el árbol y en Inicio.
+- **Carpetas en línea**: carpetas compartidas de Google Drive u OneDrive, o de un servidor web, que se escuchan directamente desde la nube sin copiar nada al PC.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
@@ -47,15 +48,19 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.23`).
-2. Escribe las notas en `.github/notas/1.1.23.md` (si no, se usa la sección `### 1.1.23` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.23`** con **`Echoplex-1.1.23-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.24`).
+2. Escribe las notas en `.github/notas/1.1.24.md` (si no, se usa la sección `### 1.1.24` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.24`** con **`Echoplex-1.1.24-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 1.1.23
+- **Carpetas en línea, escuchadas desde la nube**: en *Ajustes → Carpetas en línea* puedes añadir una carpeta compartida de **Google Drive** o de **OneDrive** («Cualquier persona con el enlace»), el listado de carpetas de un servidor web o el enlace a un archivo de audio, con el nombre que quieras. Sale en el panel lateral con un mundo en vez de la nota y se usa como cualquier otra carpeta (portadas, letras `.lrc`, favoritas, playlists…), pero las canciones no se copian a tu PC: suenan directamente desde la nube en cuanto llega el primer trozo (en OneDrive, en menos de medio segundo) y se puede saltar a cualquier punto. Mientras se añade o se comprueba si hay cambios, un indicador cuenta las canciones que va encontrando. Con OneDrive no hace falta iniciar sesión.
+- **Los álbumes se abren siempre por arriba**: al ir a un álbum desde una canción estando ya en ese álbum (o en una página casi igual), la página nueva se quedaba bajada y la portada, el título y los botones (*Reproducir*, *Aleatorio*, *Radio*…) quedaban fuera de la vista. Ahora cualquier página que abras empieza arriba del todo.
 
 ### 1.1.22
 - **Reintentar la búsqueda de una letra**: cuando LRCLIB no tiene la letra de una canción, Echoplex lo apunta y no vuelve a preguntar por ella en 7 días. Ahora, en la pestaña *Letra*, encima de «Buscar letras en internet», sale **Reintentar búsqueda** para preguntar ya sin esperar, y a su lado un botón de información (ⓘ) que lo explica, al pasar el ratón y al pulsarlo: a veces, al buscar la letra y no encontrarla, se guarda vacía y no se vuelve a intentar hasta dentro de 7 días; con el botón se vuelve a buscar al momento. También aparece si no se pudo conectar con LRCLIB.

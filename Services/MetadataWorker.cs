@@ -5,11 +5,15 @@ namespace Echoplex.Services;
 
 public static class MetadataReader
 {
+    /// <summary>Abre las etiquetas de una canción: del disco o, si es de una carpeta en línea, de la nube (solo los trozos que mira).</summary>
+    public static TagLib.File Open(string path) =>
+        OnlineLibrary.IsOnline(path) ? OnlineLibrary.OpenTags(path) ?? throw new FileNotFoundException(path) : TagLib.File.Create(path);
+
     public static CachedMeta Read(string path)
     {
         try
         {
-            using var f = TagLib.File.Create(path);
+            using var f = Open(path);
             var t = f.Tag;
             return new CachedMeta
             {
@@ -30,7 +34,7 @@ public static class MetadataReader
     {
         try
         {
-            using var f = TagLib.File.Create(path);
+            using var f = Open(path);
             var pics = f.Tag.Pictures;
             var p = pics.FirstOrDefault(x => x.Type == TagLib.PictureType.FrontCover) ?? pics.FirstOrDefault();
             return p?.Data?.Data;
@@ -103,7 +107,8 @@ public sealed class MetadataWorker
         {
             var meta = MetadataReader.Read(s.Path);
             bool cloud;
-            try { cloud = LibraryService.IsCloudOnly(File.GetAttributes(s.Path)); } catch { cloud = s.IsCloud; }
+            if (OnlineLibrary.IsOnline(s.Path)) cloud = false;
+            else try { cloud = LibraryService.IsCloudOnly(File.GetAttributes(s.Path)); } catch { cloud = s.IsCloud; }
             _cache.Put(s, meta);
             _ui.BeginInvoke(() =>
             {

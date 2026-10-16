@@ -59,10 +59,14 @@ public sealed partial class LibraryService
         var root = RootOf(path);
         if (root == null) return path;
         var parts = new List<string>();
-        if (Roots.Count > 1 || Eq(root, path)) parts.Add(Path.GetFileName(root) is { Length: > 0 } name ? name : root.TrimEnd(Path.DirectorySeparatorChar));
+        if (Roots.Count > 1 || Eq(root, path)) parts.Add(RootName(root));
         if (!Eq(root, path)) parts.AddRange(Path.GetRelativePath(root, path).Split(Path.DirectorySeparatorChar));
         return string.Join(" / ", parts);
     }
+
+    /// <summary>Nombre de una carpeta de música: el de la carpeta o, si es en línea, el que le puso el usuario.</summary>
+    public static string RootName(string root) =>
+        OnlineLibrary.RootName(root) ?? (Path.GetFileName(root) is { Length: > 0 } name ? name : root.TrimEnd(Path.DirectorySeparatorChar));
 
     [GeneratedRegex(@"^(?:\d{1,2}[-.])?(?:(?<n>\d{2,3})(?:\s*[-._)]\s*|\s+)|(?<n>\d)\s*[-._)]\s*)")]
     private static partial Regex TrackPrefix();
@@ -96,11 +100,23 @@ public sealed partial class LibraryService
         var present = new List<string>();
         foreach (var root in roots)
         {
-            if (!Directory.Exists(root)) continue;
+            bool online = OnlineLibrary.IsOnlineRoot(root);
+            if (!online && !Directory.Exists(root)) continue;
             present.Add(root);
             counts[root] = 0; // la raíz existe aunque aún no tenga canciones
             var songs = new List<Song>();
-            foreach (var fi in new DirectoryInfo(root).EnumerateFiles("*", opts))
+            if (online)
+            {
+                // carpeta en línea: lo que dice su índice (no hay nada en el disco; se reproduce desde la nube)
+                foreach (var path in OnlineLibrary.AudioFiles(root, AudioExtensions))
+                {
+                    var song = new Song(path, Path.GetRelativePath(root, path), 0, 0, 0, false);
+                    ApplyFallback(song, root);
+                    if (cache.TryGet(song, out var meta)) ApplyMeta(song, meta);
+                    songs.Add(song);
+                }
+            }
+            else foreach (var fi in new DirectoryInfo(root).EnumerateFiles("*", opts))
             {
                 if (!AudioExtensions.Contains(fi.Extension)) continue;
                 var song = new Song(fi.FullName, Path.GetRelativePath(root, fi.FullName), fi.Length,

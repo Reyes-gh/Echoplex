@@ -41,6 +41,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     private WaveStream? _nextReader;
     private Func<WaveStream>? _nextOpen;
     private object? _nextTag;
+    private string? _nextPath;
 
     public AudioOutput(Dispatcher ui)
     {
@@ -126,6 +127,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         {
             reader = Open();
             _open = Open;
+            if (OnlineLibrary.IsOnline(path)) OnlineLibrary.Focus(path); // la que suena: las demás en línea dejan de bajar
         }
         catch (Exception ex)
         {
@@ -184,6 +186,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
     private static WaveStream OpenFile(string path)
     {
+        // carpeta en línea: se lee de la nube mientras suena (en memoria; nada se guarda en el disco)
+        if (OnlineLibrary.IsOnline(path)) return new OwningStreamReader(OnlineLibrary.OpenStream(path));
         var clean = path.EndsWith(".flac", StringComparison.OrdinalIgnoreCase) ? FlacSanitizer.TryOpen(path) : null;
         return clean != null ? new OwningStreamReader(clean) : new MediaFoundationReader(path);
     }
@@ -235,6 +239,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _nextReader = next;
             _nextOpen = () => OpenFile(path);
             _nextTag = tag;
+            _nextPath = path;
         }
         return true;
     });
@@ -259,6 +264,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         var tag = _nextTag!;
         _reader = _nextReader;
         _open = _nextOpen;
+        if (_nextPath != null && OnlineLibrary.IsOnline(_nextPath)) OnlineLibrary.Focus(_nextPath);
+        _nextPath = null;
         _nextReader = null;
         _nextOpen = null;
         _nextTag = null;

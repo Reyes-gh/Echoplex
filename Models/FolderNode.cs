@@ -20,6 +20,8 @@ public sealed partial class FolderNode : ObservableObject
     [ObservableProperty] private int _count;
     public FolderNode? Parent { get; }
     public bool IsRoot => Parent == null;
+    /// <summary>Raíz de una carpeta en línea (Drive, OneDrive, web…): lleva el icono del mundo en vez de la nota.</summary>
+    public bool IsOnline => IsRoot && Services.OnlineLibrary.IsOnlineRoot(Path);
     public ObservableCollection<FolderNode> Children { get; } = new();
 
     /// <summary>Miniatura: la primera imagen que haya dentro de la carpeta (o de sus subcarpetas).</summary>

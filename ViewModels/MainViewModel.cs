@@ -36,7 +36,9 @@ public sealed partial class MainViewModel : ObservableObject
         _ui = ui;
         Settings = SettingsStore.Load();
         _cache = new MetadataCache(Path.Combine(SettingsStore.DataDirectory, "metadata.json"));
-        Library = new LibraryService(Settings.MusicRoots);
+        OnlineLibrary.Load(Settings.OnlineSources);
+        RemoteFile.Trace = OnlineLog.Write; // tiempos de las carpetas en línea, en online.log
+        Library = new LibraryService(WithOnline(Settings.MusicRoots));
         Covers.SetCustomCovers(CustomCoverMap());
         UserData = new UserDataService();
 
@@ -196,7 +198,7 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(Playlists));
         _saveTimer.Start();
 
-        if (!Library.Roots.Any(Directory.Exists))
+        if (!Library.Roots.Any(r => OnlineLibrary.IsOnlineRoot(r) || Directory.Exists(r)))
         {
             NeedsFolder = true;
             StatusText = Library.Roots.Count == 0
@@ -208,6 +210,8 @@ public sealed partial class MainViewModel : ObservableObject
         await Task.Run(() => Library.Load(_cache));
         OnLibraryLoaded(resetNavigation: true, previousCount: -1);
         RestoreLastSession();
+        // las carpetas en línea salen ya con su índice guardado; aquí se mira si han cambiado
+        if (OnlineLibrary.Sources.Count > 0) _ = RefreshOnlineFoldersAsync(announce: false);
     }
 
     // ======================================================================
@@ -368,6 +372,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Quita una carpeta de la biblioteca (no borra nada del disco).</summary>
     public async Task RemoveMusicRootAsync(string path)
     {
+        if (OnlineLibrary.SourceOf(path) is { } online)
+        {
+            await RemoveOnlineFolderAsync(online.Id);
+            return;
+        }
         var roots = Library.Roots.Where(r => !Eq(r, path)).ToList();
         if (roots.Count == Library.Roots.Count) return;
         if (await ApplyMusicRootsAsync(roots)) ShowToast($"Carpeta quitada de la biblioteca: {FolderName(path)}", 4);
@@ -375,7 +384,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async Task<bool> ApplyMusicRootsAsync(List<string> roots)
     {
-        Settings.MusicRoots = roots;
+        // en los ajustes, solo las del disco: las en línea van en OnlineSources
+        Settings.MusicRoots = roots.Where(r => !OnlineLibrary.IsOnline(r)).ToList();
         SettingsStore.Save(Settings);
         Covers.ClearCache();
         _fileAlbums.Clear();
@@ -397,8 +407,9 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshMusicFolders()
     {
         MusicFolders.Clear();
-        foreach (var r in Library.Roots)
+        foreach (var r in Library.Roots.Where(r => !OnlineLibrary.IsOnline(r)))
             MusicFolders.Add(new MusicFolderItem(r, Directory.Exists(r), Library.GetCount(r)));
+        RefreshOnlineFolders();
     }
 
     /// <summary>Vuelve a leer la carpeta de música (canciones nuevas, borradas o movidas).</summary>
@@ -551,7 +562,7 @@ public sealed partial class MainViewModel : ObservableObject
                 (s, e) => { ((DispatcherTimer)s!).Stop(); _ = RescanAsync(announce: false); }, _ui);
             _rescanTimer.Stop();
         }
-        foreach (var root in Library.PresentRoots)
+        foreach (var root in Library.PresentRoots.Where(r => !OnlineLibrary.IsOnline(r)))
         {
             try
             {
@@ -680,7 +691,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     private FolderNode BuildNode(string path, FolderNode? parent)
     {
-        var node = new FolderNode(Path.GetFileName(path) is { Length: > 0 } n ? n : path, path, Library.GetCount(path), parent);
+        var name = parent == null ? LibraryService.RootName(path) : Path.GetFileName(path) is { Length: > 0 } n ? n : path;
+        var node = new FolderNode(name, path, Library.GetCount(path), parent);
         foreach (var child in Library.GetChildren(path)) node.Children.Add(BuildNode(child, node));
         return node;
     }
@@ -853,7 +865,7 @@ public sealed partial class MainViewModel : ObservableObject
         var props = new List<PropertyItem>
         {
             new("", "Tipo", isAll ? "Biblioteca" : isRoot ? "Carpeta de música" : "Carpeta"),
-            new("", "Ubicación", isAll ? $"{Library.PresentRoots.Count} carpetas de música" : isRoot ? path : Library.DisplayPath(path)),
+            new("", "Ubicación", isAll ? $"{Library.PresentRoots.Count} carpetas de música" : isRoot ? OnlineLibrary.SourceOf(path)?.Url ?? path : Library.DisplayPath(path)),
         };
         if (hasChildren) props.Add(new PropertyItem("", "Discos", discs.ToString()));
         var page = new SongListPage("folder:" + path, ListKind.Folder, all)
@@ -1991,7 +2003,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (song.IsCloud) return null;
             try
             {
-                using var f = TagLib.File.Create(song.Path);
+                using var f = MetadataReader.Open(song.Path);
                 var p = f.Properties;
                 return new[]
                 {
@@ -2033,6 +2045,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (st?.Last is { } last && last > DateTime.MinValue) Add("", "Última vez", RelativeTime(last));
         Add("", "Añadida", new DateTime(song.CreatedTicks, DateTimeKind.Utc).ToLocalTime().ToString("d MMM yyyy", Es));
         Add("", "Ubicación", song.RelativePath);
+        if (OnlineLibrary.SourceOf(song.Path) is { } online) Add("\uE774", "En línea", $"{online.Name} (se escucha desde la nube)");
     }
 
     // ======================================================================
@@ -2098,9 +2111,13 @@ public sealed partial class MainViewModel : ObservableObject
     public (int cloud, long bytes) CloudSummary(IList<Song> songs) =>
         (songs.Count(s => s.IsCloud), songs.Where(s => s.IsCloud).Sum(s => s.Length));
 
+    /// <summary>Canciones del disco (las de carpetas en línea no se descargan ni se liberan: se escuchan desde la nube).</summary>
+    public static List<Song> LocalOnly(IEnumerable<Song> songs) => songs.Where(s => !OnlineLibrary.IsOnline(s.Path)).ToList();
+
     public void SetKeepOffline(IList<Song> songs, string? folder, bool keep)
     {
-        var list = songs.ToList();
+        var list = LocalOnly(songs);
+        if (folder != null && OnlineLibrary.IsOnline(folder)) folder = null;
         Task.Run(() =>
         {
             if (folder != null) OneDriveService.SetKeepOffline(folder, keep);
@@ -2572,7 +2589,8 @@ public sealed partial class MainViewModel : ObservableObject
         return i < 0 ? (id, "") : (id[..i], id[(i + 1)..]);
     }
 
-    private string FolderName(string path) => Eq(path, LibraryService.AllKey) ? "Toda tu música" : Path.GetFileName(path) is { Length: > 0 } n ? n : path;
+    private string FolderName(string path) => Eq(path, LibraryService.AllKey) ? "Toda tu música"
+        : Library.IsRoot(path) ? LibraryService.RootName(path) : Path.GetFileName(path) is { Length: > 0 } n ? n : path;
 
     private static string Capitalize(string s) => s.Length == 0 ? s : char.ToUpper(s[0], Es) + s[1..];
 

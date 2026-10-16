@@ -443,8 +443,10 @@ public partial class MainWindow : Window
                 {
                     var scroll = FindDescendant<ScrollViewer>(PageHost);
                     if (scroll == null) return;
-                    if (keep is { } offset) RestoreScroll(scroll, offset, tries: 5);
-                    else scroll.ScrollToTop();
+                    // página nueva: arriba del todo, con su cabecera y sus botones. Se insiste igual que al restaurar: si la
+                    // nueva se parece a la anterior (el mismo álbum, o su carpeta), la lista reutilizada se recoloca después
+                    // y la dejaba bajada, con los botones fuera de la vista
+                    RestoreScroll(scroll, keep ?? 0, tries: 5);
                 });
                 if (_vm.CurrentPage != null) AnimatePageIn();
                 break;
@@ -967,7 +969,11 @@ public partial class MainWindow : Window
 
     public void OpenMiniPlayer() => ShowMiniPlayer();
 
-    private async void Rescan_Click(object sender, RoutedEventArgs e) => await _vm.RescanAsync(announce: true);
+    private async void Rescan_Click(object sender, RoutedEventArgs e)
+    {
+        await _vm.RescanAsync(announce: true);
+        await _vm.RefreshOnlineFoldersAsync(announce: false); // y lo de las carpetas en línea
+    }
 
     // ======================================================================
     // Lista de canciones
@@ -1059,7 +1065,7 @@ public partial class MainWindow : Window
         if (p.FolderPath != null)
         {
             menu.Items.Add(new Separator());
-            menu.Items.Add(Item("Abrir en el Explorador", "", () => OpenInExplorer(p.FolderPath, false)));
+            menu.Items.Add(Item(ExplorerLabel(p.FolderPath, "Abrir en el Explorador"), "", () => OpenInExplorer(p.FolderPath, false)));
         }
         if (_vm.CanRefreshDiscordCovers && p.Playlist == null)
         {
@@ -1125,8 +1131,8 @@ public partial class MainWindow : Window
         AddOfflineItems(menu, songs, null);
         if (single)
         {
-            menu.Items.Add(Item("Mostrar en el Explorador", "", () => OpenInExplorer(song.Path, true)));
-            menu.Items.Add(Item("Copiar ruta", "", () => { try { Clipboard.SetText(song.Path); _vm.ShowToast("Ruta copiada"); } catch { } }));
+            menu.Items.Add(Item(ExplorerLabel(song.Path, "Mostrar en el Explorador"), "", () => OpenInExplorer(song.Path, true)));
+            menu.Items.Add(Item("Copiar ruta", "", () => { try { Clipboard.SetText(OnlineLibrary.IsOnline(song.Path) ? OnlineLibrary.WebUrl(song.Path) ?? song.Path : song.Path); _vm.ShowToast("Ruta copiada"); } catch { } }));
             menu.Items.Add(Item("Detalles", "", () => { _vm.PlaySong(song); _vm.RightTab = "info"; _vm.ShowRightPanel = true; }));
         }
 
@@ -1159,6 +1165,9 @@ public partial class MainWindow : Window
 
     private void AddOfflineItems(ContextMenu menu, IList<Song> songs, string? folder)
     {
+        // las de carpetas en línea no se descargan ni liberan (OneDrive): se escuchan desde la nube
+        songs = MainViewModel.LocalOnly(songs);
+        if (songs.Count == 0) return;
         var (cloud, bytes) = _vm.CloudSummary(songs);
         int local = songs.Count - cloud;
         menu.Items.Add(Item(cloud > 0 ? $"Mantener en este dispositivo ({cloud} · {bytes / 1073741824.0:0.0} GB)" : "Mantener en este dispositivo",
@@ -1208,7 +1217,7 @@ public partial class MainWindow : Window
         if (_vm.HasOwnFileNameMode(path))
             menu.Items.Add(Item("Títulos: seguir el ajuste general", "", () => _vm.ClearFolderFileNames(path)));
         if (node.IsRoot) menu.Items.Add(Item("Quitar de la biblioteca", "", () => _ = _vm.RemoveMusicRootAsync(path)));
-        menu.Items.Add(Item("Abrir en el Explorador", "", () => OpenInExplorer(path, false)));
+        menu.Items.Add(Item(ExplorerLabel(path, "Abrir en el Explorador"), "", () => OpenInExplorer(path, false)));
     }
 
     private void PlaylistMenu_Opened(object sender, RoutedEventArgs e)
@@ -1490,8 +1499,18 @@ public partial class MainWindow : Window
         return mi;
     }
 
+    /// <summary>«…en el Explorador», o «Abrir en el navegador» si es de una carpeta en línea.</summary>
+    private static string ExplorerLabel(string path, string local) => OnlineLibrary.IsOnline(path) ? "Abrir en el navegador" : local;
+
     private static void OpenInExplorer(string path, bool select)
     {
+        // carpeta en línea: su página en el navegador (Drive, el servidor web…)
+        if (OnlineLibrary.IsOnline(path))
+        {
+            if (OnlineLibrary.WebUrl(path) is { } url)
+                try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+            return;
+        }
         try
         {
             Process.Start("explorer.exe", select ? $"/select,\"{path}\"" : $"\"{path}\"");

@@ -24,6 +24,11 @@ public partial class DialogWindow : Window
     private void Accept()
     {
         if (Input.Visibility == Visibility.Visible && string.IsNullOrWhiteSpace(Input.Text)) return;
+        if (Input2.Visibility == Visibility.Visible && string.IsNullOrWhiteSpace(Input2.Text))
+        {
+            Input2.Focus();
+            return;
+        }
         DialogResult = true;
     }
 
@@ -38,6 +43,27 @@ public partial class DialogWindow : Window
         d.OkButton.Content = ok;
         d.Loaded += (s, e) => { d.Input.Focus(); d.Input.SelectAll(); };
         return d.ShowDialog() == true ? d.Input.Text.Trim() : null;
+    }
+
+    /// <summary>Dos campos con su etiqueta (la URL de una carpeta en línea y su nombre). Devuelve null si se cancela.</summary>
+    public static (string First, string Second)? PromptTwo(Window owner, string title, string message, string label1, string label2,
+        string initial2 = "", string ok = "Aceptar")
+    {
+        var d = new DialogWindow { Owner = owner };
+        d.TitleText.Text = title;
+        d.MessageText.Text = message;
+        d.MessageText.Visibility = message.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        d.InputLabel.Text = label1;
+        d.InputLabel.Visibility = Visibility.Visible;
+        d.Input.Visibility = Visibility.Visible;
+        d.Input.Margin = new Thickness(0, 6, 0, 0);
+        d.Input2Label.Text = label2;
+        d.Input2Label.Visibility = Visibility.Visible;
+        d.Input2.Visibility = Visibility.Visible;
+        d.Input2.Text = initial2;
+        d.OkButton.Content = ok;
+        d.Loaded += (s, e) => d.Input.Focus();
+        return d.ShowDialog() == true ? (d.Input.Text.Trim(), d.Input2.Text.Trim()) : null;
     }
 
     public static bool Confirm(Window owner, string title, string message, string ok = "Aceptar", bool danger = false)

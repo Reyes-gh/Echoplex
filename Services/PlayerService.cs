@@ -473,7 +473,10 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         Error = null;
         Position = resumeAt ?? 0;
         Duration = song.Duration?.TotalSeconds ?? 0;
-        LoadingText = song.IsCloud ? "Descargando de OneDrive…" : "Cargando…";
+        _loadClock.Restart();
+        if (OnlineLibrary.IsOnline(song.Path)) OnlineLog.Write($"▶ {Path.GetFileName(song.Path)}: cargando (clic)");
+        LoadingText = song.IsCloud ? "Descargando de OneDrive…"
+            : OnlineLibrary.SourceOf(song.Path) is { } online ? $"Cargando desde {online.Name}…" : "Cargando…";
         IsBuffering = true;
         UpdateUpNext();
 
@@ -518,10 +521,19 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         if (resumeAt is > 0) _out.Seek(TimeSpan.FromSeconds(resumeAt.Value));
         SongOpened?.Invoke(song);
         _loading = false;
-        if (_autoplayPending) await PlayOutputAsync();
+        bool fromCloud = OnlineLibrary.IsOnline(song.Path);
+        if (fromCloud) OnlineLog.Write($"▶ {Path.GetFileName(song.Path)}: lista para sonar a los {_loadClock.ElapsedMilliseconds} ms ({_out.FormatText})");
+        if (_autoplayPending)
+        {
+            await PlayOutputAsync();
+            if (fromCloud) OnlineLog.Write($"▶ {Path.GetFileName(song.Path)}: sonando a los {_loadClock.ElapsedMilliseconds} ms del clic");
+        }
         else _smtc.SetStatus(MediaControls.StatusPaused);
         await UpdateSystemControlsAsync(song, ver);
     }
+
+    // del clic a que suena (registro de las carpetas en línea)
+    private readonly System.Diagnostics.Stopwatch _loadClock = new();
 
     /// <summary>Empieza a sonar; si el dispositivo exclusivo está ocupado, sigue en modo normal.</summary>
     private async Task PlayOutputAsync()
