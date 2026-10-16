@@ -2,14 +2,14 @@
 
 <h1 align="center">Echoplex</h1>
 
-<p align="center">Reproductor de música local para Windows con la estructura de Spotify y un estilo minimalista.</p>
+<p align="center">Reproductor de música local para Windows con la estructura de un servicio de streaming y un estilo minimalista.</p>
 
 ## Características
 
-- **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio, también una unidad entera como `F:\`) y miniaturas de portada.
+- **Tu música, por carpetas**: árbol de carpetas en el panel lateral, con varias carpetas de música a la vez (cada una es un bloque propio, también una unidad entera como `E:\`) y miniaturas de portada.
 - **Páginas de carpeta por discos**: al abrir una carpeta con varios discos, cada disco aparece como un módulo con su portada y su título.
 - **Portadas mosaico**: una carpeta sin portada propia combina las de sus discos (2 o 3 en diagonal, 4 en cuadrícula), o las incrustadas en sus canciones si son de álbumes distintos.
-- **Lo de Spotify que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
+- **Lo de los servicios de streaming que tiene sentido en local**: inicio con recientes y más escuchadas, favoritas, historial, añadidas recientemente, playlists, cola, radio automática, aleatorio y repetición, búsqueda, letras (`.lrc`, incrustadas o, si lo activas, de LRCLIB), mini reproductor, temporizador de apagado y resumen de escucha.
 - **Pantalla completa**: la canción con su portada y controles a un lado y la letra pasando sola al otro, sobre la portada difuminada con luces de sus colores; ocupando toda la app o toda la pantalla (`F11`).
 - **Ecualizador de 15 bandas**: en Ajustes, de 25 Hz a 16 kHz (±12 dB) con preamplificador y preajustes (Graves, Voces, Rock, Electrónica…), con la curva de las bandas dibujada y los valores también a mano. Cada cambio se oye al momento, sin transiciones.
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
@@ -84,7 +84,7 @@ Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez qu
 ### 1.1.18
 - **Carpetas en la nube, en el árbol**: las carpetas que están enteras en OneDrive (sin descargar) llevan una nube a la derecha, y el interruptor **Mostrar solo locales**, encima del árbol, las oculta. La nube se pone o se quita sola al descargar o liberar espacio, también desde el Explorador.
 - **El árbol ya no se recarga ni salta arriba**: cuando cambia algo en las carpetas de música, se actualiza sobre el que ya había (lo desplegado sigue desplegado y el panel lateral no se mueve); si lo que cambió no es música, no se toca nada, y la página que estás viendo sigue por donde ibas.
-- **Una unidad entera como carpeta de música** (`F:\`): el árbol no marcaba la carpeta de lo que suena, la propia unidad salía vacía y su menú no encontraba canciones. Lo que pasa en sus carpetas de sistema (*System Volume Information*) ya no provoca reescaneos.
+- **Una unidad entera como carpeta de música** (`E:\`): el árbol no marcaba la carpeta de lo que suena, la propia unidad salía vacía y su menú no encontraba canciones. Lo que pasa en sus carpetas de sistema (*System Volume Information*) ya no provoca reescaneos.
 
 ### 1.1.17
 - **Más temas, por claros y oscuros**: los cinco de siempre siguen arriba; *Más temas* va en *Claros* y *Oscuros* y, dentro, por familias, todo desplegado al abrirlo y plegable, con cuántos temas tiene cada grupo y el que usas si está dentro.

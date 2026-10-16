@@ -477,7 +477,7 @@ internal sealed partial class DiscordCovers
     }
 
     /// <summary>
-    /// Programa y argumentos de una línea de órdenes: «"C:\ruta con espacios\x.exe" args», «C:\Python\python.exe "script.py"»
+    /// Programa y argumentos de una línea de órdenes: «"C:\ruta con espacios\x.exe" args», «C:\Programas\subir.exe --modo imagen»
     /// o «programa args».
     /// </summary>
     internal static (string exe, string args) SplitCommand(string command)

@@ -5,7 +5,7 @@ using System.Net.Http.Headers;
 namespace Echoplex.Services;
 
 /// <summary>
-/// Un archivo en internet leído por trozos, como hace Spotify: lo leído se guarda en memoria y nunca en el disco.
+/// Un archivo en internet leído por trozos, como un servicio de streaming: lo leído se guarda en memoria y nunca en el disco.
 /// Para reproducir se usa una sola descarga continua (Drive tarda 1–2 s en empezar a servir cada petición, así que
 /// pedir trozo a trozo se come ese tiempo una y otra vez): suena en cuanto llega el primer trozo y la misma conexión
 /// sigue trayendo el resto. Al saltar lejos, la descarga sigue desde allí. Para leer etiquetas se piden solo los trozos

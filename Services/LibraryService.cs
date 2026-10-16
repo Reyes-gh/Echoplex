@@ -43,7 +43,7 @@ public sealed partial class LibraryService
     public static bool IsUnder(string path, string root) =>
         path.Length > root.Length && path.StartsWith(WithSeparator(root), StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>La carpeta con la barra del final: una unidad entera como carpeta de música ("F:\") ya la lleva.</summary>
+    /// <summary>La carpeta con la barra del final: una unidad entera como carpeta de música ("E:\") ya la lleva.</summary>
     public static string WithSeparator(string dir) => Path.EndsInDirectorySeparator(dir) ? dir : dir + Path.DirectorySeparatorChar;
 
     private static bool Eq(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

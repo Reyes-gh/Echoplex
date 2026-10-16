@@ -2451,7 +2451,7 @@ public sealed partial class MainViewModel : ObservableObject
     // Árbol de carpetas
     // ======================================================================
 
-    /// <summary>La raíz del árbol que contiene esta ruta (también si la carpeta de música es una unidad entera, "F:\").</summary>
+    /// <summary>La raíz del árbol que contiene esta ruta (también si la carpeta de música es una unidad entera, "E:\").</summary>
     private FolderNode? RootNodeFor(string path) =>
         Folders.FirstOrDefault(r => Eq(r.Path, path) || LibraryService.IsUnder(path, r.Path));
 

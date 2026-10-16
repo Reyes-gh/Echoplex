@@ -160,7 +160,7 @@ public static partial class OnlineLyricsService
         if (exact?.Text is { } t && IsSynced(t)) return exact;
         var searched = await SearchAsync(title, artist, duration, ct);
         if (searched?.Text is { } s && IsSynced(s)) return searched;
-        // segundo intento con el título sin añadidos («(Tree City Sessions)», «[Remastered]», «- Live»…): la búsqueda
+        // segundo intento con el título sin añadidos («(Acoustic Session)», «[Remastered]», «- Live»…): la búsqueda
         // de LRCLIB a veces no devuelve nada con ellos; la duración (±3 s) sigue evitando que se cuele otra versión
         var simple = Simplify(title);
         if (simple.Length > 0 && !string.Equals(simple, title, StringComparison.OrdinalIgnoreCase))

@@ -12,7 +12,7 @@
     <RootNamespace>Echoplex</RootNamespace>
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
-    <Description>Reproductor de música local al estilo Spotify</Description>
+    <Description>Reproductor de música local para Windows</Description>
     <Version>1.1.23</Version>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>

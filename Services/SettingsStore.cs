@@ -109,26 +109,6 @@ public static class SettingsStore
             ? custom
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Echoplex");
 
-    /// <summary>
-    /// La app se llamaba Sonora: la primera vez se copian sus datos (ajustes, playlists, historial, caché)
-    /// a la carpeta nueva. La antigua se deja tal cual, por si acaso.
-    /// </summary>
-    static SettingsStore()
-    {
-        try
-        {
-            var legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sonora");
-            if (Directory.Exists(DataDirectory) || !Directory.Exists(legacy)) return;
-            Directory.CreateDirectory(DataDirectory);
-            foreach (var file in Directory.GetFiles(legacy))
-                File.Copy(file, Path.Combine(DataDirectory, Path.GetFileName(file)), overwrite: false);
-        }
-        catch
-        {
-            // sin migración: se empieza de cero
-        }
-    }
-
     private static string FilePath => Path.Combine(DataDirectory, "settings.json");
 
     public static AppSettings Load()

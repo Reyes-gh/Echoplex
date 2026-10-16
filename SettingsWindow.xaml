@@ -594,7 +594,7 @@
                         <TextBox x:Name="DiscordUploadBox" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="0,10,0,0"
                                  Text="{Binding DiscordUploadCommand, UpdateSourceTrigger=LostFocus}" KeyDown="DiscordUploadBox_KeyDown"
                                  Visibility="{Binding DiscordManualCovers, Converter={StaticResource BoolVis}}"
-                                 ToolTip="Tu programa de subida. Por ejemplo: C:\Python\python.exe &quot;C:\scripts\subir_caratula.py&quot;" />
+                                 ToolTip="Tu programa de subida. Por ejemplo: C:\Programas\subir.exe &quot;--modo imagen&quot;" />
                         <TextBlock Text="{Binding DiscordStatus}" FontSize="13" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
                                    Visibility="{Binding DiscordStatus, Converter={StaticResource NullVis}}" />
                     </StackPanel>

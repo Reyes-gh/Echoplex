@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Echoplex.Services;
 
 /// <summary>
-/// "Descargar" al estilo Spotify sobre OneDrive: marcar archivos como "Mantener siempre en este
+/// "Descargar" como en los servicios de streaming, sobre OneDrive: marcar archivos como "Mantener siempre en este
 /// dispositivo" (anclados) o "Liberar espacio" (solo en la nube). OneDrive hace el trabajo.
 /// </summary>
 public static class OneDriveService
