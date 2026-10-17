@@ -2,7 +2,7 @@
 
 <h1 align="center">Echoplex</h1>
 
-<p align="center">Reproductor de música local para Windows con la estructura de un servicio de streaming y un estilo minimalista.</p>
+<p align="center">Reproductor de música local u online mediante URL para Windows con la estructura de un servicio de streaming y un estilo minimalista.</p>
 
 ## Características
 
