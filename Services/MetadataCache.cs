@@ -10,6 +10,25 @@ public sealed class CachedMeta
     public string? B { get; set; }   // álbum
     public uint N { get; set; }      // pista
     public long Ms { get; set; }     // duración
+    public string? AA { get; set; }  // artista del álbum
+    public uint D { get; set; }      // disco
+    public uint Y { get; set; }      // año
+    public string? G { get; set; }   // género
+    // ReplayGain de las etiquetas (dB y picos lineales); no se escriben si no hay
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? RT { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? RA { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? PT { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public double? PA { get; set; }
+    /// <summary>
+    /// Con qué versión de la lectura se guardó. Las de antes de <see cref="Current"/> se usan igual (la biblioteca sale al
+    /// momento) pero se vuelven a leer en segundo plano para completar lo que no guardaban.
+    /// </summary>
+    public int V { get; set; }
+    public const int Current = 2;
     public long Len { get; set; }
     public long Ticks { get; set; }
 }

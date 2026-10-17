@@ -33,6 +33,33 @@ public sealed partial class Song : ObservableObject
     public long CreatedTicks { get; }
     public uint TrackNumber { get; set; }
     public bool MetadataLoaded { get; set; }
+    /// <summary>Número de disco de las etiquetas (0 si no lo dicen).</summary>
+    public uint DiscNumber { get; set; }
+    public uint Year { get; set; }
+    public string Genre { get; set; } = "";
+
+    /// <summary>ReplayGain de las etiquetas: ganancias en dB y picos lineales (null si no lo traen).</summary>
+    public double? TrackGain { get; set; }
+    public double? AlbumGain { get; set; }
+    public double? TrackPeak { get; set; }
+    public double? AlbumPeak { get; set; }
+
+    /// <summary>Artista del álbum de las etiquetas (vacío si no lo dicen).</summary>
+    public string AlbumArtist { get; set; } = "";
+
+    private static readonly HashSet<string> VariousNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "various artists", "various", "va", "v.a.", "v/a", "varios artistas", "varios", "artistas varios", "compilation", "recopilatorio",
+    };
+
+    /// <summary>Recopilatorio (artista del álbum «Various Artists» y parecidos): no cuenta como artista propio.</summary>
+    public bool IsCompilation => VariousNames.Contains(AlbumArtist.Trim());
+
+    /// <summary>
+    /// A qué artista pertenece en Artistas: el artista del álbum si lo dicen las etiquetas (así un disco con invitados no
+    /// reparte sus canciones entre diez artistas) y, si no, el artista principal de la canción.
+    /// </summary>
+    public string ArtistKey => AlbumArtist.Length > 0 && !IsCompilation ? AlbumArtist.Trim() : PrimaryArtist;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PrimaryArtist))]

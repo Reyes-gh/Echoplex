@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private ImageSource? _pauseImage;
     private double? _keepPageScroll;
     private TrayIcon? _tray;
+    private GlobalHotkeys? _hotkeys;
     /// <summary>Se cierra de verdad (Salir en la bandeja, actualización, apagado): si no, la X esconde la ventana en la bandeja.</summary>
     private bool _exiting;
 
@@ -85,6 +86,13 @@ public partial class MainWindow : Window
         CommandBindings.Add(new CommandBinding(OpenAlbumCommand, (o, e) => { if (e.Parameter is Song song) _vm.OpenAlbum(LibraryService.AlbumKey(song)); }));
 
         AttachSliderDrag(SeekSlider, v => _vm.Player.Seek(v), PosText);
+        // la forma de onda sigue a la barra (también al arrastrarla), y la barra se vuelve transparente si la hay
+        SeekSlider.ValueChanged += (s, e) => Waveform.Progress = SeekSlider.Maximum > 0 ? SeekSlider.Value / SeekSlider.Maximum : 0;
+        _vm.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.CurrentWaveform))
+                SeekSlider.Style = (Style)FindResource(_vm.CurrentWaveform != null ? "WaveSlider" : "ThinSlider");
+        };
         AttachSliderDrag(VolumeSlider, null);
         VolumeSlider.PreviewMouseWheel += VolumeWheel;
         VolumeAdvanced.CloseRequested += () => VolumePopup.IsOpen = false;
@@ -100,6 +108,10 @@ public partial class MainWindow : Window
             ApplyTitleBar();
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(SizeMoveHook);
+            _hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle);
+            _hotkeys.Pressed += OnGlobalHotkey;
+            _vm.HotkeysChanged += ApplyHotkeys;
+            ApplyHotkeys();
             // solo en la app de verdad (las pruebas crean su propia Application y la X debe cerrar)
             if (System.Windows.Application.Current is App)
             {
@@ -108,6 +120,28 @@ public partial class MainWindow : Window
                 _tray.MenuRequested += () => TrayIcon.ShowMenu(BuildTrayMenu());
             }
         };
+    }
+
+    private void ApplyHotkeys()
+    {
+        if (_hotkeys != null) _vm.SetHotkeysTaken(_hotkeys.Apply(_vm.GlobalHotkeysOn, _vm.GlobalHotkeyShift));
+    }
+
+    /// <summary>Un atajo global: lo mismo que su atajo dentro de la ventana.</summary>
+    private void OnGlobalHotkey(GlobalHotkeys.Command command)
+    {
+        var player = _vm.Player;
+        switch (command)
+        {
+            case GlobalHotkeys.Command.PlayPause: _vm.TogglePlay(); break;
+            case GlobalHotkeys.Command.Next: player.Next(); break;
+            case GlobalHotkeys.Command.Previous: player.Previous(); break;
+            case GlobalHotkeys.Command.VolumeUp: player.Volume = Math.Min(1, player.Volume + 0.05); break;
+            case GlobalHotkeys.Command.VolumeDown: player.Volume = Math.Max(0, player.Volume - 0.05); break;
+            case GlobalHotkeys.Command.Favorite:
+                if (player.Current is { } song) _vm.ToggleFavorite(song);
+                break;
+        }
     }
 
     /// <summary>Arrastrando el borde o moviendo la ventana (entre WM_ENTERSIZEMOVE y WM_EXITSIZEMOVE).</summary>
@@ -262,6 +296,7 @@ public partial class MainWindow : Window
         _mini?.Close();
         _vm.Shutdown();
         _tray?.Dispose();
+        _hotkeys?.Dispose();
     }
 
     /// <summary>Tamaño y paneles de la ventana, a los ajustes (se guardan con lo demás).</summary>
@@ -842,10 +877,102 @@ public partial class MainWindow : Window
     private void Artists_Click(object sender, RoutedEventArgs e) => _vm.OpenArtists();
     private void Albums_Click(object sender, RoutedEventArgs e) => _vm.OpenAlbums();
 
+    /// <summary>
+    /// El sol o la luna del saludo: entra con un fundido y, con las animaciones puestas, el sol gira muy despacio y la
+    /// luna flota un poco (sin distraer).
+    /// </summary>
+    private void GreetIcon_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement el || !AnimationsEnabled) return;
+        // transformaciones nuevas: las de la plantilla están congeladas y no se pueden animar
+        var g = new TransformGroup { Children = { new RotateTransform(), new TranslateTransform() } };
+        el.RenderTransform = g;
+        el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(600)));
+        if (el.DataContext is ViewModels.HomePage { IsNight: true })
+            g.Children[1].BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(-2, 2, TimeSpan.FromSeconds(3.5))
+            {
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
+            });
+        else
+            g.Children[0].BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(90))
+            {
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            });
+    }
+    private void Genres_Click(object sender, RoutedEventArgs e) => _vm.OpenGenres();
+
     private void Folders_Click(object sender, RoutedEventArgs e) => _vm.OpenFolders();
     private void Back_Click(object sender, RoutedEventArgs e) => _vm.GoBack();
     private void Forward_Click(object sender, RoutedEventArgs e) => _vm.GoForward();
-    private void NewPlaylist_Click(object sender, RoutedEventArgs e) => NewPlaylist(null);
+    /// <summary>El + de Playlists: una normal, una inteligente o importar una de otro reproductor.</summary>
+    private void NewPlaylist_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu { PlacementTarget = (UIElement)sender, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+        menu.Items.Add(Item("Nueva playlist", "\uE710", () => NewPlaylist(null)));
+        menu.Items.Add(Item("Nueva playlist inteligente…", "\uE945", NewSmartPlaylist));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Importar playlist (M3U)…", "\uE8B5", ImportPlaylist));
+        menu.IsOpen = true;
+    }
+
+    private void NewSmartPlaylist()
+    {
+        if (SmartPlaylistWindow.Show(this, _vm, $"Inteligente n.º {_vm.Playlists.Count(p => p.IsSmart) + 1}") is not { } r) return;
+        _vm.OpenPlaylist(_vm.CreateSmartPlaylist(r.Name, r.Rules));
+    }
+
+    private void EditSmartPlaylist(Playlist pl)
+    {
+        if (pl.Smart == null || SmartPlaylistWindow.Show(this, _vm, pl.Name, pl.Smart) is not { } r) return;
+        _vm.UpdateSmartPlaylist(pl, r.Name, r.Rules);
+    }
+
+    private void ImportPlaylist()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Importar playlist",
+            Filter = "Playlists M3U (*.m3u;*.m3u8)|*.m3u;*.m3u8|Todos los archivos|*.*",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            var (pl, missing) = _vm.ImportM3u(dlg.FileName);
+            if (pl == null)
+            {
+                DialogWindow.Info(this, "No se pudo importar", "Ninguna canción de esa playlist está en tu biblioteca.");
+                return;
+            }
+            _vm.ShowToast(missing == 0 ? $"Playlist «{pl.Name}» importada: {pl.Songs.Count} canciones"
+                : $"Playlist «{pl.Name}» importada: {pl.Songs.Count} canciones ({missing} no están en tu biblioteca)", 6);
+            _vm.OpenPlaylist(pl);
+        }
+        catch (Exception ex)
+        {
+            DialogWindow.Info(this, "No se pudo importar", ex.Message);
+        }
+    }
+
+    private void ExportPlaylist(Playlist pl)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Exportar playlist",
+            FileName = string.Concat(pl.Name.Split(System.IO.Path.GetInvalidFileNameChars())) + ".m3u8",
+            Filter = "Playlist M3U (UTF-8) (*.m3u8)|*.m3u8|Playlist M3U (*.m3u)|*.m3u",
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        try
+        {
+            _vm.ExportM3u(pl, dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            DialogWindow.Info(this, "No se pudo exportar", ex.Message);
+        }
+    }
 
     private void Playlist_Click(object sender, RoutedEventArgs e)
     {
@@ -1237,6 +1364,8 @@ public partial class MainWindow : Window
         menu.Items.Add(new Separator());
         AddOfflineItems(menu, _vm.Library.Resolve(pl.Songs), null);
         menu.Items.Add(new Separator());
+        if (pl.IsSmart) menu.Items.Add(Item("Editar reglas…", "\uE945", () => EditSmartPlaylist(pl)));
+        menu.Items.Add(Item("Exportar a M3U…", "\uEDE1", () => ExportPlaylist(pl)));
         menu.Items.Add(Item("Renombrar", "", () => RenamePlaylist(pl)));
         menu.Items.Add(Item("Eliminar", "", () => DeletePlaylist(pl)));
     }
@@ -1319,6 +1448,18 @@ public partial class MainWindow : Window
     private void SearchAll_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.CurrentPage is SearchPage page) _vm.OpenAllSearchSongs(page);
+    }
+
+    private void Health_Click(object sender, RoutedEventArgs e) => _vm.OpenHealth();
+
+    private void HealthIssue_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is HealthIssue issue) _vm.OpenHealthIssue(issue);
+    }
+
+    private void EmptyFolder_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is EmptyFolderItem folder) OpenInExplorer(folder.Path, select: false);
     }
 
     private void Rank_Click(object sender, MouseButtonEventArgs e)

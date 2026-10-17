@@ -113,6 +113,17 @@ public partial class SettingsWindow : Window
             _ => DiscordShowArtist,
         }).IsChecked = true;
         (vm.CloseToTray ? CloseTrayChip : CloseExitChip).IsChecked = true;
+        (vm.NormalizationMode switch
+        {
+            Normalization.Track => NormTrack,
+            Normalization.Album => NormAlbum,
+            Normalization.Smart => NormSmart,
+            _ => NormOff,
+        }).IsChecked = true;
+        UpdateMeasureUi();
+        FadeCustomBox.Text = FormatSeconds(vm.CrossfadeSeconds is > 0 and not (3 or 6 or 9) ? vm.CrossfadeSeconds : 5);
+        (vm.CrossfadeSeconds switch { 0 => FadeOff, 3 => Fade3, 6 => Fade6, 9 => Fade9, _ => FadeCustom }).IsChecked = true;
+        (vm.GlobalHotkeyShift ? HotkeyCtrlAltShift : HotkeyCtrlAlt).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
         OnlineList.ItemsSource = vm.OnlineFolders;
         BuildColumnSwitches();
@@ -120,12 +131,14 @@ public partial class SettingsWindow : Window
         vm.PropertyChanged += OnVmChanged;
         // la curva del ecualizador sigue a las bandas al instante, se muevan como se muevan
         foreach (var band in vm.EqBands) band.PropertyChanged += OnEqBandChanged;
+        vm.EqPreamp.PropertyChanged += OnEqBandChanged;
         EqBandsList.SizeChanged += (s, e) => DrawEqCurve();
         EqBandsList.Loaded += (s, e) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, DrawEqCurve);
         Closed += (s, e) =>
         {
             vm.PropertyChanged -= OnVmChanged;
             foreach (var band in vm.EqBands) band.PropertyChanged -= OnEqBandChanged;
+            vm.EqPreamp.PropertyChanged -= OnEqBandChanged;
         };
         vm.MusicFolders.CollectionChanged += OnFoldersChanged;
         OnFoldersChanged(null, null);
@@ -169,14 +182,15 @@ public partial class SettingsWindow : Window
             return section;
         }
 
-        Section("Apariencia", "", SecAppearance, ("Temas de Echoplex", SubThemes), ("Más temas", SubMoreThemes), ("Animaciones", SubAnimations));
+        Section("Apariencia", "", SecAppearance, ("Temas de Echoplex", SubThemes), ("Más temas", SubMoreThemes), ("Barra de progreso", SubSeekBar), ("Animaciones", SubAnimations));
         Section("Biblioteca", "", SecLibrary, ("Carpetas de música", SubFolders), ("Carpetas en línea", SubOnline),
-            ("Títulos de las canciones", SubTitles), ("Columnas de las listas", SubColumns));
-        Section("Sonido", "", SecSound, ("Ecualizador", SubEq));
+            ("Títulos de las canciones", SubTitles), ("Columnas de las listas", SubColumns), ("Salud de la biblioteca", SubHealth));
+        Section("Sonido", "", SecSound, ("Ecualizador", SubEq), ("Fundido entre canciones", SubCrossfade), ("Normalización de volumen", SubNormalization));
         Section("Letras", NavIcon("SingMicIcon", 16, 1.3), SecLyrics, ("Letras en internet", SubOnlineLyrics));
         Section("Discord", NavIcon("DiscordIcon", 17, 1.2), SecDiscord, ("Estado en Discord", SubDiscordStatus),
             ("En la lista de miembros", SubDiscordList), ("Carátulas", SubDiscordCovers));
-        Section("General", "", SecGeneral, ("Al pulsar la X", SubCloseAction), ("Accesos", SubShortcuts));
+        Section("Scrobbling", "\uE81C", SecScrobble, ("Last.fm", SubLastFm), ("ListenBrainz", SubListenBrainz));
+        Section("General", "", SecGeneral, ("Al pulsar la X", SubCloseAction), ("Atajos globales", SubGlobalKeys), ("Accesos", SubShortcuts));
         Section("Actualizaciones", "", SecUpdates, ("Versión", SubVersion), ("Novedades", SubReleaseNotes));
         NavList.ItemsSource = _nav;
 
@@ -473,6 +487,8 @@ public partial class SettingsWindow : Window
     private void OnVmChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainViewModel.EqPresetKey)) MarkEqPreset();
+        if (e.PropertyName == nameof(MainViewModel.EqAutoHeadroom)) DrawEqResponse();
+        if (e.PropertyName is nameof(MainViewModel.MeasureStatus) or nameof(MainViewModel.IsMeasuring)) UpdateMeasureUi();
     }
 
     /// <summary>Doble clic en una banda: a 0 dB.</summary>
@@ -564,7 +580,9 @@ public partial class SettingsWindow : Window
 
     private void OnEqBandChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(EqBand.Value)) DrawEqCurve();
+        if (e.PropertyName != nameof(EqBand.Value)) return;
+        DrawEqCurve();
+        DrawEqResponse();
     }
 
     /// <summary>
@@ -608,6 +626,88 @@ public partial class SettingsWindow : Window
         area.Freeze();
         EqCurveFill.Data = area;
     }
+
+    // ---------- la respuesta real ----------
+
+    private const double ResponseRange = 15; // dB arriba y abajo: ±12 de las bandas y algo de aire
+    private const double ResponseSampleRate = 44100;
+    private static readonly double[] ResponseFrequencies = EqDesign.CurveFrequencies(ResponseSampleRate, 240);
+
+    private void EqResponse_SizeChanged(object sender, SizeChangedEventArgs e) => DrawEqResponse();
+
+    /// <summary>
+    /// Dibuja lo que suena de verdad: la respuesta de los filtros que usa el audio (calculados igual que en la
+    /// reproducción, a 44,1 kHz), en escala logarítmica de 20 Hz a 20 kHz, con las líneas de 0, ±6 y ±12 dB.
+    /// </summary>
+    private void DrawEqResponse()
+    {
+        var canvas = EqResponseCanvas;
+        double w = canvas.ActualWidth, h = canvas.ActualHeight;
+        if (w < 10 || h < 10) return;
+        canvas.Children.Clear();
+
+        var gains = _vm.EqBands.Select(b => b.Value).ToArray();
+        var design = EqDesign.Create(new Equalizer.Snapshot(true, gains, _vm.EqPreamp.Value, _vm.EqAutoHeadroom), ResponseSampleRate);
+        var db = design.Response(ResponseFrequencies);
+
+        double lo = Math.Log(ResponseFrequencies[0]), hi = Math.Log(ResponseFrequencies[^1]);
+        double X(double f) => (Math.Log(f) - lo) / (hi - lo) * w;
+        double Y(double d) => h / 2 - Math.Clamp(d, -ResponseRange, ResponseRange) / ResponseRange * (h / 2 - 2);
+
+        // colores del tema por referencia: si se cambia de tema con Ajustes abierto, la gráfica cambia con él
+        const string grid = "CardBorderBrush", label = "Text3Brush";
+        void Line(double x1, double y1, double x2, double y2, string brush, double opacity = 1)
+        {
+            var l = new System.Windows.Shapes.Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, StrokeThickness = 1, Opacity = opacity, SnapsToDevicePixels = true };
+            l.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, brush);
+            canvas.Children.Add(l);
+        }
+        void Label(string text, double x, double y, bool right = false)
+        {
+            var t = new System.Windows.Controls.TextBlock { Text = text, FontSize = 10 };
+            t.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, label);
+            t.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            System.Windows.Controls.Canvas.SetLeft(t, right ? x - t.DesiredSize.Width - 2 : x + 3);
+            System.Windows.Controls.Canvas.SetTop(t, y);
+            canvas.Children.Add(t);
+        }
+
+        foreach (var d in new[] { 12.0, 6, -6, -12 })
+        {
+            Line(0, Math.Round(Y(d)) + 0.5, w, Math.Round(Y(d)) + 0.5, grid, 0.6);
+            Label(d > 0 ? "+" + d.ToString("0") : d.ToString("0"), w, Y(d) - 13, right: true);
+        }
+        foreach (var (f, text) in new[] { (100.0, "100"), (1000.0, "1k"), (10000.0, "10k") })
+        {
+            Line(Math.Round(X(f)) + 0.5, 0, Math.Round(X(f)) + 0.5, h, grid, 0.6);
+            Label(text, X(f), h - 14);
+        }
+        Line(0, Math.Round(Y(0)) + 0.5, w, Math.Round(Y(0)) + 0.5, label, 0.5);
+
+        var line = new PathFigure { StartPoint = new Point(X(ResponseFrequencies[0]), Y(db[0])) };
+        var area = new PathFigure { StartPoint = new Point(X(ResponseFrequencies[0]), Y(0)), IsClosed = true };
+        area.Segments.Add(new LineSegment(line.StartPoint, false));
+        for (int i = 1; i < db.Length; i++)
+        {
+            var p = new Point(X(ResponseFrequencies[i]), Y(db[i]));
+            line.Segments.Add(new LineSegment(p, true));
+            area.Segments.Add(new LineSegment(p, false));
+        }
+        area.Segments.Add(new LineSegment(new Point(X(ResponseFrequencies[^1]), Y(0)), false));
+        var fill = new System.Windows.Shapes.Path { Data = new PathGeometry(new[] { area }), Opacity = 0.14 };
+        fill.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "AccentBrush");
+        var curve = new System.Windows.Shapes.Path { Data = new PathGeometry(new[] { line }), StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
+        curve.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "AccentBrush");
+        canvas.Children.Add(fill);
+        canvas.Children.Add(curve);
+
+        // a la derecha del título: cuánto baja el margen o si va a actuar el limitador
+        double peak = db.Max() + _vm.EqPreamp.Value;
+        EqHeadroomText.Text = design.HeadroomDb < -0.05 ? $"Margen automático: {design.HeadroomDb:0.0} dB"
+            : peak > 0.05 ? $"Pico de {peak:+0.0} dB: el limitador frena lo que se pase"
+            : "";
+    }
+
 
     /// <summary>Curva Catmull-Rom (pasa por todos los puntos) convertida a tramos de Bézier.</summary>
     private static void AddSmoothSegments(PathFigure figure, IReadOnlyList<Point> p)
@@ -678,6 +778,92 @@ public partial class SettingsWindow : Window
     private void DiscordShow_Checked(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string show }) _vm.DiscordShow = show;
+    }
+
+    private void Normalization_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string mode }) _vm.NormalizationMode = mode;
+    }
+
+    private async void LastFmConnect_Click(object sender, RoutedEventArgs e)
+    {
+        await _vm.ConnectLastFmAsync(LastFmKeyBox.Text, LastFmSecretBox.Password);
+        if (_vm.LastFmUser != null) LastFmSecretBox.Clear();
+    }
+
+    private void LastFmDisconnect_Click(object sender, RoutedEventArgs e) => _vm.DisconnectLastFm();
+
+    private async void ListenBrainzConnect_Click(object sender, RoutedEventArgs e)
+    {
+        await _vm.ConnectListenBrainzAsync(ListenBrainzTokenBox.Password);
+        if (_vm.ListenBrainzUser != null) ListenBrainzTokenBox.Clear();
+    }
+
+    private void ListenBrainzDisconnect_Click(object sender, RoutedEventArgs e) => _vm.DisconnectListenBrainz();
+
+    private void ScrobbleFlush_Click(object sender, RoutedEventArgs e) => _vm.FlushScrobbles();
+
+    private void Health_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.OpenHealth();
+        BeginClose();
+    }
+
+    private void HotkeyMods_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string s }) _vm.GlobalHotkeyShift = s == "shift";
+    }
+
+    private void Crossfade_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string s }) return;
+        if (s == "custom")
+        {
+            if (!IsLoaded) return; // al abrir Ajustes ya viene puesto
+            ApplyCustomFade();
+            FadeCustomBox.Focus();
+            FadeCustomBox.SelectAll();
+        }
+        else if (double.TryParse(s, out var seconds))
+        {
+            _vm.CrossfadeSeconds = seconds;
+        }
+    }
+
+    private void FadeCustomBox_LostFocus(object sender, KeyboardFocusChangedEventArgs e) => ApplyCustomFade();
+
+    private void FadeCustomBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        ApplyCustomFade();
+        FadeCustomBox.SelectAll();
+        e.Handled = true;
+    }
+
+    /// <summary>Los segundos escritos, de 1 a 10 en medios segundos; si no se entiende, vuelve a los que había.</summary>
+    private void ApplyCustomFade()
+    {
+        if (FadeCustom.IsChecked != true) return;
+        var t = FadeCustomBox.Text.Trim().TrimEnd('s', 'S').Trim();
+        if (TryParseDb(t, out var seconds) && seconds > 0)
+            _vm.CrossfadeSeconds = Math.Clamp(Math.Round(seconds * 2) / 2, 1, MainViewModel.MaxCrossfade);
+        else if (_vm.CrossfadeSeconds <= 0)
+            _vm.CrossfadeSeconds = 5;
+        FadeCustomBox.Text = FormatSeconds(_vm.CrossfadeSeconds);
+    }
+
+    private static string FormatSeconds(double seconds) => seconds.ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("es-ES"));
+
+    private void Measure_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.StartMeasuring();
+        UpdateMeasureUi();
+    }
+
+    private void UpdateMeasureUi()
+    {
+        MeasureButtonText.Text = _vm.IsMeasuring ? "Parar" : "Medir la biblioteca";
+        NormSummary.Text = _vm.NormalizationSummary;
     }
 
     /// <summary>Qué hace la X: cerrar Echoplex o esconderlo en la bandeja.</summary>

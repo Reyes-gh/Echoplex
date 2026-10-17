@@ -1,0 +1,133 @@
+<Window x:Class="Echoplex.SmartPlaylistWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="NoResize"
+        SizeToContent="Height" Width="620" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource TextBrush}" UseLayoutRounding="True" KeyDown="Window_KeyDown">
+    <Window.Resources>
+        <!-- chip para elegir una opción (el mismo de Ajustes) -->
+        <Style x:Key="ColumnChip" TargetType="ToggleButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Margin" Value="0,0,6,8" />
+            <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="16" Padding="10,6" BorderThickness="1"
+                                Background="Transparent" BorderBrush="{DynamicResource CardBorderBrush}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- caja pequeña para un número dentro de una frase («sin escuchar en los últimos [30] días») -->
+        <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource DialogBox}">
+            <Setter Property="Width" Value="64" />
+            <Setter Property="Margin" Value="8,0" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Padding" Value="4,4" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,16,0,8" />
+        </Style>
+        <Style x:Key="Rule" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Window.Resources>
+    <!-- sombra en una capa aparte: con el efecto sobre el contenido, el texto saldría borroso (sin ClearType) -->
+    <Grid Margin="24">
+        <Border CornerRadius="10" Background="{DynamicResource PopupBrush}" Effect="{StaticResource PopupShadow}" />
+        <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource PopupBorderBrush}" BorderThickness="1"
+                CornerRadius="10" Padding="24,20" RenderOptions.ClearTypeHint="Enabled">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" MouseLeftButtonDown="Header_MouseDown" Background="Transparent">
+                    <TextBlock Text="&#xE945;" FontFamily="{StaticResource IconFont}" FontSize="18" Foreground="{DynamicResource AccentBrush}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock x:Name="TitleText" Text="Nueva playlist inteligente" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Text="Se rellena sola con lo que cumpla estas reglas, y se pone al día cada vez que la abres o suena." />
+
+                <TextBlock Style="{StaticResource Label}" Text="Nombre" />
+                <TextBox x:Name="NameBox" Style="{StaticResource DialogBox}" />
+
+                <TextBlock Style="{StaticResource Label}" Text="De dónde" />
+                <WrapPanel>
+                    <RadioButton x:Name="ScopeAll" Style="{StaticResource ColumnChip}" GroupName="Scope" FontSize="13" Content="Toda tu música" Tag="all" Checked="Scope_Checked" />
+                    <RadioButton x:Name="ScopeArtist" Style="{StaticResource ColumnChip}" GroupName="Scope" FontSize="13" Content="Un artista" Tag="artist" Checked="Scope_Checked" />
+                    <RadioButton x:Name="ScopeGenre" Style="{StaticResource ColumnChip}" GroupName="Scope" FontSize="13" Content="Un género" Tag="genre" Checked="Scope_Checked" />
+                    <RadioButton x:Name="ScopeFolder" Style="{StaticResource ColumnChip}" GroupName="Scope" FontSize="13" Content="Una carpeta" Tag="folder" Checked="Scope_Checked" />
+                </WrapPanel>
+                <StackPanel x:Name="ScopeValuePanel" Visibility="Collapsed" Margin="0,4,0,0">
+                    <TextBox x:Name="ScopeBox" Style="{StaticResource DialogBox}" TextChanged="ScopeBox_TextChanged" />
+                    <!-- sugerencias mientras se escribe: un clic la elige -->
+                    <WrapPanel x:Name="Suggestions" Margin="0,8,0,0" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource Label}" Text="Condiciones" />
+                <CheckBox x:Name="FavOnly" Style="{StaticResource Switch}" Content="Solo favoritas" Margin="0,0,0,8" Click="Changed" />
+                <StackPanel Style="{StaticResource Rule}">
+                    <CheckBox x:Name="NotPlayedOn" Style="{StaticResource Switch}" Content="Sin escuchar en los últimos" VerticalAlignment="Center" Click="Changed" />
+                    <TextBox x:Name="NotPlayedBox" Style="{StaticResource NumberBox}" Text="30" TextChanged="Changed" />
+                    <TextBlock Text="días" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Rule}">
+                    <CheckBox x:Name="MinPlaysOn" Style="{StaticResource Switch}" Content="Escuchadas al menos" VerticalAlignment="Center" Click="Changed" />
+                    <TextBox x:Name="MinPlaysBox" Style="{StaticResource NumberBox}" Text="5" TextChanged="Changed" />
+                    <TextBlock Text="veces" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Rule}">
+                    <CheckBox x:Name="AddedOn" Style="{StaticResource Switch}" Content="Añadidas en los últimos" VerticalAlignment="Center" Click="Changed" />
+                    <TextBox x:Name="AddedBox" Style="{StaticResource NumberBox}" Text="30" TextChanged="Changed" />
+                    <TextBlock Text="días" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Rule}">
+                    <CheckBox x:Name="YearsOn" Style="{StaticResource Switch}" Content="Del año" VerticalAlignment="Center" Click="Changed" />
+                    <TextBox x:Name="YearFromBox" Style="{StaticResource NumberBox}" Text="2000" TextChanged="Changed" />
+                    <TextBlock Text="al" VerticalAlignment="Center" />
+                    <TextBox x:Name="YearToBox" Style="{StaticResource NumberBox}" Text="2010" TextChanged="Changed" />
+                </StackPanel>
+
+                <TextBlock Style="{StaticResource Label}" Text="Orden" />
+                <WrapPanel>
+                    <RadioButton x:Name="OrderPlays" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Más escuchadas" Tag="plays" Checked="Changed" />
+                    <RadioButton x:Name="OrderLeast" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Menos escuchadas" Tag="least" Checked="Changed" />
+                    <RadioButton x:Name="OrderRecent" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Últimas escuchadas" Tag="recent" Checked="Changed" />
+                    <RadioButton x:Name="OrderAdded" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Más nuevas" Tag="added" Checked="Changed" />
+                    <RadioButton x:Name="OrderRandom" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Aleatorio" Tag="random" Checked="Changed" />
+                    <RadioButton x:Name="OrderAlbum" Style="{StaticResource ColumnChip}" GroupName="Order" FontSize="13" Content="Por artista y álbum" Tag="album" Checked="Changed" />
+                </WrapPanel>
+
+                <StackPanel Style="{StaticResource Rule}" Margin="0,10,0,0">
+                    <TextBlock Text="Como mucho" VerticalAlignment="Center" />
+                    <TextBox x:Name="LimitBox" Style="{StaticResource NumberBox}" Text="50" TextChanged="Changed" />
+                    <TextBlock Text="canciones (0 = todas)" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <DockPanel Margin="0,18,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Style="{StaticResource SecondaryButton}" Content="Cancelar" Click="Cancel_Click" MinWidth="84" />
+                        <Button x:Name="OkButton" Style="{StaticResource PrimaryButton}" Content="Crear" Click="Ok_Click" Margin="8,0,0,0" MinWidth="84" />
+                    </StackPanel>
+                    <TextBlock x:Name="PreviewText" FontSize="13" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

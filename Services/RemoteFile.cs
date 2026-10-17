@@ -35,6 +35,11 @@ public sealed class RemoteFile : IDisposable
     private long _streamStart = -1;
     private long _streamNext = -1;
 
+    // Ventana de descarga de la que aún no suena (la siguiente, preparada): solo se baja hasta tantos trozos por delante
+    // de lo leído, no la canción entera. 0 = sin límite (la que suena).
+    private int _aheadBlocks;
+    private long _maxRead = -1;
+
     private RemoteFile(string url, string fetchUrl, long length, int blockSize, bool playback)
     {
         _url = url;
@@ -77,7 +82,7 @@ public sealed class RemoteFile : IDisposable
     /// </summary>
     /// <param name="blockSize">Tamaño de cada trozo: grande para reproducir, pequeño para leer etiquetas.</param>
     public static RemoteFile Open(string url, int blockSize = 256 * 1024, CancellationToken ct = default, string name = "",
-        int initialBlocks = 1, bool stream = false, bool playback = false)
+        int initialBlocks = 1, bool stream = false, bool playback = false, int aheadBlocks = 0)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         int first = blockSize * Math.Max(1, initialBlocks);
@@ -93,7 +98,7 @@ public sealed class RemoteFile : IDisposable
             else if (resp.Content.Headers.ContentLength is { } len && resp.StatusCode == HttpStatusCode.OK) length = len;
             else length = start.Length;
 
-            var file = new RemoteFile(url, resp.RequestMessage?.RequestUri?.AbsoluteUri ?? url, length, blockSize, playback) { Name = name };
+            var file = new RemoteFile(url, resp.RequestMessage?.RequestUri?.AbsoluteUri ?? url, length, blockSize, playback) { Name = name, _aheadBlocks = aheadBlocks };
             file.Store(0, start);
             Trace?.Invoke($"{name}: abrir · primeros {start.Length / 1024} KB de {length / 1024} KB en {clock.ElapsedMilliseconds} ms"
                           + (resp.StatusCode == HttpStatusCode.PartialContent ? "" : " (el servidor no da trozos)") + (stream ? " · sigue bajando" : ""));
@@ -240,6 +245,18 @@ public sealed class RemoteFile : IDisposable
             {
                 while (position < Length && !cts.IsCancellationRequested)
                 {
+                    // la que aún no suena: espera (sin cortar la conexión) a que la lectura avance
+                    lock (_lock)
+                    {
+                        bool paused = false;
+                        while (_aheadBlocks > 0 && position / _block > Math.Max(0, _maxRead) + _aheadBlocks && !cts.IsCancellationRequested)
+                        {
+                            if (!paused) Trace?.Invoke($"{Name}: preparada · pausa la descarga en {position / 1024} KB hasta que suene");
+                            paused = true;
+                            Monitor.Wait(_lock, 500);
+                        }
+                    }
+                    if (cts.IsCancellationRequested) break;
                     int want = (int)Math.Min(_block - position % _block, Length - position);
                     var chunk = ReadAll(body, want);
                     if (chunk.Length == 0) break;
@@ -274,6 +291,8 @@ public sealed class RemoteFile : IDisposable
     {
         lock (_lock)
         {
+            _aheadBlocks = Math.Max(_aheadBlocks, RemoteFiles.PreparedAhead);
+            _maxRead = -1;
             bool streaming = _stream != null;
             _stream?.Cancel();
             _stream = null;
@@ -318,6 +337,14 @@ public sealed class RemoteFile : IDisposable
         bool tail = index >= BlockCount - TailBlocks;
         if (_playback && !tail)
         {
+            lock (_lock)
+            {
+                if (index > _maxRead)
+                {
+                    _maxRead = index; // la ventana avanza con la lectura
+                    Monitor.PulseAll(_lock);
+                }
+            }
             EnsureStreamFrom(index);
             var waited = System.Diagnostics.Stopwatch.StartNew();
             lock (_lock)
@@ -429,6 +456,17 @@ public sealed class RemoteFile : IDisposable
         });
     }
 
+    /// <summary>Pasa a sonar: se baja ya entera, sin ventana.</summary>
+    public void Unlimit()
+    {
+        lock (_lock)
+        {
+            if (_aheadBlocks == 0) return;
+            _aheadBlocks = 0;
+            Monitor.PulseAll(_lock);
+        }
+    }
+
     public void Dispose()
     {
         _cts.Cancel();
@@ -509,6 +547,9 @@ public static class RemoteFiles
 {
     private const int Keep = 4;
     private const int PlaybackBlock = 64 * 1024;
+
+    /// <summary>Lo que se baja por delante de la que aún no suena: 32 trozos de 64 KB = 2 MB (para empezar y fundirse).</summary>
+    public const int PreparedAhead = 32;
     private static readonly LinkedList<RemoteFile> Open = new();
     private static readonly object Lock = new();
 
@@ -542,13 +583,14 @@ public static class RemoteFiles
     /// <summary>Para reproducir: el ya abierto (o preparado) o uno nuevo, con la descarga continua en marcha.</summary>
     public static RemoteFile Get(string url, string name = "")
     {
+        // con ventana hasta que se diga que es la que suena (Focus): la siguiente preparada no se baja entera antes de tiempo
         if (Cached(url) is { } file)
         {
             file.EnsureStreamFrom(0);
             return file;
         }
         // trozos de 64 KB: suena en cuanto llegan los primeros 64 KB (la cabecera); el resto sigue por la misma conexión
-        file = RemoteFile.Open(url, blockSize: PlaybackBlock, name: name, stream: true, playback: true);
+        file = RemoteFile.Open(url, blockSize: PlaybackBlock, name: name, stream: true, playback: true, aheadBlocks: PreparedAhead);
         file.PrefetchTail();
         Remember(file);
         return file;
@@ -561,5 +603,6 @@ public static class RemoteFiles
         lock (Lock) files = Open.ToList();
         foreach (var f in files)
             if (f.Url != url) f.Release(keepBlocks: 4);
+            else f.Unlimit();
     }
 }

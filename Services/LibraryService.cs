@@ -3,7 +3,11 @@ using Echoplex.Models;
 
 namespace Echoplex.Services;
 
-public sealed record AlbumInfo(string Key, string Name, string Artist, string Directory, List<Song> Songs);
+public sealed record AlbumInfo(string Key, string Name, string Artist, string Directory, List<Song> Songs)
+{
+    /// <summary>Año más repetido en sus canciones (0 si no lo dicen).</summary>
+    public uint Year { get; } = Songs.Where(s => s.Year > 0).GroupBy(s => s.Year).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault();
+}
 public sealed record ArtistInfo(string Name, List<Song> Songs);
 
 /// <summary>
@@ -229,7 +233,17 @@ public sealed partial class LibraryService
         }
     }
 
-    public static string AlbumKey(Song s) => s.Directory + "|" + s.Album.ToLowerInvariant();
+    public static string AlbumKey(Song s) => AlbumDirectory(s.Directory) + "|" + s.Album.ToLowerInvariant();
+
+    [GeneratedRegex(@"^(cd|dis[ck]o?|disc|disk|volume|vol\.?)[\s._-]*\d{1,2}(\b.*)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex DiscFolder();
+
+    /// <summary>
+    /// Carpeta del álbum: la de la canción o, si es una de discos («CD 1», «Disc 2», «Disco 1»…), la de encima. Así un
+    /// álbum doble repartido en subcarpetas es un solo álbum.
+    /// </summary>
+    public static string AlbumDirectory(string dir) =>
+        DiscFolder().IsMatch(Path.GetFileName(dir) ?? "") && Path.GetDirectoryName(dir) is { Length: > 0 } up ? up : dir;
 
     /// <summary>Álbumes: canciones de la misma carpeta con el mismo nombre de álbum.</summary>
     public List<AlbumInfo> GetAlbums() => Songs
@@ -242,11 +256,17 @@ public sealed partial class LibraryService
     {
         var first = group.First();
         // por número de pista de los metadatos, o por nombre de archivo si esa carpeta usa nombres de fichero
+        // un álbum doble no mezcla sus discos (1 del primero, 1 del segundo, 2 del primero…): primero el disco, por su
+        // etiqueta o por su carpeta de disco
         var songs = (first.UseFileName
-            ? group.OrderBy(s => s.FileName, NaturalComparer.Instance)
-            : group.OrderBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber).ThenBy(s => s.FileName, NaturalComparer.Instance)).ToList();
-        var artist = songs.GroupBy(s => s.PrimaryArtist).OrderByDescending(x => x.Count()).First().Key;
-        return new AlbumInfo(key, songs[0].Album, artist, songs[0].Directory, songs);
+            ? group.OrderBy(s => s.Directory, NaturalComparer.Instance).ThenBy(s => s.FileName, NaturalComparer.Instance)
+            : group.OrderBy(s => s.DiscNumber == 0 ? uint.MaxValue : s.DiscNumber)
+                .ThenBy(s => s.Directory, NaturalComparer.Instance)
+                .ThenBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber)
+                .ThenBy(s => s.FileName, NaturalComparer.Instance)).ToList();
+        var artist = songs.Any(s => s.IsCompilation) ? "Varios artistas"
+            : songs.GroupBy(s => s.ArtistKey).OrderByDescending(x => x.Count()).First().Key;
+        return new AlbumInfo(key, songs[0].Album, artist, AlbumDirectory(songs[0].Directory), songs);
     }
 
     /// <summary>
@@ -257,19 +277,40 @@ public sealed partial class LibraryService
     {
         int bar = key.IndexOf('|');
         if (bar <= 0) return null;
-        var group = SongsIn(key[..bar]).Where(s => string.Equals(AlbumKey(s), key, StringComparison.OrdinalIgnoreCase)).ToList();
+        var dir = key[..bar];
+        // también las de sus carpetas de disco («CD 1», «CD 2»…)
+        var candidates = SongsIn(dir).Concat(GetChildren(dir).Where(c => DiscFolder().IsMatch(Path.GetFileName(c) ?? "")).SelectMany(SongsIn));
+        var group = candidates.Where(s => string.Equals(AlbumKey(s), key, StringComparison.OrdinalIgnoreCase)).ToList();
         return group.Count == 0 ? null : BuildAlbum(AlbumKey(group[0]), group);
     }
 
+    /// <summary>
+    /// Artistas por el artista del álbum (o el de la canción si las etiquetas no lo dicen). Los recopilatorios no crean un
+    /// artista por cada canción suelta: sus canciones salen en los álbumes, y en la página de cada artista que aparezca.
+    /// </summary>
     public List<ArtistInfo> GetArtists() => Songs
-        .GroupBy(s => s.PrimaryArtist, StringComparer.OrdinalIgnoreCase)
+        .Where(s => !s.IsCompilation)
+        .GroupBy(s => s.ArtistKey, StringComparer.OrdinalIgnoreCase)
         .Where(g => g.Key.Length > 0)
-        .Select(g => new ArtistInfo(g.First().PrimaryArtist, g.ToList()))
+        .Select(g => new ArtistInfo(g.First().ArtistKey, g.ToList()))
         .OrderBy(a => a.Name, NaturalComparer.Instance)
         .ToList();
 
+    /// <summary>Las suyas (como artista del álbum) y en las que sale (como artista de la canción, también en recopilatorios).</summary>
     public List<Song> SongsByArtist(string name) =>
-        Songs.Where(s => string.Equals(s.PrimaryArtist, name, StringComparison.OrdinalIgnoreCase)).ToList();
+        Songs.Where(s => string.Equals(s.ArtistKey, name, StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(s.PrimaryArtist, name, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    /// <summary>Géneros de las etiquetas, con sus canciones (los que no tienen género no salen).</summary>
+    public List<ArtistInfo> GetGenres() => Songs
+        .Where(s => s.Genre.Length > 0)
+        .GroupBy(s => s.Genre, StringComparer.OrdinalIgnoreCase)
+        .Select(g => new ArtistInfo(g.First().Genre, g.ToList()))
+        .OrderBy(a => a.Name, NaturalComparer.Instance)
+        .ToList();
+
+    public List<Song> SongsByGenre(string name) =>
+        Songs.Where(s => string.Equals(s.Genre, name, StringComparison.OrdinalIgnoreCase)).ToList();
 
     /// <summary>Título/artista/álbum deducidos de la ruta, para archivos sin etiquetas leídas.</summary>
     private static void ApplyFallback(Song s, string root)
@@ -296,6 +337,15 @@ public sealed partial class LibraryService
         if (!string.IsNullOrWhiteSpace(m.B)) s.Album = m.B.Trim();
         if (m.N > 0) s.TrackNumber = m.N;
         if (m.Ms > 0) s.Duration = TimeSpan.FromMilliseconds(m.Ms);
-        s.MetadataLoaded = true;
+        s.AlbumArtist = m.AA?.Trim() ?? "";
+        s.DiscNumber = m.D;
+        s.Year = m.Y;
+        s.Genre = m.G?.Trim() ?? "";
+        s.TrackGain = m.RT;
+        s.AlbumGain = m.RA;
+        s.TrackPeak = m.PT;
+        s.AlbumPeak = m.PA;
+        // leída con una versión anterior: se usa ya, y se vuelve a leer en segundo plano para completar lo nuevo
+        s.MetadataLoaded = m.V >= CachedMeta.Current;
     }
 }

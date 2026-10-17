@@ -9,6 +9,8 @@ public static class MetadataReader
     public static TagLib.File Open(string path) =>
         OnlineLibrary.IsOnline(path) ? OnlineLibrary.OpenTags(path) ?? throw new FileNotFoundException(path) : TagLib.File.Create(path);
 
+    private static double? Finite(double v) => double.IsFinite(v) ? Math.Round(v, 4) : null;
+
     public static CachedMeta Read(string path)
     {
         try
@@ -22,11 +24,21 @@ public static class MetadataReader
                 B = t.Album,
                 N = t.Track,
                 Ms = (long)f.Properties.Duration.TotalMilliseconds,
+                AA = t.FirstAlbumArtist,
+                D = t.Disc,
+                Y = t.Year,
+                G = t.FirstGenre,
+                RT = Finite(t.ReplayGainTrackGain),
+                RA = Finite(t.ReplayGainAlbumGain),
+                PT = Finite(t.ReplayGainTrackPeak),
+                PA = Finite(t.ReplayGainAlbumPeak),
+                V = CachedMeta.Current,
             };
         }
         catch
         {
-            return new CachedMeta();
+            // ilegible: se apunta igual (con la versión actual) para no volver a intentarlo en cada arranque
+            return new CachedMeta { V = CachedMeta.Current };
         }
     }
 

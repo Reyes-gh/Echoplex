@@ -59,6 +59,9 @@ public sealed partial class MainViewModel : ObservableObject
         Player.ContextStarted += OnContextStarted;
         Player.Listened += (s, sec) => UserData.RecordListen(s, sec);
         Player.PlayCounted += s => UserData.RecordPlay(s);
+        InitNormalization();
+        InitWaveform();
+        InitScrobbling();
 
         Discord = new DiscordPresence(Covers.CoverBytes)
         {
@@ -484,6 +487,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         // una raíz por carpeta de música, cada una con sus subcarpetas
         UpdateTree();
+        RefreshAllSmart();
         SongCount = Library.Songs.Count;
         RefreshMusicFolders();
 
@@ -684,8 +688,11 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsStore.Save(Settings);
         UserData.Save(force: true);
         _cache.Save();
+        _analyzer.Stop();
+        LoudnessStore.Save();
         foreach (var w in _watchers) w.Dispose();
         Discord.Dispose();
+        Scrobbler.Dispose();
         Player.Dispose();
     }
 
@@ -806,7 +813,9 @@ public sealed partial class MainViewModel : ObservableObject
                     ListKind.Recent => "recent",
                     ListKind.Artist => "artists",
                     ListKind.Album => "albums",
+                    ListKind.Genre => "genres",
                     ListKind.Search => "search",
+                    ListKind.Health => "stats",
                     _ => "",
                 };
                 break;
@@ -820,6 +829,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ActiveNav = "search";
                 break;
             case StatsPage:
+            case HealthPage:
                 ClearTreeSelection();
                 ActiveNav = "stats";
                 break;
@@ -922,6 +932,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OpenPlaylist(Playlist pl, bool replace = false)
     {
+        RefreshSmart(pl);
         var page = new SongListPage(pl.ContextId, ListKind.Playlist, Library.Resolve(pl.Songs))
         {
             Title = pl.Name,
@@ -934,6 +945,7 @@ public sealed partial class MainViewModel : ObservableObject
                 new PropertyItem("", "Creada", pl.Created.ToString("d 'de' MMMM 'de' yyyy", Es)),
             },
         };
+        if (pl.Smart is { } rules) page.BaseProperties.Add(new PropertyItem("\uE945", "Reglas", rules.Describe()));
         if (replace) ReplacePage(page); else Navigate(page);
         _ = LoadPageCoverAsync(page, null, page.Songs.FirstOrDefault());
     }
@@ -982,15 +994,31 @@ public sealed partial class MainViewModel : ObservableObject
         Navigate(page);
     }
 
+    /// <summary>
+    /// Un artista: su discografía de la más antigua a la más nueva (por el año de las etiquetas; los discos sin año, al
+    /// final), cada disco en su orden de discos y pistas. En la cabecera, sus años y sus géneros principales.
+    /// </summary>
     public void OpenArtist(string name)
     {
-        var songs = Library.SongsByArtist(name)
-            .OrderBy(s => s.Directory, NaturalComparer.Instance)
-            .ThenBy(s => s.TrackNumber == 0 ? uint.MaxValue : s.TrackNumber)
-            .ThenBy(s => s.FileName, NaturalComparer.Instance).ToList();
-        var albums = songs.GroupBy(LibraryService.AlbumKey)
-            .Select(g => new CardVm(CardKind.Album, g.Key, g.First().Album, g.Count() == 1 ? "1 canción" : $"{g.Count()} canciones", "") { Song = g.First() })
+        var own = Library.SongsByArtist(name);
+        var mine = new HashSet<Song>(own);
+        var discs = own.GroupBy(LibraryService.AlbumKey)
+            .Select(g =>
+            {
+                // en el orden del álbum (discos y pistas), solo las de este artista
+                var ordered = Library.GetAlbum(g.Key) is { } album ? album.Songs.Where(mine.Contains).ToList() : g.ToList();
+                if (ordered.Count == 0) ordered = g.ToList();
+                uint year = ordered.Where(s => s.Year > 0).GroupBy(s => s.Year).OrderByDescending(y => y.Count()).Select(y => y.Key).FirstOrDefault();
+                return (songs: ordered, year);
+            })
+            .OrderBy(d => d.year == 0 ? uint.MaxValue : d.year)
+            .ThenBy(d => d.songs[0].Album, NaturalComparer.Instance)
             .ToList();
+        var songs = discs.SelectMany(d => d.songs).ToList();
+        var albums = discs.Select(d => d.songs[0]).ToList();
+        var years = discs.Where(d => d.year > 0).Select(d => d.year).ToList();
+        var genres = songs.Where(s => s.Genre.Length > 0).GroupBy(s => s.Genre, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).Take(3).Select(g => g.First().Genre).ToList();
         var page = new SongListPage("artist:" + name, ListKind.Artist, songs)
         {
             Title = name,
@@ -1005,6 +1033,9 @@ public sealed partial class MainViewModel : ObservableObject
                 new PropertyItem("", "Álbumes", albums.Count.ToString()),
             },
         };
+        if (years.Count > 0)
+            page.BaseProperties.Add(new PropertyItem("\uE787", "Años", years.Min() == years.Max() ? years.Min().ToString() : $"{years.Min()} – {years.Max()}"));
+        if (genres.Count > 0) page.BaseProperties.Add(new PropertyItem("\uE8D6", "Géneros", string.Join(", ", genres)));
         Navigate(page);
         _ = LoadPageCoverAsync(page, null, songs.FirstOrDefault());
     }
@@ -1050,6 +1081,48 @@ public sealed partial class MainViewModel : ObservableObject
             .Select(FolderCard)
             .ToList();
         Navigate(new GalleryPage(cards) { Title = "Carpetas", Glyph = "", Breadcrumb = "Carpetas" });
+    }
+
+    /// <summary>Explorar → Géneros: un recuadro por género de las etiquetas, con su número de canciones.</summary>
+    public void OpenGenres()
+    {
+        if (IsLoading) return;
+        var cards = Library.GetGenres()
+            .Select(g => new CardVm(CardKind.Genre, g.Name, g.Name, g.Songs.Count == 1 ? "1 canción" : $"{g.Songs.Count:N0} canciones", "")
+            {
+                Song = g.Songs.GroupBy(LibraryService.AlbumKey).OrderByDescending(a => a.Count()).First().First(), // la carátula de su álbum más grande
+            })
+            .ToList();
+        Navigate(new GalleryPage(cards) { Title = "Géneros", Glyph = "", Breadcrumb = "Géneros" });
+    }
+
+    /// <summary>Un género: sus canciones, por álbumes (cada uno en su orden de discos y pistas).</summary>
+    private List<Song> GenreSongs(string name) => Library.SongsByGenre(name)
+        .GroupBy(LibraryService.AlbumKey)
+        .OrderBy(g => g.First().ArtistKey, NaturalComparer.Instance).ThenBy(g => g.First().Year).ThenBy(g => g.First().Album, NaturalComparer.Instance)
+        .SelectMany(g => Library.GetAlbum(g.Key) is { } a ? a.Songs.Where(s => string.Equals(s.Genre, name, StringComparison.OrdinalIgnoreCase)) : g)
+        .ToList();
+
+    public void OpenGenre(string name)
+    {
+        if (IsLoading) return;
+        var songs = GenreSongs(name);
+        var page = new SongListPage("genre:" + name, ListKind.Genre, songs)
+        {
+            Title = name,
+            Glyph = "",
+            Breadcrumb = "Géneros / " + name,
+            GroupByFolder = true,
+            GroupTitleFromAlbum = true,
+            BaseProperties =
+            {
+                new PropertyItem("", "Tipo", "Género"),
+                new PropertyItem("", "Artistas", songs.Select(s => s.ArtistKey).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString()),
+                new PropertyItem("", "Álbumes", songs.Select(LibraryService.AlbumKey).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString()),
+            },
+        };
+        Navigate(page);
+        _ = LoadPageCoverAsync(page, null, songs.FirstOrDefault());
     }
 
     public void OpenAlbums()
@@ -1127,6 +1200,7 @@ public sealed partial class MainViewModel : ObservableObject
             case CardKind.AllMusic: OpenFolder(LibraryService.AllKey); break;
             case CardKind.Album: OpenAlbum(card.Key); break;
             case CardKind.Artist: OpenArtist(card.Key); break;
+            case CardKind.Genre: OpenGenre(card.Key); break;
             case CardKind.Favorites: OpenFavorites(); break;
             case CardKind.History: OpenHistory(); break;
             case CardKind.Recent: OpenRecent(); break;
@@ -1407,6 +1481,8 @@ public sealed partial class MainViewModel : ObservableObject
             Glyph = "",
             Breadcrumb = "Inicio",
             Greeting = greeting,
+            IsNight = hour < 6 || hour >= 21,
+            GreetingGlyph = hour < 6 || hour >= 21 ? "\uE708" : "\uE706",
             DateText = Capitalize(DateTime.Now.ToString("dddd, d 'de' MMMM", Es)),
             QuickLinks = quick,
             Sections = sections,
@@ -1475,24 +1551,42 @@ public sealed partial class MainViewModel : ObservableObject
             page.SetResults(new(), 0, new(), new(), new(), new());
             return;
         }
-        var terms = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var ci = CultureInfo.InvariantCulture.CompareInfo;
-        const CompareOptions opts = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
-        bool Match(string text) => terms.All(t => ci.IndexOf(text, t, opts) >= 0);
+        // perdona acentos, signos y erratas, y ordena por lo bien que encaja (ver SearchQuery)
+        var query = new SearchQuery(q);
+        static List<T> Ranked<T>(IEnumerable<T> items, Func<T, double> score) =>
+            items.Select((x, i) => (x, i, s: score(x))).Where(t => t.s > 0)
+                .OrderByDescending(t => t.s).ThenBy(t => t.i).Select(t => t.x).ToList();
 
-        var songs = Library.Songs.Where(s => Match($"{s.Title} {s.Artist} {s.Album} {s.RelativePath}")).ToList();
+        var songs = Ranked(Library.Songs, s =>
+        {
+            var f = Folded(s);
+            return query.ScoreFolded((f[0], 3), (f[1], 2), (f[2], 1.5), (f[3], 1), (f[4], 0.8));
+        });
         var rows = songs.Take(30).Select((s, i) => new SongRow(s, i, null)).ToList();
-        var artists = Library.GetArtists().Where(a => Match(a.Name)).Take(10)
+        var artists = Ranked(Library.GetArtists(), a => query.Score((a.Name, 1))).Take(10)
             .Select(a => new CardVm(CardKind.Artist, a.Name, a.Name, $"{a.Songs.Count} canciones", "") { Song = a.Songs[0] }).ToList();
-        var albums = Library.GetAlbums().Where(a => Match(a.Name + " " + a.Artist)).Take(10).Select(AlbumCard).ToList();
-        var folders = Folders.SelectMany(r => r.Descendants()).Where(n => Match(n.Name)).Take(12)
+        var albums = Ranked(Library.GetAlbums(), a => query.Score((a.Name, 2), (a.Artist, 1))).Take(10).Select(AlbumCard).ToList();
+        var folders = Ranked(Folders.SelectMany(r => r.Descendants()), n => query.Score((n.Name, 1))).Take(12)
             .Select(n => FolderCard(n.Path)).ToList();
-        var pls = Playlists.Where(p => Match(p.Name)).Select(PlaylistCard).ToList();
+        var pls = Ranked(Playlists, p => query.Score((p.Name, 1))).Select(PlaylistCard).ToList();
         _searchResults = songs;
         page.SetResults(rows, songs.Count, artists, albums, folders, pls);
     }
 
     private List<Song> _searchResults = new();
+
+    // título, artista, álbum, género y ruta de cada canción ya sin acentos ni signos (se rehace si cambian sus etiquetas)
+    private sealed record FoldedSong(string Key, string[] Folded);
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Song, FoldedSong> _searchFold = new();
+
+    private string[] Folded(Song s)
+    {
+        var key = string.Concat(s.Title, "\u0001", s.Artist, "\u0001", s.Album, "\u0001", s.Genre);
+        if (_searchFold.TryGetValue(s, out var c) && c.Key == key) return c.Folded;
+        var folded = new[] { SearchQuery.Fold(s.Title), SearchQuery.Fold(s.Artist), SearchQuery.Fold(s.Album), SearchQuery.Fold(s.Genre), SearchQuery.Fold(s.RelativePath) };
+        _searchFold.AddOrUpdate(s, new FoldedSong(key, folded));
+        return folded;
+    }
 
     public void OpenAllSearchSongs(SearchPage page)
     {
@@ -1559,6 +1653,7 @@ public sealed partial class MainViewModel : ObservableObject
             CardKind.Folder or CardKind.AllMusic => "folder:" + card.Key,
             CardKind.Album => "album:" + card.Key,
             CardKind.Artist => "artist:" + card.Key,
+            CardKind.Genre => "genre:" + card.Key,
             CardKind.Playlist => "playlist:" + card.Key,
             CardKind.Favorites => "favorites",
             CardKind.History => "history",
@@ -2102,20 +2197,37 @@ public sealed partial class MainViewModel : ObservableObject
         ShowToast($"Playlist «{p.Name}» eliminada");
     }
 
+    /// <summary>Las canciones de una playlist; las inteligentes, rehechas antes con lo que dan ahora sus reglas.</summary>
+    private List<Song> ResolveFresh(Playlist p)
+    {
+        RefreshSmart(p);
+        return Library.Resolve(p.Songs);
+    }
+
+    private bool BlockSmart(Playlist p)
+    {
+        if (!p.IsSmart) return false;
+        ShowToast($"«{p.Name}» es inteligente: sus canciones las eligen sus reglas (clic derecho → Editar reglas)", 5);
+        return true;
+    }
+
     public void AddToPlaylist(Playlist p, IList<Song> songs)
     {
+        if (BlockSmart(p)) return;
         int added = UserData.AddToPlaylist(p, songs);
         ShowToast(added == 0 ? $"Ya estaba en «{p.Name}»" : added == 1 ? $"Añadida a «{p.Name}»" : $"{added} canciones añadidas a «{p.Name}»");
     }
 
     public void RemoveFromPlaylist(Playlist p, IList<Song> songs)
     {
+        if (BlockSmart(p)) return;
         UserData.RemoveFromPlaylist(p, songs);
         if (CurrentPage is SongListPage { Playlist: { } cur } && cur == p) OpenPlaylist(p, replace: true);
     }
 
     public void MoveInPlaylist(Playlist p, Song song, int delta)
     {
+        if (BlockSmart(p)) return;
         UserData.MoveInPlaylist(p, song, delta);
         if (CurrentPage is SongListPage { Playlist: { } cur } && cur == p) OpenPlaylist(p, replace: true);
     }
@@ -2573,9 +2685,10 @@ public sealed partial class MainViewModel : ObservableObject
         return kind switch
         {
             "folder" when Library.HasFolder(key) => FolderSongs(key),
-            "playlist" => Playlists.FirstOrDefault(p => p.Id == key) is { } pl ? Library.Resolve(pl.Songs) : null,
+            "playlist" => Playlists.FirstOrDefault(p => p.Id == key) is { } pl ? ResolveFresh(pl) : null,
             "album" => Library.GetAlbum(key)?.Songs,
             "artist" => Library.SongsByArtist(key),
+            "genre" => GenreSongs(key),
             "favorites" => Library.Resolve(UserData.Favorites),
             "history" => Library.Resolve(UserData.History.Take(500).Select(h => h.P)),
             "recent" => Library.Songs.OrderByDescending(s => s.CreatedTicks).Take(300).ToList(),
@@ -2592,6 +2705,7 @@ public sealed partial class MainViewModel : ObservableObject
             "playlist" => Playlists.FirstOrDefault(p => p.Id == key)?.Name ?? "Playlist",
             "album" => Library.GetAlbum(key)?.Name ?? "Álbum",
             "artist" => key,
+            "genre" => key,
             "favorites" => "Favoritas",
             "history" => "Historial",
             "recent" => "Añadidas recientemente",

@@ -32,6 +32,30 @@ public sealed class AppSettings
     public double[]? EqGains { get; set; }
     /// <summary>Preamplificador del ecualizador, en dB.</summary>
     public double EqPreamp { get; set; }
+    /// <summary>Segundos de fundido entre canciones (0 = apagado). Nunca entre pistas seguidas de un mismo disco.</summary>
+    public double Crossfade { get; set; }
+    /// <summary>Fundir también las pistas seguidas de un mismo disco. De serie, sí (el fundido en sí viene apagado).</summary>
+    public bool CrossfadeSameAlbum { get; set; } = true;
+    /// <summary>Atajos globales (Ctrl+Alt+Espacio, flechas, L) desde cualquier programa. De serie, apagados.</summary>
+    public bool GlobalHotkeys { get; set; }
+    /// <summary>Los atajos globales llevan también Mayús (Ctrl+Alt+Mayús+…).</summary>
+    public bool GlobalHotkeyShift { get; set; }
+    /// <summary>Scrobbling en Last.fm: la API key del usuario (la suya, de su cuenta de API).</summary>
+    public string? LastFmKey { get; set; }
+    /// <summary>El «Shared secret» de esa API key, cifrado con la cuenta de Windows (ver <see cref="Secret"/>).</summary>
+    public string? LastFmSecret { get; set; }
+    /// <summary>La sesión de Last.fm (cifrada); null = sin conectar.</summary>
+    public string? LastFmSession { get; set; }
+    public string? LastFmUser { get; set; }
+    /// <summary>Token de usuario de ListenBrainz (cifrado); null = sin conectar.</summary>
+    public string? ListenBrainzToken { get; set; }
+    public string? ListenBrainzUser { get; set; }
+    /// <summary>Forma de onda de la canción en la barra de progreso (solo las del PC). De serie, apagada.</summary>
+    public bool WaveformSeek { get; set; }
+    /// <summary>Normalización de volumen: off, track, album o smart (ver <see cref="Normalization"/>). De serie, apagada.</summary>
+    public string Normalization { get; set; } = Services.Normalization.Off;
+    /// <summary>Margen automático: baja el volumen lo justo para que la curva del ecualizador nunca sature. De serie, apagado.</summary>
+    public bool EqAutoHeadroom { get; set; }
     /// <summary>Preajuste elegido (o "custom" si se movió alguna banda a mano).</summary>
     public string EqPreset { get; set; } = "flat";
     /// <summary>Clave del tema (ver <see cref="Themes"/>).</summary>

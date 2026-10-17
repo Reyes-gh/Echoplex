@@ -104,6 +104,23 @@ public sealed partial class MainViewModel
         }
     }
 
+    /// <summary>
+    /// Margen automático: con bandas subidas, baja el volumen justo lo que sube la curva real para que nunca pase de
+    /// 0 dB (sin saturar ni que actúe el limitador). Suena algo más bajo, pero limpio.
+    /// </summary>
+    public bool EqAutoHeadroom
+    {
+        get => Settings.EqAutoHeadroom;
+        set
+        {
+            if (Settings.EqAutoHeadroom == value) return;
+            Settings.EqAutoHeadroom = value;
+            OnPropertyChanged();
+            ApplyEq();
+            SettingsStore.Save(Settings);
+        }
+    }
+
     /// <summary>Clave del preajuste elegido, o <see cref="CustomPreset"/>.</summary>
     public string EqPresetKey => Settings.EqPreset;
 
@@ -167,5 +184,6 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>Pasa los ajustes al audio (lo usa en el siguiente bloque que procesa).</summary>
-    private void ApplyEq() => Equalizer.Set(Settings.EqEnabled, EqBands.Select(b => b.Value).ToArray(), EqPreamp.Value);
+    private void ApplyEq() =>
+        Equalizer.Set(Settings.EqEnabled, EqBands.Select(b => b.Value).ToArray(), EqPreamp.Value, Settings.EqAutoHeadroom);
 }

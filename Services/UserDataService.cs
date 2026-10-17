@@ -11,6 +11,9 @@ public sealed class PlaylistData
     public string Name { get; set; } = "";
     public List<string> Songs { get; set; } = new();
     public DateTime Created { get; set; } = DateTime.Now;
+    /// <summary>Solo en las inteligentes (las versiones anteriores lo ignoran y la leen como una normal).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public SmartRules? Smart { get; set; }
 }
 
 public sealed class HistoryEntry
@@ -78,7 +81,7 @@ public sealed class UserDataService
     public void PopulatePlaylists()
     {
         Playlists.Clear();
-        foreach (var p in _data.Playlists) Playlists.Add(new Playlist(p.Id, p.Name, p.Songs, p.Created));
+        foreach (var p in _data.Playlists) Playlists.Add(new Playlist(p.Id, p.Name, p.Songs, p.Created) { Smart = p.Smart });
     }
 
     private readonly object _writeLock = new();
@@ -101,7 +104,7 @@ public sealed class UserDataService
         if (!_dirty && !force) return null;
         try
         {
-            _data.Playlists = Playlists.Select(p => new PlaylistData { Id = p.Id, Name = p.Name, Songs = p.Songs, Created = p.Created }).ToList();
+            _data.Playlists = Playlists.Select(p => new PlaylistData { Id = p.Id, Name = p.Name, Songs = p.Songs, Created = p.Created, Smart = p.Smart }).ToList();
             var bytes = JsonSerializer.SerializeToUtf8Bytes(_data);
             _dirty = false;
             return bytes;
@@ -207,6 +210,30 @@ public sealed class UserDataService
         return p;
     }
 
+    /// <summary>Playlist inteligente: sus canciones las ponen sus reglas (<see cref="SetSongs"/>).</summary>
+    public Playlist CreateSmartPlaylist(string name, SmartRules rules)
+    {
+        var p = new Playlist(Guid.NewGuid().ToString("N"), name, new(), DateTime.Now) { Smart = rules };
+        Playlists.Add(p);
+        Touch();
+        return p;
+    }
+
+    public void SetRules(Playlist p, SmartRules rules)
+    {
+        p.Smart = rules;
+        Touch(p);
+    }
+
+    /// <summary>Las canciones que dan ahora sus reglas (solo se guarda si cambió algo).</summary>
+    public void SetSongs(Playlist p, IList<string> paths)
+    {
+        if (p.Songs.SequenceEqual(paths, StringComparer.OrdinalIgnoreCase)) return;
+        p.Songs.Clear();
+        p.Songs.AddRange(paths);
+        Touch(p);
+    }
+
     public void RenamePlaylist(Playlist p, string name)
     {
         p.Name = name;
@@ -221,6 +248,7 @@ public sealed class UserDataService
 
     public int AddToPlaylist(Playlist p, IEnumerable<Song> songs)
     {
+        if (p.IsSmart) return 0; // se rellena sola
         int added = 0;
         foreach (var s in songs)
         {

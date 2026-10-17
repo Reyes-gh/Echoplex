@@ -125,7 +125,7 @@
         <Style x:Key="NavSub" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
             <Setter Property="FontSize" Value="12.5" />
-            <Setter Property="Height" Value="24" />
+            <Setter Property="Height" Value="23" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -177,7 +177,7 @@
 
         <!-- un elemento de la barra lateral: la sección y, debajo, sus apartados -->
         <DataTemplate x:Key="NavTemplate" DataType="{x:Type local:SettingsNavItem}">
-            <StackPanel Margin="0,0,0,4">
+            <StackPanel Margin="0,0,0,2">
                 <Button Style="{StaticResource NavSection}" Tag="{Binding IsActive}" Click="Nav_Click">
                     <DockPanel>
                         <ContentControl Width="22" Content="{Binding Icon}" Focusable="False" IsTabStop="False" Margin="0,0,10,0"
@@ -449,6 +449,29 @@
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+        <!-- un PasswordBox con el aspecto de las cajas de texto de los diálogos -->
+        <Style x:Key="DialogPassword" TargetType="PasswordBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="PasswordBox">
+                        <Border x:Name="Bd" Background="{DynamicResource InputBrush}" CornerRadius="5" BorderThickness="1"
+                                BorderBrush="{DynamicResource CardBorderBrush}" Padding="8,0">
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" Focusable="False" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- la tarjeta entra y sale con un fundido, creciendo o encogiendo un poco (ver SettingsWindow.xaml.cs) -->
@@ -565,6 +588,17 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubSeekBar" Style="{StaticResource SubHeader}" Text="Barra de progreso" />
+                    <Border Style="{StaticResource Group}">
+                        <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding WaveformSeek}">
+                            <StackPanel>
+                                <TextBlock Text="Forma de onda en la barra de progreso" />
+                                <TextBlock Style="{StaticResource Hint}"
+                                           Text="La barra de abajo enseña la forma de la canción (los estribillos y las partes fuertes, a la vista antes de saltar). Se calcula al empezar cada canción del PC, sin prisa, y se guarda; las de la nube no la llevan." />
+                            </StackPanel>
+                        </CheckBox>
                     </Border>
 
                     <TextBlock x:Name="SubAnimations" Style="{StaticResource SubHeader}" Text="Animaciones" />
@@ -705,6 +739,15 @@
                         </StackPanel>
                     </Border>
 
+                    <TextBlock x:Name="SubHealth" Style="{StaticResource SubHeader}" Text="Salud de la biblioteca" />
+                    <Border Style="{StaticResource Group}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" FontSize="14" Content="Revisar la biblioteca" Click="Health_Click" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,12,0" VerticalAlignment="Center"
+                                       Text="Busca canciones repetidas, álbumes sin carátula, etiquetas que faltan, archivos que no se pueden leer y carpetas vacías. Solo los enseña: no cambia ni borra nada." />
+                        </DockPanel>
+                    </Border>
+
                     <!-- ================= Sonido ================= -->
                     <Border Style="{StaticResource SectionGap}" />
                     <ContentControl x:Name="SecSound" Style="{StaticResource SectionHeader}" Content="Sonido" Tag="&#xE9E9;" />
@@ -771,7 +814,93 @@
                                     <TextBlock Text="±12 dB por banda: arrastra o escribe el valor. Si al subir bandas algo satura, baja el preamplificador."
                                                FontSize="12" Foreground="{DynamicResource Text3Brush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                                 </DockPanel>
+
+                                <!-- la respuesta real: lo que sale de verdad, calculado de los filtros (se dibuja en SettingsWindow.xaml.cs) -->
+                                <Border Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                        CornerRadius="8" Padding="14,10,14,8" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock x:Name="EqHeadroomText" DockPanel.Dock="Right" FontSize="12" Foreground="{DynamicResource Text3Brush}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="Respuesta real" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock Style="{StaticResource Hint}" FontSize="12"
+                                                   Text="Lo que sale de verdad por los altavoces, calculado de los filtros (sin contar el preamplificador)." />
+                                        <Canvas x:Name="EqResponseCanvas" Height="130" Margin="0,10,0,0" ClipToBounds="True" SizeChanged="EqResponse_SizeChanged" />
+                                    </StackPanel>
+                                </Border>
+
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding EqAutoHeadroom}" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Margen automático contra la saturación" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Con bandas subidas, baja el volumen justo lo que sube la curva para que nunca sature: suena algo más bajo, pero limpio. Sin él, un limitador baja solo los picos que se pasarían de 0 dB." />
+                                    </StackPanel>
+                                </CheckBox>
                             </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubCrossfade" Style="{StaticResource SubHeader}" Text="Fundido entre canciones" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                       Text="La canción que acaba baja mientras sube la siguiente. En «Bit a bit» no se aplica." />
+                            <WrapPanel>
+                                <RadioButton x:Name="FadeOff" Style="{StaticResource ColumnChip}" GroupName="Crossfade" FontSize="13" Tag="0" Content="Apagado" Checked="Crossfade_Checked" />
+                                <RadioButton x:Name="Fade3" Style="{StaticResource ColumnChip}" GroupName="Crossfade" FontSize="13" Tag="3" Content="3 s" Checked="Crossfade_Checked" />
+                                <RadioButton x:Name="Fade6" Style="{StaticResource ColumnChip}" GroupName="Crossfade" FontSize="13" Tag="6" Content="6 s" Checked="Crossfade_Checked" />
+                                <RadioButton x:Name="Fade9" Style="{StaticResource ColumnChip}" GroupName="Crossfade" FontSize="13" Tag="9" Content="9 s" Checked="Crossfade_Checked" />
+                                <RadioButton x:Name="FadeCustom" Style="{StaticResource ColumnChip}" GroupName="Crossfade" FontSize="13" Tag="custom" Content="Otro"
+                                             Checked="Crossfade_Checked" ToolTip="Los segundos que quieras, de 1 a 10" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0"
+                                            Visibility="{Binding IsChecked, ElementName=FadeCustom, Converter={StaticResource BoolVis}}">
+                                    <TextBox x:Name="FadeCustomBox" Style="{StaticResource DialogBox}" Width="64" Height="30" FontSize="13" HorizontalContentAlignment="Center"
+                                             LostKeyboardFocus="FadeCustomBox_LostFocus" KeyDown="FadeCustomBox_KeyDown" ToolTip="De 1 a 10 segundos (por ejemplo 4,5)" />
+                                    <TextBlock Text="segundos" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </WrapPanel>
+                            <Border Style="{StaticResource GroupRule}" />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding CrossfadeAlbums}">
+                                <StackPanel>
+                                    <TextBlock Text="Fundir también las pistas seguidas de un mismo disco" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Apágalo para que un álbum escuchado en orden suene enlazado, sin fundidos, como se grabó (directos, álbumes conceptuales)." />
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubNormalization" Style="{StaticResource SubHeader}" Text="Normalización de volumen" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                       Text="Que todas las canciones suenen igual de fuertes, sin tocar el volumen al pasar de un disco antiguo a uno moderno. Usa las etiquetas ReplayGain de cada archivo y, si no las tiene, lo que mide Echoplex la primera vez que suena entera. Nunca sube tanto que sature. En «Bit a bit» no se aplica." />
+                            <WrapPanel>
+                                <RadioButton x:Name="NormOff" Style="{StaticResource ColumnChip}" GroupName="Normalization" FontSize="13" Tag="off"
+                                             Content="Apagada" Checked="Normalization_Checked" />
+                                <RadioButton x:Name="NormTrack" Style="{StaticResource ColumnChip}" GroupName="Normalization" FontSize="13" Tag="track"
+                                             Content="Por canción" Checked="Normalization_Checked"
+                                             ToolTip="Cada canción a la misma sonoridad" />
+                                <RadioButton x:Name="NormAlbum" Style="{StaticResource ColumnChip}" GroupName="Normalization" FontSize="13" Tag="album"
+                                             Content="Por álbum" Checked="Normalization_Checked"
+                                             ToolTip="Cada álbum a la misma sonoridad, respetando las diferencias entre sus canciones (una intro flojita sigue siéndolo)" />
+                                <RadioButton x:Name="NormSmart" Style="{StaticResource ColumnChip}" GroupName="Normalization" FontSize="13" Tag="smart"
+                                             Content="Inteligente" Checked="Normalization_Checked"
+                                             ToolTip="Por álbum si escuchas un álbum o una carpeta en orden; por canción en aleatorio, listas o radio" />
+                            </WrapPanel>
+                            <Border Style="{StaticResource GroupRule}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" FontSize="14" Click="Measure_Click" VerticalAlignment="Center"
+                                        ToolTip="Decodifica las canciones del PC sin medida ni ReplayGain, de una en una y sin prisa (no le quita CPU a nada). Las de carpetas en línea se miden cuando suenan.">
+                                    <TextBlock x:Name="MeasureButtonText" Text="Medir la biblioteca" />
+                                </Button>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock x:Name="NormSummary" Style="{StaticResource Hint}" Margin="0" />
+                                    <TextBlock Text="{Binding MeasureStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                               Visibility="{Binding MeasureStatus, Converter={StaticResource NullVis}}" />
+                                </StackPanel>
+                            </DockPanel>
                         </StackPanel>
                     </Border>
 
@@ -864,6 +993,80 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- ================= Scrobbling ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecScrobble" Style="{StaticResource SectionHeader}" Content="Scrobbling" Tag="&#xE81C;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Tu historial de escuchas en Last.fm o ListenBrainz, para tus estadísticas y recomendaciones." />
+
+                    <TextBlock x:Name="SubLastFm" Style="{StaticResource SubHeader}" Text="Last.fm" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <DockPanel Visibility="{Binding LastFmUser, Converter={StaticResource NullVis}}">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" FontSize="14" Content="Desconectar" Click="LastFmDisconnect_Click" VerticalAlignment="Center" />
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock FontWeight="SemiBold"><Run Text="Conectado como " /><Run Text="{Binding LastFmUser, Mode=OneWay}" /></TextBlock>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                                               Text="Cada canción que escuchas al menos la mitad (o 4 minutos) se apunta en tu perfil, y mientras suena sale como «Escuchando ahora». Solo se envían el artista, la canción, el álbum y su duración." />
+                                </StackPanel>
+                            </DockPanel>
+                            <StackPanel Visibility="{Binding LastFmUser, Converter={StaticResource NullVis}, ConverterParameter=invert}">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                           Text="Last.fm pide una clave de API propia. Créala gratis en last.fm/api/account/create (pon cualquier nombre de aplicación) y pega aquí su «API key» y su «Shared secret». Al pulsar Conectar se abre Last.fm en el navegador para dar permiso. Se guardan cifradas con tu cuenta de Windows." />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="API key" VerticalAlignment="Center" FontSize="14" Margin="0,0,12,0" />
+                                    <TextBox x:Name="LastFmKeyBox" Grid.Column="1" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13"
+                                             Text="{Binding LastFmApiKey, Mode=OneWay}" />
+                                    <TextBlock Grid.Row="1" Text="Shared secret" VerticalAlignment="Center" FontSize="14" Margin="0,8,12,0" />
+                                    <PasswordBox x:Name="LastFmSecretBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DialogPassword}" Margin="0,8,0,0" />
+                                </Grid>
+                                <DockPanel Margin="0,12,0,0">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" FontSize="14" Content="Conectar" Click="LastFmConnect_Click" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding LastFmStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                </DockPanel>
+                            </StackPanel>
+                            <TextBlock Text="{Binding LastFmStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding LastFmUser, Converter={StaticResource NullVis}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubListenBrainz" Style="{StaticResource SubHeader}" Text="ListenBrainz" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <DockPanel Visibility="{Binding ListenBrainzUser, Converter={StaticResource NullVis}}">
+                                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButton}" FontSize="14" Content="Desconectar" Click="ListenBrainzDisconnect_Click" VerticalAlignment="Center" />
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <TextBlock FontWeight="SemiBold"><Run Text="Conectado como " /><Run Text="{Binding ListenBrainzUser, Mode=OneWay}" /></TextBlock>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0"
+                                               Text="Libre y sin ánimo de lucro (de MetaBrainz, los de MusicBrainz). Mismas reglas que Last.fm: la mitad de la canción o 4 minutos." />
+                                </StackPanel>
+                            </DockPanel>
+                            <StackPanel Visibility="{Binding ListenBrainzUser, Converter={StaticResource NullVis}, ConverterParameter=invert}">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,12"
+                                           Text="Libre y sin ánimo de lucro (de MetaBrainz, los de MusicBrainz). Pega tu token de usuario, que está en listenbrainz.org/settings. Se guarda cifrado con tu cuenta de Windows." />
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" FontSize="14" Content="Conectar" Click="ListenBrainzConnect_Click" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    <PasswordBox x:Name="ListenBrainzTokenBox" Style="{StaticResource DialogPassword}" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding ListenBrainzStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                           Visibility="{Binding ListenBrainzStatus, Converter={StaticResource NullVis}}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ListenBrainzStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Visibility="{Binding ListenBrainzUser, Converter={StaticResource NullVis}}" />
+                        </StackPanel>
+                    </Border>
+                    <DockPanel Margin="0,10,0,0" Visibility="{Binding ScrobbleStatus, Converter={StaticResource NullVis}}">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" FontSize="13" Content="Enviar ahora" Click="ScrobbleFlush_Click" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding ScrobbleStatus}" Style="{StaticResource Hint}" Margin="0" VerticalAlignment="Center" />
+                    </DockPanel>
+
                     <!-- ================= General ================= -->
                     <Border Style="{StaticResource SectionGap}" />
                     <ContentControl x:Name="SecGeneral" Style="{StaticResource SectionHeader}" Content="General" Tag="&#xE770;" />
@@ -880,6 +1083,31 @@
                                 <RadioButton x:Name="CloseTrayChip" Style="{StaticResource ColumnChip}" GroupName="CloseAction" FontSize="13"
                                              Content="Esconderlo en la bandeja" Checked="CloseAction_Checked" />
                             </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubGlobalKeys" Style="{StaticResource SubHeader}" Text="Atajos globales" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding GlobalHotkeysOn}">
+                                <StackPanel>
+                                    <TextBlock Text="Controlar Echoplex desde cualquier programa" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Funcionan con Echoplex en segundo plano o escondido en la bandeja, también jugando. Las teclas multimedia del teclado van siempre, sin activar esto." />
+                                </StackPanel>
+                            </CheckBox>
+                            <StackPanel Style="{StaticResource DimWhenDisabled}" IsEnabled="{Binding GlobalHotkeysOn}" Margin="46,12,0,0">
+                                <WrapPanel>
+                                    <RadioButton x:Name="HotkeyCtrlAlt" Style="{StaticResource ColumnChip}" GroupName="HotkeyMods" FontSize="13"
+                                                 Content="Ctrl + Alt" Tag="no" Checked="HotkeyMods_Checked" />
+                                    <RadioButton x:Name="HotkeyCtrlAltShift" Style="{StaticResource ColumnChip}" GroupName="HotkeyMods" FontSize="13"
+                                                 Content="Ctrl + Alt + Mayús" Tag="shift" Checked="HotkeyMods_Checked"
+                                                 ToolTip="Por si otro programa ya usa Ctrl + Alt con esas teclas (algunas gráficas giran la pantalla con Ctrl + Alt + flechas)" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding HotkeyHelp}" Style="{StaticResource Hint}" Margin="0,10,0,0" LineHeight="20" />
+                                <TextBlock Text="{Binding HotkeyStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                           Visibility="{Binding HotkeyStatus, Converter={StaticResource NullVis}}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

@@ -42,6 +42,12 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     private Func<WaveStream>? _nextOpen;
     private object? _nextTag;
     private string? _nextPath;
+    private double _nextGain;
+    private double _nextFade;      // segundos de fundido con la preparada (0 = enlace sin pausa)
+    private double _currentGain;   // normalización de la que suena (para igualar la que entra en el fundido)
+    // la que suena (para la medida de volumen) y su medida, si la está sonando entera desde el principio
+    private string? _path;
+    private LoudnessMeter? _meter;
 
     public AudioOutput(Dispatcher ui)
     {
@@ -54,6 +60,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     public event Action<object>? Advanced;
     public event Action<string>? Failed;
     public event Action<bool>? PlayingChanged;
+    /// <summary>Una canción sonó entera de principio a fin en la salida normal: su sonoridad (LUFS), pico y duración.</summary>
+    public event Action<string, double, double, double>? Measured;
     /// <summary>El dispositivo desapareció (p. ej. se apagaron los cascos Bluetooth).</summary>
     public event Action? DeviceLost;
     /// <summary>Windows cambió la salida predeterminada.</summary>
@@ -90,13 +98,26 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     /// Prepara el archivo (abrirlo es lo que hace que OneDrive lo descargue si está en la nube).
     /// Devuelve null si está listo, o el motivo por el que no se puede.
     /// </summary>
-    public Task<string?> LoadAsync(string path, string? deviceId, bool exclusive)
+    /// <param name="gainDb">Normalización de volumen de esta canción (solo en la salida normal).</param>
+    public Task<string?> LoadAsync(string path, string? deviceId, bool exclusive, double gainDb = 0)
     {
         // cada carga lleva su número: si mientras abre el archivo (p. ej. bajando de OneDrive) se pide otra,
         // esta ya no debe instalarse ni cerrar lo que haya cargado la nueva
         int ticket = Interlocked.Increment(ref _loadTicket);
+        _loadGain = gainDb;
         return Task.Run(() => Load(path, deviceId, exclusive, ticket));
     }
+
+    private double _loadGain;
+
+    /// <summary>Cambia la normalización de la que suena (al cambiar de modo en Ajustes): se oye en unos milisegundos.</summary>
+    public void SetGain(double gainDb)
+    {
+        lock (_lock) _provider?.Eq?.SetGain(gainDb, immediate: false);
+    }
+
+    /// <summary>Abre un archivo para medirlo (decodificado como al reproducirlo).</summary>
+    public static WaveStream OpenForAnalysis(string path) => OpenFile(path);
 
     private int _loadTicket;
     private const string Superseded = "sustituida por otra carga";
@@ -139,7 +160,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
         if (!exclusive)
         {
-            if (!Commit(reader, device, reader.WaveFormat, false, ticket)) return Superseded;
+            if (!Commit(reader, device, reader.WaveFormat, false, ticket, path)) return Superseded;
             FormatText = srcText;
             return null;
         }
@@ -214,7 +235,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     /// formato (frecuencia, bits, canales): la salida sigue abierta con el formato de la primera y en bit a bit no
     /// se puede convertir sin perder la fidelidad. Devuelve false si no se puede (se cambiará de pista como siempre).
     /// </summary>
-    public Task<bool> PrepareNextAsync(string path, object tag) => Task.Run(() =>
+    /// <param name="crossfadeSeconds">Fundido con la que acaba (0 = enlazada sin pausa, como dentro de un disco).</param>
+    public Task<bool> PrepareNextAsync(string path, object tag, double gainDb = 0, double crossfadeSeconds = 0) => Task.Run(() =>
     {
         WaveFormat? current;
         lock (_lock) current = _reader?.WaveFormat;
@@ -240,6 +262,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _nextOpen = () => OpenFile(path);
             _nextTag = tag;
             _nextPath = path;
+            _nextGain = gainDb;
+            _nextFade = _exclusive ? 0 : crossfadeSeconds;
         }
         return true;
     });
@@ -249,11 +273,26 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     {
         lock (_lock)
         {
+            _provider?.CancelFade();
             _nextReader?.Dispose();
             _nextReader = null;
             _nextOpen = null;
             _nextTag = null;
         }
+    }
+
+    /// <summary>
+    /// Desde la lectura de audio, con el cerrojo tomado: la que sonaba llegó al final. Si sonó entera desde el principio,
+    /// su medida de volumen se avisa (se guarda para normalizarla la próxima vez).
+    /// </summary>
+    private void SourceEnded()
+    {
+        if (_meter is { } m && _path is { } path && m.Seconds >= 5)
+        {
+            double lufs = m.Integrated(), peak = m.Peak, seconds = m.Seconds;
+            if (!double.IsNaN(lufs)) _ui.BeginInvoke(() => Measured?.Invoke(path, lufs, peak, seconds));
+        }
+        _meter = null;
     }
 
     /// <summary>Desde la lectura de audio, con el cerrojo tomado: la actual se acabó; pasa a la preparada si la hay.</summary>
@@ -265,6 +304,11 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         _reader = _nextReader;
         _open = _nextOpen;
         if (_nextPath != null && OnlineLibrary.IsOnline(_nextPath)) OnlineLibrary.Focus(_nextPath);
+        // la siguiente entra con su normalización y empieza a medirse desde su principio
+        _provider?.Eq?.SetGain(_nextGain, immediate: false);
+        _currentGain = _nextGain;
+        _path = _nextPath;
+        _meter = _provider?.Eq != null ? new LoudnessMeter(_reader.WaveFormat.SampleRate, _reader.WaveFormat.Channels) : null;
         _nextPath = null;
         _nextReader = null;
         _nextOpen = null;
@@ -277,7 +321,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     }
 
     /// <summary>Instala lo cargado, salvo que entretanto se haya pedido otra carga (entonces lo cierra).</summary>
-    private bool Commit(WaveStream reader, MMDevice device, WaveFormat format, bool exclusive, int ticket)
+    private bool Commit(WaveStream reader, MMDevice device, WaveFormat format, bool exclusive, int ticket, string? path = null)
     {
         lock (_lock)
         {
@@ -289,8 +333,21 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _reader = reader;
             _device = device;
             _exclusive = exclusive;
-            // el ecualizador solo en la salida normal: en bit a bit la señal llega intacta
-            _provider = new PcmProvider(reader, format, _lock, TakeNext, exclusive ? null : new EqualizerProcessor(reader.WaveFormat));
+            // el ecualizador solo en la salida normal: en bit a bit la señal llega intacta. En la normal se entrega en coma
+            // flotante de 32 bits (como mezcla Windows): sin volver a redondear a 16 bits lo que sale del ecualizador
+            _provider = exclusive
+                ? new PcmProvider(reader, format, _lock, TakeNext, null)
+                : new PcmProvider(reader, WaveFormat.CreateIeeeFloatWaveFormat(format.SampleRate, format.Channels), _lock, TakeNext,
+                    new EqualizerProcessor(format.SampleRate, format.Channels), () => _meter, SourceEnded)
+                {
+                    // el fundido con la preparada: cuántas tramas y cuánto subir o bajar la que entra para igualarla
+                    Crossfade = () => _nextReader is { } next && _nextFade > 0 ? (next, (int)(_nextFade * format.SampleRate), _nextGain - _currentGain) : null,
+                    Crossfaded = () => _meter = null, // la que entró con fundido no ha sonado entera: no vale como medida
+                };
+            _currentGain = exclusive ? 0 : _loadGain;
+            _provider.Eq?.SetGain(exclusive ? 0 : _loadGain, immediate: true);
+            _path = path;
+            _meter = exclusive ? null : new LoudnessMeter(format.SampleRate, format.Channels);
         }
         try { _deviceName = device.FriendlyName; } catch { _deviceName = "dispositivo de audio"; }
         return true;
@@ -337,6 +394,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     /// </summary>
     public void Seek(TimeSpan position)
     {
+        _meter = null; // con saltos no ha sonado entera: no vale como medida
+        lock (_lock) _provider?.CancelFade();
         var total = Duration;
         if (total > TimeSpan.Zero && position > total - TimeSpan.FromMilliseconds(250)) position = total - TimeSpan.FromMilliseconds(250);
         if (position < TimeSpan.Zero) position = TimeSpan.Zero;
@@ -503,8 +562,9 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     }
 
     /// <summary>
-    /// Entrega el PCM tal cual o alineado a un contenedor más ancho (relleno con ceros). Al acabarse el lector,
-    /// sigue en la misma lectura con la pista preparada: la salida no se entera y no hay pausa entre canciones.
+    /// Entrega el PCM tal cual, alineado a un contenedor más ancho (relleno con ceros) o, en la salida normal, en coma
+    /// flotante de 32 bits (sin pérdida: 16 y 24 bits caben enteros). Al acabarse el lector, sigue en la misma lectura con
+    /// la pista preparada: la salida no se entera y no hay pausa entre canciones.
     /// </summary>
     private sealed class PcmProvider : IWaveProvider
     {
@@ -514,10 +574,36 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         private readonly EqualizerProcessor? _eq;
         private readonly int _inBytes;
         private readonly int _outBytes;
+        private readonly bool _inFloat;
+        private readonly bool _toFloat;
         private byte[] _buffer = Array.Empty<byte>();
 
-        public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext, EqualizerProcessor? eq)
+        private readonly Func<LoudnessMeter?>? _meter;
+        private readonly Action? _ended;
+
+        /// <summary>La preparada si hay que fundirse con ella: su lector, las tramas del fundido y la diferencia de normalización.</summary>
+        public Func<(WaveStream next, int frames, double gainDb)?>? Crossfade { get; init; }
+        /// <summary>Se pasó a la siguiente con fundido.</summary>
+        public Action? Crossfaded { get; init; }
+
+        private WaveStream? _fadeNext;
+        private int _fadeLen, _fadePos;
+        private float _fadeScale = 1;
+        private byte[] _fadeBuffer = Array.Empty<byte>();
+
+        /// <summary>Un salto o un cambio de la siguiente cortan el fundido; la siguiente vuelve a su principio.</summary>
+        public void CancelFade()
         {
+            if (_fadeNext == null) return;
+            try { _fadeNext.Position = 0; } catch { }
+            _fadeNext = null;
+        }
+
+        public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext, EqualizerProcessor? eq,
+            Func<LoudnessMeter?>? meter = null, Action? ended = null)
+        {
+            _meter = meter;
+            _ended = ended;
             _source = source;
             _lock = sync;
             _takeNext = takeNext;
@@ -525,9 +611,18 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             WaveFormat = target;
             _inBytes = source.WaveFormat.BitsPerSample / 8;
             _outBytes = target.BitsPerSample / 8;
+            _inFloat = IsFloat(source.WaveFormat);
+            _toFloat = IsFloat(target) && !_inFloat;
         }
 
+        private static readonly Guid FloatSubFormat = new("00000003-0000-0010-8000-00aa00389b71"); // KSDATAFORMAT_SUBTYPE_IEEE_FLOAT
+
+        private static bool IsFloat(WaveFormat f) =>
+            f.Encoding == WaveFormatEncoding.IeeeFloat || (f is WaveFormatExtensible ext && ext.SubFormat == FloatSubFormat);
+
         public WaveFormat WaveFormat { get; }
+
+        public EqualizerProcessor? Eq => _eq;
 
         /// <summary>Cambia el lector (tras reabrir el archivo para saltar hacia atrás). Llamar con el cerrojo tomado.</summary>
         public void SetSource(WaveStream source)
@@ -540,27 +635,78 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         {
             lock (_lock)
             {
-                int n = ReadSource(buffer, offset, count);
-                if (n == 0 && _takeNext() is { } next)
+                if (_toFloat || _inFloat) StartFadeIfDue();
+                int n = ReadSource(_source, buffer, offset, count);
+                if (_fadeNext != null)
                 {
-                    _source = next;
-                    n = ReadSource(buffer, offset, count);
+                    // fundido: la que acaba baja y la siguiente sube (curvas de igual potencia: el volumen no se hunde a la mitad)
+                    if (_meter?.Invoke() is { } cm && n > 0)
+                        cm.Add(System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(offset, n - n % 4)));
+                    if (_fadeBuffer.Length < count) _fadeBuffer = new byte[count];
+                    int nextBytes = ReadSource(_fadeNext, _fadeBuffer, 0, count);
+                    var cur = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(offset, count - count % 4));
+                    var nxt = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(_fadeBuffer.AsSpan(0, nextBytes - nextBytes % 4));
+                    int ch = WaveFormat.Channels;
+                    int total = Math.Max(n, nextBytes) / 4;
+                    for (int i = 0; i < total; i++)
+                    {
+                        double t = Math.Min(1, (_fadePos + i / ch) / (double)_fadeLen);
+                        float a = i < n / 4 ? cur[i] : 0, b = i < nxt.Length ? nxt[i] * _fadeScale : 0;
+                        cur[i] = (float)(a * Math.Cos(t * Math.PI / 2) + b * Math.Sin(t * Math.PI / 2));
+                    }
+                    _fadePos += total / ch;
+                    if (n < count || _fadePos >= _fadeLen)
+                    {
+                        // la que acababa terminó: la siguiente pasa a ser la que suena (ya va por donde iba el fundido)
+                        _ended?.Invoke();
+                        if (_takeNext() is { } next) _source = next;
+                        _fadeNext = null;
+                        Crossfaded?.Invoke();
+                    }
+                    n = total * 4;
+                    if (n > 0) _eq?.Process(buffer, offset, n);
+                    return n;
                 }
+                if (n == 0)
+                {
+                    _ended?.Invoke(); // la que sonaba llegó al final
+                    if (_takeNext() is { } next)
+                    {
+                        _source = next;
+                        n = ReadSource(_source, buffer, offset, count);
+                    }
+                }
+                // la medida de volumen, de lo que trae el archivo (antes del ecualizador y la normalización)
+                if (n > 0 && _eq != null && _meter?.Invoke() is { } m)
+                    m.Add(System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(offset, n - n % 4)));
                 // con los ajustes que haya justo ahora: el cambio se oye en este mismo bloque, sin transición
                 if (n > 0) _eq?.Process(buffer, offset, n);
                 return n;
             }
         }
 
-        private int ReadSource(byte[] buffer, int offset, int count)
+        /// <summary>¿Quedan ya solo los segundos del fundido? Entonces empieza (con la siguiente ya abierta).</summary>
+        private void StartFadeIfDue()
+        {
+            if (_fadeNext != null || Crossfade?.Invoke() is not { } f || f.frames <= 0) return;
+            long left = (_source.Length - _source.Position) / Math.Max(1, _source.WaveFormat.BlockAlign);
+            if (left > f.frames || left <= 0) return;
+            _fadeNext = f.next;
+            _fadeLen = (int)left;
+            _fadePos = 0;
+            _fadeScale = (float)Math.Pow(10, f.gainDb / 20);
+        }
+
+        private int ReadSource(WaveStream source, byte[] buffer, int offset, int count)
         {
             {
-                if (_inBytes == _outBytes) return _source.Read(buffer, offset, count);
+                if (_toFloat) return ReadAsFloat(source, buffer, offset, count);
+                if (_inBytes == _outBytes) return source.Read(buffer, offset, count);
 
                 int samples = count / _outBytes;
                 int need = samples * _inBytes;
                 if (_buffer.Length < need) _buffer = new byte[need];
-                int read = _source.Read(_buffer, 0, need);
+                int read = source.Read(_buffer, 0, need);
                 int got = read / _inBytes;
                 int pad = _outBytes - _inBytes;
                 for (int i = 0; i < got; i++)
@@ -571,6 +717,30 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
                 }
                 return got * _outBytes;
             }
+        }
+
+        /// <summary>PCM entero (16, 24 o 32 bits) a coma flotante de −1 a 1.</summary>
+        private int ReadAsFloat(WaveStream source, byte[] buffer, int offset, int count)
+        {
+            int samples = count / 4;
+            int need = samples * _inBytes;
+            if (_buffer.Length < need) _buffer = new byte[need];
+            int got = source.Read(_buffer, 0, need) / _inBytes;
+            var dst = MemoryMarshal.Cast<byte, float>(buffer.AsSpan(offset, got * 4));
+            var src = _buffer;
+            switch (_inBytes)
+            {
+                case 2:
+                    for (int i = 0, p = 0; i < got; i++, p += 2) dst[i] = (short)(src[p] | src[p + 1] << 8) / 32768f;
+                    break;
+                case 3:
+                    for (int i = 0, p = 0; i < got; i++, p += 3) dst[i] = ((src[p] | src[p + 1] << 8 | src[p + 2] << 16) << 8 >> 8) / 8388608f;
+                    break;
+                default:
+                    for (int i = 0, p = 0; i < got; i++, p += 4) dst[i] = (float)(BitConverter.ToInt32(src, p) / 2147483648.0);
+                    break;
+            }
+            return got * 4;
         }
     }
 }

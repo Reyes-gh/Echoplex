@@ -16,7 +16,7 @@ public abstract class PageBase : ObservableObject
 
 public sealed record PropertyItem(string Glyph, string Label, string Value);
 
-public enum CardKind { Folder, Album, Artist, Playlist, Song, Favorites, AllMusic, History, Recent }
+public enum CardKind { Folder, Album, Artist, Playlist, Song, Favorites, AllMusic, History, Recent, Genre }
 
 public sealed partial class CardVm : ObservableObject
 {
@@ -99,7 +99,7 @@ public sealed class ListHeader
     public SongListPage Page { get; }
 }
 
-public enum ListKind { Folder, Playlist, Favorites, History, Recent, Artist, Album, Search }
+public enum ListKind { Folder, Playlist, Favorites, History, Recent, Artist, Album, Search, Genre, Health }
 
 /// <summary>Página tipo "base de datos" de Notion: cabecera con propiedades y tabla de canciones.</summary>
 public sealed partial class SongListPage : PageBase
@@ -177,7 +177,7 @@ public sealed partial class SongListPage : PageBase
     public List<Song> AllSongs => PlayAll ?? Songs;
     public bool HasRows => Songs.Count > 0;
     public bool IsPlaylist => Kind == ListKind.Playlist;
-    public bool CanDownload => Kind is not ListKind.History and not ListKind.Search;
+    public bool CanDownload => Kind is not ListKind.History and not ListKind.Search and not ListKind.Health;
     public bool IsEmpty => AllSongs.Count == 0;
     /// <summary>La fila de botones de la cabecera: sin canciones no sale, salvo con «Solo favoritas» (para poder quitarlo).</summary>
     public bool ShowActions => !IsEmpty || FavoritesOnly;
@@ -308,7 +308,8 @@ public sealed partial class SongListPage : PageBase
         if (GroupTitleFromAlbum && songs.Count > 0)
         {
             title = songs[0].Album;
-            kicker = "Álbum";
+            uint year = songs.Where(x => x.Year > 0).GroupBy(x => x.Year).OrderByDescending(y => y.Count()).Select(y => y.Key).FirstOrDefault();
+            kicker = year > 0 ? $"Álbum · {year}" : "Álbum";
         }
         else
         {
@@ -450,6 +451,9 @@ public sealed class HomePage : PageBase
     public string Filter { get; set; } = "";
 
     public string Greeting { get; init; } = "";
+    /// <summary>Sol de día, luna de noche (en el color del tema).</summary>
+    public string GreetingGlyph { get; init; } = "\uE706";
+    public bool IsNight { get; init; }
     /// <summary>El saludo letra a letra, para animarlo en cascada.</summary>
     public List<GreetChar> GreetingChars => Greeting.Select((c, i) => new GreetChar(c.ToString(), i)).ToList();
     public string DateText { get; init; } = "";

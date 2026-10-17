@@ -41,7 +41,10 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
     /// <summary>Canción preparada en la salida para enlazar sin pausa, o null.</summary>
     private Song? _gaplessNext;
     /// <summary>Segundos antes del final en los que se abre la siguiente (margen para OneDrive o discos lentos).</summary>
-    private const double PrepareAheadSeconds = 12;
+    private const double PrepareAheadMin = 12;
+
+    /// <summary>Cuántos segundos antes del final se deja abierta la siguiente: 12, o más si el fundido es más largo.</summary>
+    private double PrepareAheadSeconds => Math.Max(PrepareAheadMin, CrossfadeSeconds + 4);
 
     public PlayerService(Dispatcher ui)
     {
@@ -285,6 +288,31 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         UpdateUpNext();
     }
 
+    /// <summary>Mete canciones en la cola justo antes de la posición <paramref name="index"/> (arrastradas encima de ella).</summary>
+    public void InsertInQueue(IEnumerable<Song> songs, int index)
+    {
+        var list = songs.ToList();
+        if (list.Count == 0) return;
+        if (Current == null)
+        {
+            PlayContext("queue", "Cola", list, 0);
+            return;
+        }
+        _userQueue.InsertRange(Math.Clamp(index, 0, _userQueue.Count), list);
+        UpdateUpNext();
+    }
+
+    /// <summary>Mueve una canción de la cola a otra posición (arrastrándola); más allá del final, al final.</summary>
+    public void MoveInQueue(Song song, int index)
+    {
+        int from = _userQueue.IndexOf(song);
+        if (from < 0) return;
+        _userQueue.RemoveAt(from);
+        if (index > from) index--; // lo de detrás se ha corrido un puesto
+        _userQueue.Insert(Math.Clamp(index, 0, _userQueue.Count), song);
+        UpdateUpNext();
+    }
+
     public void RemoveFromQueue(Song song)
     {
         if (_userQueue.Remove(song)) UpdateUpNext();
@@ -448,11 +476,57 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         song.IsCurrent = true;
     }
 
-    private async Task<string?> TryLoad(string path, string? deviceId, bool exclusive)
+    /// <summary>Segundos de fundido entre canciones (0 = apagado: enlazadas sin pausa).</summary>
+    public double CrossfadeSeconds { get; set; }
+
+    /// <summary>Fundir también las pistas seguidas de un mismo disco.</summary>
+    public bool CrossfadeAlbums { get; set; } = true;
+
+    /// <summary>
+    /// Fundido con la siguiente, salvo si es la pista que sigue en el mismo disco (un álbum en directo o conceptual suena
+    /// enlazado, como se grabó) o si se repite la misma.
+    /// </summary>
+    private double CrossfadeWith(Song next)
+    {
+        if (CrossfadeSeconds <= 0 || Current is not { } cur || next == cur) return 0;
+        bool sameAlbum = string.Equals(LibraryService.AlbumKey(cur), LibraryService.AlbumKey(next), StringComparison.OrdinalIgnoreCase);
+        bool following = next.DiscNumber == cur.DiscNumber && next.TrackNumber == cur.TrackNumber + 1
+                         || (next.TrackNumber == 0 && cur.TrackNumber == 0);
+        if (sameAlbum && following && !CrossfadeAlbums) return 0;
+        // nunca más de un tercio de ninguna de las dos (una canción corta no se pasa entera fundiéndose)
+        double fade = CrossfadeSeconds;
+        if (cur.Duration is { TotalSeconds: > 0 } a) fade = Math.Min(fade, a.TotalSeconds / 3);
+        if (next.Duration is { TotalSeconds: > 0 } b) fade = Math.Min(fade, b.TotalSeconds / 3);
+        return Math.Min(fade, PrepareAheadSeconds - 2);
+    }
+
+    /// <summary>Normalización de volumen de cada canción, en dB (la decide quien conoce los ajustes y la biblioteca).</summary>
+    public Func<Song, double>? GainFor { get; set; }
+
+    /// <summary>La normalización cambió (modo, o se acaba de medir): la que suena pasa a la nueva en unos milisegundos.</summary>
+    public void RefreshGain()
+    {
+        if (Current != null && _out.IsLoaded && !_out.IsExclusive) _out.SetGain(GainFor?.Invoke(Current) ?? 0);
+        // la siguiente ya preparada se vuelve a preparar con la suya
+        if (_gaplessNext != null)
+        {
+            _out.CancelNext();
+            _gaplessNext = null;
+        }
+    }
+
+    /// <summary>Cuando una canción suena entera, Echoplex sabe cuánto suena (para normalizarla la próxima vez).</summary>
+    public event Action<string, double, double, double>? Measured
+    {
+        add => _out.Measured += value;
+        remove => _out.Measured -= value;
+    }
+
+    private async Task<string?> TryLoad(string path, string? deviceId, bool exclusive, double gainDb = 0)
     {
         try
         {
-            return await _out.LoadAsync(path, deviceId, exclusive);
+            return await _out.LoadAsync(path, deviceId, exclusive, gainDb);
         }
         catch (Exception ex)
         {
@@ -495,7 +569,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         }
         if (!wantExclusive || reason != null)
         {
-            var failure = await TryLoad(song.Path, null, false);
+            var failure = await TryLoad(song.Path, null, false, GainFor?.Invoke(song) ?? 0);
             if (ver != _loadVersion) return;
             if (failure != null)
             {
@@ -624,7 +698,7 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         _ = Task.Run(async () =>
         {
             bool ok;
-            try { ok = await _out.PrepareNextAsync(next.Path, next); } catch { ok = false; }
+            try { ok = await _out.PrepareNextAsync(next.Path, next, GainFor?.Invoke(next) ?? 0, CrossfadeWith(next)); } catch { ok = false; }
             // si mientras se abría cambió la canción o la siguiente, se descarta
             _ = _ui.BeginInvoke(() =>
             {

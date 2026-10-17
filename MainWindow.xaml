@@ -46,6 +46,10 @@
             <Setter Property="ContextMenu" Value="{StaticResource RowMenu}" />
             <EventSetter Event="MouseDoubleClick" Handler="Row_DoubleClick" />
             <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
+            <!-- arrastrar las seleccionadas a la cola o a una playlist -->
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Row_DragDown" />
+            <EventSetter Event="PreviewMouseLeftButtonUp" Handler="Row_DragUp" />
+            <EventSetter Event="PreviewMouseMove" Handler="Row_DragMove" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
@@ -766,8 +770,21 @@
             <ScrollViewer x:Name="HomeScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <StackPanel Margin="56,48,40,48">
                     <TextBlock Text="{Binding DateText}" Foreground="{DynamicResource Text2Brush}" FontSize="13" />
-                    <!-- saludo letra a letra -->
-                    <ItemsControl ItemsSource="{Binding GreetingChars}" Margin="0,2,0,24" Focusable="False">
+                    <!-- saludo letra a letra, con un sol de día o una luna de noche en el color del tema -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,24">
+                    <Grid Width="44" Height="44" Margin="0,0,14,0" VerticalAlignment="Center" Loaded="GreetIcon_Loaded" RenderTransformOrigin="0.5,0.5"
+                          IsHitTestVisible="False">
+                        <!-- el brillo: el mismo icono, difuminado, detrás -->
+                        <TextBlock Text="{Binding GreetingGlyph}" FontFamily="{StaticResource IconFont}" FontSize="32" Opacity="0.85"
+                                   Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Effect>
+                                <BlurEffect Radius="16" />
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        <TextBlock Text="{Binding GreetingGlyph}" FontFamily="{StaticResource IconFont}" FontSize="32"
+                                   Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding GreetingChars}" Focusable="False" VerticalAlignment="Center">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />
@@ -780,6 +797,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </StackPanel>
                     <ItemsControl ItemsSource="{Binding QuickLinks}" ItemTemplate="{StaticResource QuickTileTemplate}" Margin="0,0,6,12">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -921,6 +939,13 @@
                     <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="52" Foreground="{DynamicResource Text3Brush}" />
                     <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="40" FontWeight="Bold" Margin="0,16,0,4" />
                     <TextBlock Text="Basado en lo que has escuchado en Echoplex." Foreground="{DynamicResource Text2Brush}" />
+                    <Button Style="{StaticResource SecondaryButton}" FontSize="14" Click="Health_Click" HorizontalAlignment="Left" Margin="0,16,0,0"
+                            ToolTip="Canciones repetidas, álbumes sin carátula, etiquetas que faltan y carpetas vacías">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE95E;" FontFamily="{StaticResource IconFont}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="Salud de la biblioteca" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
 
                     <UniformGrid Columns="4" Margin="0,24,0,0">
                         <Border Style="{StaticResource StatBox}">
@@ -996,6 +1021,86 @@
             </ScrollViewer>
         </DataTemplate>
 
+        <!-- ================= Salud de la biblioteca ================= -->
+        <DataTemplate DataType="{x:Type vm:HealthPage}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <StackPanel Margin="56,48,44,48">
+                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="52" Foreground="{DynamicResource Text3Brush}" />
+                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="40" FontWeight="Bold" Margin="0,16,0,4" TextWrapping="Wrap" />
+                    <TextBlock Text="Lo que se puede mejorar en tu música. Echoplex solo lo enseña: no cambia, mueve ni borra nada." Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AccentBrush}" Margin="0,20,0,0"
+                               Visibility="{Binding Status, Converter={StaticResource NullVis}}" />
+
+                    <ItemsControl ItemsSource="{Binding Issues}" Margin="0,24,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="Bd" Style="{StaticResource StatBox}" Margin="0,0,0,10" Cursor="Hand" MouseLeftButtonUp="HealthIssue_Click">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontFamily="{StaticResource IconFont}" FontSize="22"
+                                                   Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="2,0,18,0" />
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                                            <TextBlock x:Name="Count" Text="{Binding CountText}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="Chevron" Text="&#xE76C;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                       Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        </StackPanel>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Description}" FontSize="13" Foreground="{DynamicResource Text2Brush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding HasSongs}" Value="False">
+                                        <Setter TargetName="Bd" Property="Cursor" Value="Arrow" />
+                                        <Setter TargetName="Chevron" Property="Visibility" Value="Collapsed" />
+                                        <Setter TargetName="Count" Property="Foreground" Value="{DynamicResource Text3Brush}" />
+                                        <Setter TargetName="Count" Property="FontWeight" Value="Normal" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsMouseOver, ElementName=Bd}" Value="True" />
+                                            <Condition Binding="{Binding HasSongs}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                    </MultiDataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Visibility="{Binding EmptyFolders, Converter={StaticResource NullVis}}">
+                        <TextBlock Text="Carpetas vacías" Style="{StaticResource SectionTitle}" Margin="0,20,0,4" />
+                        <TextBlock Text="Sin ningún archivo dentro, tampoco en sus subcarpetas. Haz clic en una para abrirla en el Explorador."
+                                   Foreground="{DynamicResource Text2Brush}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <ItemsControl ItemsSource="{Binding EmptyFolders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="5" Height="44" Cursor="Hand" MouseLeftButtonUp="EmptyFolder_Click" ToolTip="{Binding Path}">
+                                        <DockPanel Margin="8,0">
+                                            <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" FontSize="16" Foreground="{DynamicResource Text3Brush}"
+                                                       VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Where}" FontSize="12" Foreground="{DynamicResource Text2Brush}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding Note}" Foreground="{DynamicResource Text3Brush}" FontSize="13" TextWrapping="Wrap" Margin="0,16,0,0"
+                               Visibility="{Binding Note, Converter={StaticResource NullVis}}" />
+                </StackPanel>
+            </ScrollViewer>
+        </DataTemplate>
+
         <!-- ================= Panel lateral: elementos ================= -->
 
         <HierarchicalDataTemplate DataType="{x:Type m:FolderNode}" ItemsSource="{Binding Children}">
@@ -1055,6 +1160,9 @@
 
         <Style x:Key="FolderItemStyle" TargetType="TreeViewItem" BasedOn="{StaticResource FolderTreeItem}">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <!-- una carpeta se arrastra entera a la cola o a una playlist -->
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Node_DragDown" />
+            <EventSetter Event="PreviewMouseMove" Handler="Node_DragMove" />
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
             <!-- «Mostrar solo locales»: fuera las carpetas enteras en la nube -->
             <Setter Property="Visibility" Value="{Binding IsFilteredOut, Converter={StaticResource InvBoolVis}}" />
@@ -1088,7 +1196,9 @@
 
         <!-- ================= Panel derecho: cola ================= -->
         <DataTemplate x:Key="QueueItemTemplate" DataType="{x:Type m:Song}">
-            <Border x:Name="Bd" Background="Transparent" CornerRadius="5" Padding="8,5" MouseLeftButtonUp="UpNext_Click" Cursor="Hand">
+            <Border x:Name="Bd" Background="Transparent" CornerRadius="5" Padding="8,5" MouseLeftButtonUp="UpNext_Click" Cursor="Hand"
+                    PreviewMouseLeftButtonDown="QueueItem_DragDown" PreviewMouseMove="QueueItem_DragMove"
+                    AllowDrop="True" DragOver="QueueItem_DragOver" DragLeave="QueueItem_DragLeave" Drop="QueueItem_Drop">
                 <DockPanel>
                     <Button x:Name="Remove" DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" Width="22"
                             Height="22" Click="QueueRemove_Click" Visibility="Hidden" ToolTip="Quitar de la cola" />
@@ -1300,6 +1410,13 @@
                                     <TextBlock Text="Álbumes" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
+                            <Button Style="{StaticResource NavButton}" Click="Genres_Click"
+                                    Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=genres}">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8D6;" />
+                                    <TextBlock Text="Géneros" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Button>
                             <Button Style="{StaticResource NavButton}" Click="Folders_Click"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=folders}">
                                 <DockPanel>
@@ -1316,12 +1433,13 @@
                             <ItemsControl ItemsSource="{Binding Playlists}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type m:Playlist}">
-                                        <Button Style="{StaticResource NavButton}" Tag="{Binding IsSelected}" Click="Playlist_Click">
+                                        <Button Style="{StaticResource NavButton}" Tag="{Binding IsSelected}" Click="Playlist_Click"
+                                                AllowDrop="True" DragOver="Playlist_DragOver" DragLeave="Playlist_DragLeave" Drop="Playlist_Drop">
                                             <Button.ContextMenu>
                                                 <ContextMenu Tag="playlist" />
                                             </Button.ContextMenu>
                                             <DockPanel>
-                                                <TextBlock Style="{StaticResource NavIcon}" Text="&#xE90B;" />
+                                                <TextBlock x:Name="Ic" Style="{StaticResource NavIcon}" Text="&#xE90B;" />
                                                 <TextBlock x:Name="Speaker" DockPanel.Dock="Right" Text="&#xE995;" FontFamily="{StaticResource IconFont}"
                                                            FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Visibility="Collapsed" />
                                                 <TextBlock x:Name="Nm" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -1331,6 +1449,17 @@
                                             <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                 <Setter TargetName="Speaker" Property="Visibility" Value="Visible" />
                                                 <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                            </DataTrigger>
+                                            <!-- inteligente: un rayo en vez de la lista -->
+                                            <DataTrigger Binding="{Binding IsSmart}" Value="True">
+                                                <Setter TargetName="Ic" Property="Text" Value="&#xE945;" />
+                                            </DataTrigger>
+                                            <!-- con canciones arrastradas encima: un + y en el color del tema -->
+                                            <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
+                                                <Setter TargetName="Ic" Property="Text" Value="&#xE710;" />
+                                                <Setter TargetName="Ic" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Nm" Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                                                <Setter TargetName="Nm" Property="FontWeight" Value="SemiBold" />
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>
@@ -1425,19 +1554,6 @@
                             Visibility="{Binding NeedsFolder, Converter={StaticResource BoolVis}}" />
                 </StackPanel>
 
-                <Border Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20" Background="{DynamicResource ToastBrush}"
-                        CornerRadius="6" Padding="14,8" Effect="{StaticResource SoftShadow}" IsHitTestVisible="False"
-                        Visibility="{Binding Toast, Converter={StaticResource NullVis}}" Style="{StaticResource SlideUpOnShow}">
-                    <Border.RenderTransform>
-                        <TranslateTransform />
-                    </Border.RenderTransform>
-                    <TextBlock Text="{Binding Toast}" Foreground="{DynamicResource ToastTextBrush}" FontSize="13" />
-                </Border>
-                <Border Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,62" Background="#E03E3E"
-                        CornerRadius="6" Padding="14,8" IsHitTestVisible="False"
-                        Visibility="{Binding Player.Error, Converter={StaticResource NullVis}}">
-                    <TextBlock Text="{Binding Player.Error}" Foreground="White" FontSize="13" />
-                </Border>
             </Grid>
 
             <!-- ======================= PANEL DERECHO ======================= -->
@@ -1483,8 +1599,10 @@
 
                     <Grid>
                         <!-- Cola -->
+                        <!-- soltar canciones aquí las pone al final de la cola -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
-                                      Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=queue}">
+                                      Visibility="{Binding RightTab, Converter={StaticResource EqVis}, ConverterParameter=queue}"
+                                      AllowDrop="True" DragOver="QueuePanel_DragOver" Drop="QueuePanel_Drop" Background="Transparent">
                             <StackPanel Margin="8,0,8,16">
                                 <TextBlock Text="Sonando" Style="{StaticResource PanelLabel}" />
                                 <DockPanel Margin="8,0" Visibility="{Binding Player.Current, Converter={StaticResource NullVis}}">
@@ -1683,7 +1801,23 @@
                     </Grid>
                 </DockPanel>
             </Border>
+
         </Grid>
+
+        <!-- avisos: centrados en toda la ventana (como la barra de reproducción), justo encima de ella -->
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20" Background="{DynamicResource ToastBrush}"
+                CornerRadius="6" Padding="14,8" Effect="{StaticResource SoftShadow}" IsHitTestVisible="False"
+                Visibility="{Binding Toast, Converter={StaticResource NullVis}}" Style="{StaticResource SlideUpOnShow}">
+            <Border.RenderTransform>
+                <TranslateTransform />
+            </Border.RenderTransform>
+            <TextBlock Text="{Binding Toast}" Foreground="{DynamicResource ToastTextBrush}" FontSize="13" />
+        </Border>
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,62" Background="#E03E3E"
+                CornerRadius="6" Padding="14,8" IsHitTestVisible="False"
+                Visibility="{Binding Player.Error, Converter={StaticResource NullVis}}">
+            <TextBlock Text="{Binding Player.Error}" Foreground="White" FontSize="13" />
+        </Border>
 
         <!-- ======================= BARRA DE REPRODUCCIÓN ======================= -->
         <Border Grid.Row="1" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Background="{DynamicResource BgBrush}">
@@ -1744,6 +1878,10 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="PosText" Text="0:00" FontSize="11" Foreground="{DynamicResource Text2Brush}" TextAlignment="Right"
                                    VerticalAlignment="Center" />
+                        <!-- la forma de onda (si está puesta en Ajustes), detrás de la barra, que entonces se vuelve transparente -->
+                        <local:WaveformBar x:Name="Waveform" Grid.Column="1" Margin="8,0" Height="22" IsHitTestVisible="False"
+                                           Peaks="{Binding CurrentWaveform}" PlayedBrush="{DynamicResource AccentBrush}" RestBrush="{DynamicResource TrackBrush}"
+                                           Visibility="{Binding CurrentWaveform, Converter={StaticResource NullVis}}" />
                         <Slider x:Name="SeekSlider" Grid.Column="1" Style="{StaticResource ThinSlider}" Minimum="0" Maximum="1" Margin="8,0" />
                         <TextBlock x:Name="DurText" Grid.Column="2" Text="0:00" FontSize="11" Foreground="{DynamicResource Text2Brush}"
                                    VerticalAlignment="Center" />
