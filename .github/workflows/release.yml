@@ -59,6 +59,22 @@ jobs:
         shell: pwsh
         run: ./publish.ps1 -Zip
 
+      # el paquete fuera de casa (Tailscale dentro de Echoplex): va aparte, no en el zip; se baja desde Ajustes → Móvil
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailscale/go.mod
+          cache-dependency-path: tailscale/go.sum
+
+      - name: Paquete fuera de casa
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force fuera-de-casa | Out-Null
+          Push-Location tailscale
+          $env:CGO_ENABLED = "0"
+          go build -trimpath -ldflags "-s -w" -o ../fuera-de-casa/echoplex-tailscale.exe .
+          Pop-Location
+          Compress-Archive fuera-de-casa/echoplex-tailscale.exe "app/Echoplex-$env:VERSION-fuera-de-casa-windows.zip"
+
       - name: Notas de la versión
         shell: pwsh
         run: |
@@ -82,5 +98,69 @@ jobs:
       - name: Publicar release
         shell: pwsh
         run: |
-          gh release create "v$env:VERSION" "app/Echoplex-$env:VERSION-win-x64.zip" `
+          gh release create "v$env:VERSION" "app/Echoplex-$env:VERSION-win-x64.zip" "app/Echoplex-$env:VERSION-fuera-de-casa-windows.zip" `
             --title "Echoplex $env:VERSION" --notes-file notes.md --target $env:GITHUB_SHA
+
+  # La app de Android (android/), firmada con la clave del proyecto, se añade a la misma release como
+  # Echoplex-<versión>-android.apk. La clave va en los secrets ANDROID_KEYSTORE_BASE64 (el .jks en base64)
+  # y ANDROID_KEYSTORE_PASSWORD; sin ellos la release sale igual, solo sin el APK.
+  android:
+    needs: [check, release]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - id: key
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Sin ANDROID_KEYSTORE_BASE64 en los secrets: la release sale sin APK."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.ok == 'true'
+
+      - uses: actions/setup-java@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          gradle-version: 8.11.1
+
+      # el Tailscale de la app: el mismo programa que el paquete del PC, para Android de 64 bits (sin cgo ni NDK)
+      - uses: actions/setup-go@v5
+        if: steps.key.outputs.ok == 'true'
+        with:
+          go-version-file: tailscale/go.mod
+          cache-dependency-path: tailscale/go.sum
+
+      - name: Tailscale para la app
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          cd tailscale
+          CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../android/app/src/main/jniLibs/arm64-v8a/libechoplexts.so .
+
+      - name: Compilar el APK
+        if: steps.key.outputs.ok == 'true'
+        env:
+          ORG_GRADLE_PROJECT_echoplexStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/echoplex.jks"
+          gradle -p android --no-daemon assembleRelease -PechoplexStoreFile="$RUNNER_TEMP/echoplex.jks"
+          rm -f "$RUNNER_TEMP/echoplex.jks"
+
+      - name: Añadir el APK a la release
+        if: steps.key.outputs.ok == 'true'
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "Echoplex-$VERSION-android.apk"
+          gh release upload "v$VERSION" "Echoplex-$VERSION-android.apk" --repo "$GITHUB_REPOSITORY"

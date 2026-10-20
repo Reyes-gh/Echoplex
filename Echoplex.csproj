@@ -13,7 +13,9 @@
     <ApplicationIcon>Assets\echoplex.ico</ApplicationIcon>
     <Product>Echoplex</Product>
     <Description>Reproductor de música local para Windows</Description>
-    <Version>1.1.25</Version>
+    <Version>2.0.0</Version>
+    <!-- la app de Android vive en android/: no es parte de este proyecto -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);android/**;tailscale/**</DefaultItemExcludes>
     <!-- las dependencias no traen traducciones que usemos: nada de carpetas de idiomas en la release -->
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -22,6 +24,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- ILLink para publish.ps1, que recorta las librerías de terceros: solo se descarga, no forma parte del programa -->
     <PackageDownload Include="Microsoft.NET.ILLink.Tasks" Version="[8.0.19]" />
   </ItemGroup>

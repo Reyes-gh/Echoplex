@@ -1067,6 +1067,109 @@
                         <TextBlock Text="{Binding ScrobbleStatus}" Style="{StaticResource Hint}" Margin="0" VerticalAlignment="Center" />
                     </DockPanel>
 
+                    <!-- ================= Móvil ================= -->
+                    <Border Style="{StaticResource SectionGap}" />
+                    <ContentControl x:Name="SecMobile" Style="{StaticResource SectionHeader}" Content="Móvil" Tag="&#xE8EA;" />
+                    <TextBlock Style="{StaticResource SectionLead}" Text="Tu música de Echoplex en el móvil, en streaming y sin copiarla." />
+
+                    <TextBlock x:Name="SubMobileServer" Style="{StaticResource SubHeader}" Text="Acceso desde el móvil" />
+                    <Border Style="{StaticResource Group}">
+                        <StackPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding RemoteEnabled}">
+                                <StackPanel>
+                                    <TextBlock Text="Dejar que el móvil escuche tu biblioteca" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Echoplex hace de servidor compatible con Subsonic: en el móvil sirve una app como Tempus (Android, gratis y de código abierto) o Symfonium. Funciona mientras Echoplex esté abierto, también escondido en la bandeja. La primera vez, Windows preguntará si dejas que Echoplex use la red: acepta en redes privadas." />
+                                </StackPanel>
+                            </CheckBox>
+                            <StackPanel Style="{StaticResource DimWhenDisabled}" IsEnabled="{Binding RemoteEnabled}" Margin="46,14,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Text="En casa" FontSize="14" Margin="0,8,14,0" VerticalAlignment="Top" />
+                                    <TextBox Grid.Column="1" Text="{Binding RemoteAddresses, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="13"
+                                             Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,0"
+                                             ToolTip="Para el móvil en el wifi de casa (en Tempus, «Local URL»; si hay varias, la de tu wifi o tu cable)" />
+                                    <TextBlock Grid.Row="1" Text="Fuera de casa" FontSize="14" Margin="0,12,14,0" VerticalAlignment="Top" />
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,12,0,0">
+                                        <TextBox Text="{Binding RemoteAwayAddress, Mode=OneWay}" IsReadOnly="True" FontFamily="Consolas" FontSize="13"
+                                                 Background="Transparent" BorderThickness="0" Foreground="{DynamicResource TextBrush}"
+                                                 Visibility="{Binding RemoteAwayAddress, Converter={StaticResource NullVis}}"
+                                                 ToolTip="Por Tailscale, desde cualquier sitio (en Tempus, «Server URL»)" />
+                                        <!-- el Tailscale de Echoplex (paquete fuera de casa): descargar, iniciar sesión, cerrarla o quitarlo -->
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,0" Text="{Binding RemoteTsText}" />
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Button Style="{StaticResource SecondaryButton}" FontSize="13" Content="Descargar el paquete fuera de casa" Click="TsDownload_Click" Margin="0,0,6,6"
+                                                    Visibility="{Binding RemoteTsCanDownload, Converter={StaticResource BoolVis}}" />
+                                            <Button Style="{StaticResource SecondaryButton}" FontSize="13" Content="Iniciar sesión en Tailscale" Click="TsLogin_Click" Margin="0,0,6,6"
+                                                    Visibility="{Binding RemoteTsCanLogin, Converter={StaticResource BoolVis}}" />
+                                            <Button Style="{StaticResource GhostButton}" FontSize="13" Content="Cerrar sesión" Click="TsLogout_Click" Margin="0,0,6,6"
+                                                    Visibility="{Binding RemoteTsConnected, Converter={StaticResource BoolVis}}"
+                                                    ToolTip="Este PC sale de tu red de Tailscale; para volver, inicia sesión otra vez" />
+                                            <Button Style="{StaticResource GhostButton}" FontSize="13" Content="Quitar el paquete" Click="TsRemove_Click" Margin="0,0,6,6"
+                                                    Visibility="{Binding RemoteTsInstalled, Converter={StaticResource BoolVis}}"
+                                                    ToolTip="Lo borra de este PC, con la sesión de Tailscale" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="2" Text="Usuario" FontSize="14" Margin="0,10,14,0" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="0,10,0,0"
+                                             Text="{Binding RemoteUser, UpdateSourceTrigger=LostFocus}" />
+                                    <TextBlock Grid.Row="3" Text="Contraseña" FontSize="14" Margin="0,10,14,0" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="0,10,0,0"
+                                             Text="{Binding RemotePassword, Mode=OneWay}" IsReadOnly="True" />
+                                    <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" Margin="8,10,0,0">
+                                        <Button Style="{StaticResource SecondaryButton}" FontSize="13" Content="Copiar" Click="RemoteCopyPassword_Click" Margin="0,0,6,0" />
+                                        <Button Style="{StaticResource GhostButton}" FontSize="13" Content="Nueva" Click="RemoteNewPassword_Click"
+                                                ToolTip="Otra contraseña: los móviles conectados tendrán que poner la nueva" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="4" Text="Puerto" FontSize="14" Margin="0,10,14,0" VerticalAlignment="Center" />
+                                    <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource DialogBox}" FontFamily="Consolas" FontSize="13" Margin="0,10,0,0" Width="90"
+                                             HorizontalAlignment="Left" Text="{Binding RemotePort, UpdateSourceTrigger=LostFocus}" />
+                                </Grid>
+                                <Button x:Name="RemoteQrButton" Style="{StaticResource PrimaryButton}" FontSize="14" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                        Content="Mostrar QR para la app Echoplex" Click="RemoteQr_Click" />
+                                <StackPanel x:Name="RemoteQrPanel" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Collapsed">
+                                    <Border Background="White" CornerRadius="8" Padding="10">
+                                        <Image x:Name="RemoteQrImage" Width="220" Height="220" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource Hint}" Width="260" Margin="16,0,0,0" VerticalAlignment="Center"
+                                               Text="Escanéalo con la app Echoplex del móvil: lleva la dirección de casa, la de fuera (si tienes Tailscale), el usuario y la contraseña, así que no hay que escribir nada. No lo enseñes a nadie: con él se entra en tu música. Si alguna vez se ve, pulsa «Nueva» en la contraseña." />
+                                </StackPanel>
+                                <TextBlock Text="Calidad fuera de casa" FontSize="14" Margin="0,16,0,6" />
+                                <WrapPanel>
+                                    <RadioButton x:Name="AwayOriginal" Style="{StaticResource ColumnChip}" GroupName="AwayQuality" FontSize="13" Tag="0" Content="Original" Checked="AwayQuality_Checked"
+                                                 ToolTip="El archivo tal cual (un FLAC ocupa unos 30–40 MB por canción)" />
+                                    <RadioButton x:Name="Away320" Style="{StaticResource ColumnChip}" GroupName="AwayQuality" FontSize="13" Tag="320" Content="MP3 320 kbps" Checked="AwayQuality_Checked" />
+                                    <RadioButton x:Name="Away192" Style="{StaticResource ColumnChip}" GroupName="AwayQuality" FontSize="13" Tag="192" Content="MP3 192 kbps" Checked="AwayQuality_Checked"
+                                                 ToolTip="Unos 5–6 MB por canción: suena muy bien y gasta poco" />
+                                    <RadioButton x:Name="Away128" Style="{StaticResource ColumnChip}" GroupName="AwayQuality" FontSize="13" Tag="128" Content="MP3 128 kbps" Checked="AwayQuality_Checked" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                           Text="Fuera de casa (por Tailscale), Echoplex convierte las canciones a MP3 sobre la marcha para gastar menos datos y que no se corte. En casa van siempre tal cual. Si la app pide otra calidad (en Tempus, ajustes de transcodificación), manda la de la app." />
+                                <TextBlock Text="{Binding RemoteStatus}" FontSize="13" Foreground="{DynamicResource AccentBrush}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                           Visibility="{Binding RemoteStatus, Converter={StaticResource NullVis}}" />
+                                <TextBlock Text="{Binding RemoteLastAccess}" Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                           Visibility="{Binding RemoteLastAccess, Converter={StaticResource NullVis}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="SubMobileHowTo" Style="{StaticResource SubHeader}" Text="Cómo conectarse" />
+                    <Border Style="{StaticResource Group}">
+                        <TextBlock Style="{StaticResource Hint}" Margin="0" LineHeight="21"
+                                   Text="1. En el móvil, abre la app (por ejemplo Tempus) y añade un servidor con el usuario y la contraseña de arriba.&#x0a;2. Solo en casa: pon la dirección «En casa» como dirección del servidor.&#x0a;3. También fuera de casa, con Tailscale en el PC y en el móvil: pon la de «Fuera de casa» como dirección del servidor (en Tempus, «Server URL») y la de casa como dirección local («Local URL»). En tu wifi irá directo y fuera, por Tailscale.&#x0a;4. Lo que escuches en el móvil cuenta en Tu resumen y en tu historial, y las favoritas y playlists son las mismas.&#x0a;Echoplex no abre nada a internet por su cuenta. Si desde fuera no conecta, permite a Echoplex en el Firewall de Windows también para la red de Tailscale." />
+                    </Border>
+
                     <!-- ================= General ================= -->
                     <Border Style="{StaticResource SectionGap}" />
                     <ContentControl x:Name="SecGeneral" Style="{StaticResource SectionHeader}" Content="General" Tag="&#xE770;" />

@@ -36,6 +36,16 @@ public sealed class AppSettings
     public double Crossfade { get; set; }
     /// <summary>Fundir también las pistas seguidas de un mismo disco. De serie, sí (el fundido en sí viene apagado).</summary>
     public bool CrossfadeSameAlbum { get; set; } = true;
+    /// <summary>Acceso desde el móvil: Echoplex como servidor Subsonic en la red. De serie, apagado.</summary>
+    public bool RemoteEnabled { get; set; }
+    public int RemotePort { get; set; } = 4040;
+    public string RemoteUser { get; set; } = "echoplex";
+    /// <summary>Fuera de casa (por Tailscale), si la app no pide otra cosa: MP3 de estos kbps (0 = el archivo tal cual).</summary>
+    public int RemoteAwayKbps { get; set; } = 192;
+    /// <summary>El Tailscale de Echoplex (paquete fuera de casa) encendido: arranca con el acceso desde el móvil.</summary>
+    public bool RemoteTailscale { get; set; }
+    /// <summary>La contraseña del acceso desde el móvil, cifrada con la cuenta de Windows (se genera sola).</summary>
+    public string? RemotePassword { get; set; }
     /// <summary>Atajos globales (Ctrl+Alt+Espacio, flechas, L) desde cualquier programa. De serie, apagados.</summary>
     public bool GlobalHotkeys { get; set; }
     /// <summary>Los atajos globales llevan también Mayús (Ctrl+Alt+Mayús+…).</summary>

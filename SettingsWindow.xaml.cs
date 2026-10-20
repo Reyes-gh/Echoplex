@@ -124,6 +124,8 @@ public partial class SettingsWindow : Window
         FadeCustomBox.Text = FormatSeconds(vm.CrossfadeSeconds is > 0 and not (3 or 6 or 9) ? vm.CrossfadeSeconds : 5);
         (vm.CrossfadeSeconds switch { 0 => FadeOff, 3 => Fade3, 6 => Fade6, 9 => Fade9, _ => FadeCustom }).IsChecked = true;
         (vm.GlobalHotkeyShift ? HotkeyCtrlAltShift : HotkeyCtrlAlt).IsChecked = true;
+        vm.RefreshRemoteAddresses(); // la de casa y la de Tailscale, al día al abrir Ajustes
+        (vm.RemoteAwayKbps switch { 0 => AwayOriginal, >= 320 => Away320, >= 192 => Away192, _ => Away128 }).IsChecked = true;
         FolderList.ItemsSource = vm.MusicFolders;
         OnlineList.ItemsSource = vm.OnlineFolders;
         BuildColumnSwitches();
@@ -190,6 +192,7 @@ public partial class SettingsWindow : Window
         Section("Discord", NavIcon("DiscordIcon", 17, 1.2), SecDiscord, ("Estado en Discord", SubDiscordStatus),
             ("En la lista de miembros", SubDiscordList), ("Carátulas", SubDiscordCovers));
         Section("Scrobbling", "\uE81C", SecScrobble, ("Last.fm", SubLastFm), ("ListenBrainz", SubListenBrainz));
+        Section("Móvil", "\uE8EA", SecMobile, ("Acceso desde el móvil", SubMobileServer), ("Cómo conectarse", SubMobileHowTo));
         Section("General", "", SecGeneral, ("Al pulsar la X", SubCloseAction), ("Atajos globales", SubGlobalKeys), ("Accesos", SubShortcuts));
         Section("Actualizaciones", "", SecUpdates, ("Versión", SubVersion), ("Novedades", SubReleaseNotes));
         NavList.ItemsSource = _nav;
@@ -808,6 +811,58 @@ public partial class SettingsWindow : Window
         _vm.OpenHealth();
         BeginClose();
     }
+
+    private void RemoteCopyPassword_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(_vm.RemotePassword); } catch { /* portapapeles ocupado */ }
+    }
+
+    private void RemoteNewPassword_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.NewRemotePassword();
+        if (RemoteQrPanel.Visibility == Visibility.Visible) ShowRemoteQr(); // el QR viejo ya no vale
+    }
+
+    private void RemoteQr_Click(object sender, RoutedEventArgs e)
+    {
+        if (RemoteQrPanel.Visibility == Visibility.Visible)
+        {
+            RemoteQrPanel.Visibility = Visibility.Collapsed;
+            RemoteQrImage.Source = null;
+            RemoteQrButton.Content = "Mostrar QR para la app Echoplex";
+            return;
+        }
+        ShowRemoteQr();
+    }
+
+    /// <summary>El QR con los datos de conexión (se genera al momento y no se guarda en ningún sitio).</summary>
+    private void ShowRemoteQr()
+    {
+        using var generator = new QRCoder.QRCodeGenerator();
+        using var data = generator.CreateQrCode(_vm.RemoteQrPayload(), QRCoder.QRCodeGenerator.ECCLevel.M);
+        var png = new QRCoder.PngByteQRCode(data).GetGraphic(8);
+        var image = new System.Windows.Media.Imaging.BitmapImage();
+        image.BeginInit();
+        image.StreamSource = new MemoryStream(png);
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        RemoteQrImage.Source = image;
+        RemoteQrPanel.Visibility = Visibility.Visible;
+        RemoteQrButton.Content = "Ocultar el QR";
+    }
+
+    private void RemoteRefresh_Click(object sender, RoutedEventArgs e) => _vm.RefreshRemoteAddresses();
+
+    private void AwayQuality_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string s } && int.TryParse(s, out var kbps)) _vm.RemoteAwayKbps = kbps;
+    }
+
+    private async void TsDownload_Click(object sender, RoutedEventArgs e) => await _vm.DownloadTailscaleAsync();
+    private void TsLogin_Click(object sender, RoutedEventArgs e) => _vm.LoginTailscale();
+    private void TsLogout_Click(object sender, RoutedEventArgs e) => _vm.LogoutTailscale();
+    private void TsRemove_Click(object sender, RoutedEventArgs e) => _vm.RemoveTailscale();
 
     private void HotkeyMods_Checked(object sender, RoutedEventArgs e)
     {

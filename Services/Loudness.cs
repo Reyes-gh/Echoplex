@@ -217,6 +217,26 @@ public static class Normalization
         return Math.Clamp(g, -24, 18);
     }
 
+    /// <summary>
+    /// Los valores ReplayGain «en bruto» (dB respecto a −18 LUFS y picos lineales), de las etiquetas o, si no las hay, de lo
+    /// que midió Echoplex: los que se mandan al móvil para que normalice él. null lo que no se sabe.
+    /// </summary>
+    public static (double? trackGain, double? trackPeak, double? albumGain, double? albumPeak) Raw(Song song, IReadOnlyList<Song> albumSongs)
+    {
+        double? tg = song.TrackGain, tp = song.TrackPeak, ag = song.AlbumGain, ap = song.AlbumPeak;
+        if (tg == null && LoudnessStore.Get(song) is { } m)
+        {
+            tg = Reference - m.Lufs;
+            tp = m.Peak;
+        }
+        if (ag == null && albumSongs.Count > 0 && AlbumLoudness(albumSongs) is { } a)
+        {
+            ag = Reference - a.lufs;
+            ap = a.peak;
+        }
+        return (tg, tp, ag, ap);
+    }
+
     /// <summary>Sonoridad conjunta de un álbum (media de energía por duración) si están medidas todas sus canciones.</summary>
     private static (double lufs, double peak)? AlbumLoudness(IReadOnlyList<Song> songs)
     {

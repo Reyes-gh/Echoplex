@@ -75,6 +75,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         _worker = new MetadataWorker(_cache, ui);
         _worker.Updated += () => (CurrentPage as SongListPage)?.RefreshProperties();
+        InitRemote(); // después del lector de etiquetas: el servidor rehace su índice cuando llegan
         _cloudTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background,
             (s, e) => { ((DispatcherTimer)s!).Stop(); UpdateCloudFolders(); }, ui);
         _cloudTimer.Stop();
@@ -481,6 +482,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnLibraryLoaded(bool resetNavigation, int previousCount)
     {
+        _server?.Invalidate();
         foreach (var path in UserData.Favorites)
             if (Library.Find(path) is { } s) s.IsFavorite = true;
         ApplyTitleModes(refreshPage: false);
@@ -693,6 +695,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var w in _watchers) w.Dispose();
         Discord.Dispose();
         Scrobbler.Dispose();
+        _server?.Dispose();
         Player.Dispose();
     }
 
@@ -947,7 +950,40 @@ public sealed partial class MainViewModel : ObservableObject
         };
         if (pl.Smart is { } rules) page.BaseProperties.Add(new PropertyItem("\uE945", "Reglas", rules.Describe()));
         if (replace) ReplacePage(page); else Navigate(page);
-        _ = LoadPageCoverAsync(page, null, page.Songs.FirstOrDefault());
+        _ = LoadPlaylistCoverAsync(page, pl);
+    }
+
+    private async Task LoadPlaylistCoverAsync(SongListPage page, Playlist pl) => page.Cover = await PlaylistArtAsync(pl, 600, allowDownload: true, priority: true);
+
+    /// <summary>
+    /// Portada de una playlist: con canciones de varios álbumes, un mosaico con sus carátulas distintas (2 o 3 en franjas
+    /// diagonales, 4 en cuadrícula), como las carpetas; con un solo álbum, su carátula.
+    /// </summary>
+    public async Task<BitmapSource?> PlaylistArtAsync(Playlist pl, int size, bool allowDownload, bool priority)
+    {
+        var reps = Library.Resolve(pl.Songs)
+            .GroupBy(LibraryService.AlbumKey, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .Take(12)
+            .ToList();
+        var imgs = new List<BitmapSource>();
+        var prints = new List<byte[]>();
+        foreach (var song in reps)
+        {
+            var img = await SongCoverAsync(song, size, allowDownload, priority);
+            if (img == null) continue;
+            var print = Fingerprint(img);
+            if (prints.Any(p => SameArt(p, print))) continue; // dos ediciones con la misma carátula cuentan como una
+            imgs.Add(img);
+            prints.Add(print);
+            if (imgs.Count == 4) break;
+        }
+        return imgs.Count switch
+        {
+            0 => null,
+            1 => imgs[0],
+            _ => Mosaic(imgs, size),
+        };
     }
 
     public void OpenFavorites(bool replace = false)
@@ -1421,8 +1457,8 @@ public sealed partial class MainViewModel : ObservableObject
         card.Cover = card.Kind switch
         {
             CardKind.Folder => await FolderArtAsync(card.Key, 300, card.AllowDownload, priority: false),
-            CardKind.Playlist => Playlists.FirstOrDefault(p => p.Id == card.Key) is { Songs.Count: > 0 } pl && Library.Find(pl.Songs[0]) is { } s
-                ? await SongCoverAsync(s, 300, allowDownload: false) : null,
+            CardKind.Playlist => Playlists.FirstOrDefault(p => p.Id == card.Key) is { Songs.Count: > 0 } pl
+                ? await PlaylistArtAsync(pl, 300, allowDownload: false, priority: false) : null,
             _ when card.Song != null => await SongCoverAsync(card.Song, 300, allowDownload: false),
             _ => null,
         };

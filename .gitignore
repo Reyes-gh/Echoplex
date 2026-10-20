@@ -5,4 +5,17 @@ obj/
 .vs/
 
 # releases generadas por publish.ps1 (se suben como archivos de GitHub Releases, no al repositorio)
-app/
+/app/
+
+# app de Android: lo que genera la compilación y las claves de firma (nunca al repositorio)
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+*.jks
+*.keystore
+
+# Tailscale (tailscale/): lo compila GitHub Actions al publicar; en local se genera aquí y no se sube
+android/app/src/main/jniLibs/
+/fuera-de-casa/

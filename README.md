@@ -15,6 +15,7 @@
 - **Fiel al archivo**: modo *Bit a bit* con WASAPI en exclusivo (sin mezclador de Windows ni remuestreo) y salto exacto a la muestra.
 - **OneDrive**: las canciones que solo están en la nube se descargan al reproducirlas y se puede elegir qué dejar en el dispositivo. En el árbol, las carpetas enteras en la nube llevan una nube, y **Mostrar solo locales** oculta lo que está entero en la nube, en el árbol y en Inicio.
 - **Carpetas en línea**: carpetas compartidas de Google Drive u OneDrive, o de un servidor web, que se escuchan directamente desde la nube sin copiar nada al PC.
+- **En el móvil**: la app Echoplex para Android escucha tu biblioteca del PC en streaming (se conecta con un QR), con tus favoritas, playlists, letras y escuchas compartidas con el PC, en casa y fuera de casa con Tailscale integrado (en el PC, el paquete fuera de casa que se descarga desde Ajustes; en el móvil va dentro de la app), sin instalar nada más. Como Echoplex hace de servidor compatible con Subsonic, también sirven apps como Tempus o Symfonium.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
@@ -29,6 +30,7 @@ Todas las opciones están en **Ajustes** (engranaje abajo a la izquierda, menú 
 2. Descarga `Echoplex-<versión>-win-x64.zip` de [Releases](../../releases), descomprímelo y abre `Echoplex.exe`.
 3. Windows SmartScreen puede avisar la primera vez porque el ejecutable no está firmado: **Más información → Ejecutar de todas formas**.
 4. La primera vez usa tu carpeta **Música** de Windows; añade otras desde Ajustes o con el botón **+** junto a «Carpetas».
+5. En el móvil (Android 8 o posterior, opcional): descarga `Echoplex-<versión>-android.apk` de la misma release, instálalo y escanea el QR de *Ajustes → Móvil* en Echoplex del PC.
 
 Los ajustes, playlists e historial se guardan en `%LocalAppData%\Echoplex`; la carpeta del programa no guarda nada tuyo.
 
@@ -48,15 +50,24 @@ dotnet build -c Release
 
 ## Publicar una versión
 
-1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `1.1.26`).
-2. Escribe las notas en `.github/notas/1.1.26.md` (si no, se usa la sección `### 1.1.26` de este README).
-3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v1.1.26`** con **`Echoplex-1.1.26-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
+1. Sube `<Version>` en `Echoplex.csproj` (p. ej. `2.0.1`).
+2. Escribe las notas en `.github/notas/2.0.1.md` (si no, se usa la sección `### 2.0.1` de este README).
+3. Haz push a `main`. GitHub Actions ve que esa versión no tiene release, compila con `publish.ps1 -Zip` y publica la release **`v2.0.1`** con **`Echoplex-2.0.1-win-x64.zip`** (el nombre que busca el actualizador). Los push que no cambian la versión no publican nada.
 
 Si hiciera falta a mano: `.\publish.ps1 -Zip` y crear la release con esa etiqueta y ese zip.
+
+El paquete fuera de casa (`tailscale/`, en Go con tsnet de Tailscale) se compila en el mismo paso y se adjunta como **`Echoplex-2.0.1-fuera-de-casa-windows.zip`**: no va en el zip de Echoplex; Echoplex lo descarga desde *Ajustes → Móvil* y comprueba su huella SHA-256. El mismo programa, para Android, va dentro de la app.
+
+La app de Android (`android/`) sale con la misma versión: tras publicar la release, otro paso compila **`Echoplex-2.0.1-android.apk`** y lo añade. Se firma con la clave del proyecto, que va en los secrets del repositorio `ANDROID_KEYSTORE_BASE64` (el `.jks` en base64) y `ANDROID_KEYSTORE_PASSWORD`; sin ellos la release sale sin APK. Para compilarla en local con la clave: `echoplexStoreFile` y `echoplexStorePassword` en el `gradle.properties` de tu `GRADLE_USER_HOME` (nunca en el repo).
 
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 2.0.0
+- **Echoplex en el móvil** (apagado de serie): en *Ajustes → Móvil*, Echoplex hace de servidor compatible con Subsonic y desde el móvil, con la app Echoplex para Android (abajo) o con otra compatible como Tempus (gratis y de código abierto) o Symfonium, escuchas tu biblioteca en streaming sin copiarla: por artistas, álbumes, géneros o tus carpetas, con búsqueda, carátulas, tus favoritas y tus playlists (lo que cambies en el móvil se ve en el PC). Lo que escuches en el móvil cuenta en *Tu resumen* y en tu historial, y se envía a Last.fm o ListenBrainz si los tienes conectados. Las apps que lo usan reciben además las letras (sincronizadas si las hay), el volumen de cada canción para normalizar, mezclas de canciones parecidas hechas con la radio de Echoplex y la cola para seguir donde lo dejaste (también lo que sonaba en el PC). Funciona en el wifi de casa con la dirección, el usuario y la contraseña que salen en Ajustes, y fuera de casa con el **paquete fuera de casa**: Tailscale (gratis) dentro de Echoplex, sin instalar nada más ni abrir nada en el router. Se descarga desde *Ajustes → Móvil* (no va en el zip), inicias sesión en el navegador y listo; la app Echoplex del móvil lo lleva dentro. Fuera de casa, Echoplex convierte las canciones a MP3 sobre la marcha (192 kbps de serie, o la calidad que elijas o pida la app) para gastar una fracción de los datos sin esperas. En casa van tal cual. Echoplex no abre nada a internet por su cuenta.
+- **App Echoplex para Android**: descarga **Echoplex-2.0.0-android.apk** de la release, instálala y conéctala escaneando el QR de *Ajustes → Móvil → Mostrar QR para la app Echoplex*, sin escribir nada. Inicio con lo reciente y lo que más escuchas, búsqueda, tu biblioteca (artistas, álbumes, playlists, géneros y carpetas) y tus favoritas; pantalla de reproducción con las luces de colores de la carátula (deslízala para pasar de canción), la letra sincronizada (toca una línea para saltar allí) y la cola, que se reordena arrastrando; playlists que se crean, renombran y borran, y canciones que se añaden o quitan desde su menú; normalización de volumen como en el PC; temporizador de apagado; descargas de álbumes, playlists o canciones para escuchar sin conexión; seguir donde lo dejaste (también lo que sonaba en el PC); Android Auto; y los mismos temas que en el PC. Sigue sonando con la pantalla apagada, con los controles en la notificación. En el wifi de casa va directa al PC y fuera, por el Tailscale que lleva dentro (inicias sesión en *Ajustes → Fuera de casa*, o antes de escanear el QR si estás fuera); al pasar del wifi a los datos cambia sola, también a mitad de canción. Se actualiza desde la propia app: cuando hay versión nueva lo avisa en Inicio y se instala encima con un toque (Android pide confirmar), sin perder nada. Pesa unos 11 MB.
+- **Portadas de playlists en mosaico**: una playlist con canciones de varios álbumes lleva un mosaico con sus carátulas distintas (2 o 3 en franjas diagonales, 4 en cuadrícula), como las carpetas; con un solo álbum, su carátula.
 
 ### 1.1.25
 - **Ecualizador rehecho por dentro**: ahora suena lo que marcan los deslizadores. Antes cada banda empujaba a sus vecinas y la suma se pasaba (todo a +6 sonaba a +9, todo a +12 a casi +20, y el preajuste Graves subía +8,6 en vez de +6); ahora cada filtro se calcula teniendo en cuenta a los demás (el método del ecualizador gráfico preciso de la Universidad Aalto) y los preajustes suenan con menos de 0,2 dB de diferencia. La banda de 16 kHz da brillo de verdad en vez de un pitido estrecho. Cuando algo se pasaría de 0 dB, un limitador baja solo esos picos en vez de deformar la onda, y en la salida normal todo va en coma flotante de 32 bits (sin volver a redondear a 16 bits). Al mover una banda o cambiar de preajuste se oye al momento, pero sin chasquidos. Debajo del ecualizador hay una gráfica nueva, **Respuesta real**, con lo que sale de verdad por los altavoces, y un interruptor opcional, **Margen automático contra la saturación**, que baja el volumen lo justo para que nunca haga falta limitar.
