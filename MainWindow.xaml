@@ -201,6 +201,24 @@
                     </Border>
                 </Border>
 
+                <Border local:SongColumns.Key="bpm" Style="{StaticResource CellBorder}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="{Binding Song.BpmTip}">
+                        <!-- calculándose (la de una carpeta en línea, según se baja): un arco que gira -->
+                        <Path x:Name="BpmSpinner" Visibility="Collapsed" Width="12" Height="12" Stretch="None" RenderTransformOrigin="0.5,0.5"
+                              VerticalAlignment="Center" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M 6,1 A 5,5 0 1 1 1,6">
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="BpmSpinnerTurn" />
+                            </Path.RenderTransform>
+                        </Path>
+                        <!-- calculado por Echoplex sin estar seguro: aviso pequeño (la descripción explica por qué) -->
+                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="10" Foreground="#D9A33A"
+                                   Margin="0,0,3,0" VerticalAlignment="Center"
+                                   Visibility="{Binding Song.BpmDoubtful, Converter={StaticResource BoolVis}}" />
+                        <TextBlock Style="{StaticResource CellText}" Text="{Binding Song.BpmText}" Foreground="{DynamicResource Text2Brush}" FontSize="13" />
+                    </StackPanel>
+                </Border>
+
                 <Border local:SongColumns.Key="fav" Style="{StaticResource CellBorder}" Padding="0">
                     <Button x:Name="Heart" Style="{StaticResource HeartButton}" FontSize="13" Width="26" Height="26"
                             Content="{Binding Song.IsFavorite, Converter={StaticResource HeartGlyph}}" Tag="{Binding Song.IsFavorite}"
@@ -241,6 +259,20 @@
                         <StopStoryboard BeginStoryboardName="EqDance" />
                     </MultiDataTrigger.ExitActions>
                 </MultiDataTrigger>
+                <DataTrigger Binding="{Binding Song.BpmLoading}" Value="True">
+                    <Setter TargetName="BpmSpinner" Property="Visibility" Value="Visible" />
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="BpmSpin">
+                            <Storyboard RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
+                                <DoubleAnimation Storyboard.TargetName="BpmSpinnerTurn" Storyboard.TargetProperty="Angle"
+                                                 From="0" To="360" Duration="0:0:0.9" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="BpmSpin" />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
                     <Setter TargetName="Num" Property="Visibility" Value="Hidden" />
                     <Setter TargetName="Eq" Property="Visibility" Value="Collapsed" />
@@ -583,6 +615,11 @@
                                 <TextBlock><Run Text="Tipo" /><Run Text="{Binding Page.FormatSort, Mode=OneWay}" /></TextBlock>
                             </Button>
                         </Border>
+                        <Border local:SongColumns.Key="bpm" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="bpm" Click="Sort_Click">
+                                <TextBlock><Run Text="BPM" /><Run Text="{Binding Page.BpmSort, Mode=OneWay}" /></TextBlock>
+                            </Button>
+                        </Border>
                         <Border local:SongColumns.Key="fav" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
                             <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource Text3Brush}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -596,6 +633,7 @@
                         <Thumb local:SongColumns.Key="album" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
                         <Thumb local:SongColumns.Key="extra" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}" />
                         <Thumb local:SongColumns.Key="format" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                        <Thumb local:SongColumns.Key="bpm" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
                         <Thumb local:SongColumns.Key="fav" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
                         <Thumb local:SongColumns.Key="duration" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
                         <Rectangle x:Name="ColumnDropLine" Grid.ColumnSpan="99" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource AccentBrush}"
@@ -1672,7 +1710,7 @@
                                     <TextBlock Text="Desfase" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
-                                <!-- LRCLIB no la tenía (y no se vuelve a preguntar en 7 días) o no hubo conexión: se puede buscar otra vez ya -->
+                                <!-- LRCLIB no la tenía (y no se vuelve a preguntar en 7 días), no hubo conexión o la que dio no cuadra: se puede buscar otra vez ya -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
                                             Visibility="{Binding CanRetryLyrics, Converter={StaticResource BoolVis}}">
                                     <Button Style="{StaticResource SecondaryButton}" Height="28" Padding="10,0" FontSize="13" Click="LyricsRetry_Click"

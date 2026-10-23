@@ -45,9 +45,28 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     private double _nextGain;
     private double _nextFade;      // segundos de fundido con la preparada (0 = enlace sin pausa)
     private double _currentGain;   // normalización de la que suena (para igualar la que entra en el fundido)
-    // la que suena (para la medida de volumen) y su medida, si la está sonando entera desde el principio
+    // la que suena (para la medida de volumen y tempo) y su medida, si la está sonando entera desde el principio
     private string? _path;
-    private LoudnessMeter? _meter;
+    private SongMeters? _meter;
+
+    /// <summary>
+    /// ¿Medir también el tempo de esta canción mientras suena? (se pregunta al empezar cada una; null = nunca). Solo las que
+    /// lo necesitan: columna BPM a la vista, su ajuste encendido y aún sin calcular.
+    /// </summary>
+    public Func<string, bool>? WantsBpm { get; set; }
+
+    /// <summary>Lo que se mide de la canción mientras suena entera: su volumen y, si se pide, su tempo.</summary>
+    private sealed class SongMeters(int sampleRate, int channels, bool bpm)
+    {
+        public LoudnessMeter Loudness { get; } = new(sampleRate, channels);
+        public BpmEstimator? Bpm { get; } = bpm ? new(sampleRate, channels) : null;
+
+        public void Add(ReadOnlySpan<float> samples)
+        {
+            Loudness.Add(samples);
+            Bpm?.Add(samples);
+        }
+    }
 
     public AudioOutput(Dispatcher ui)
     {
@@ -62,6 +81,8 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
     public event Action<bool>? PlayingChanged;
     /// <summary>Una canción sonó entera de principio a fin en la salida normal: su sonoridad (LUFS), pico y duración.</summary>
     public event Action<string, double, double, double>? Measured;
+    /// <summary>Una canción sonó entera de principio a fin en la salida normal: su tempo calculado.</summary>
+    public event Action<string, BpmEstimate>? BpmMeasured;
     /// <summary>El dispositivo desapareció (p. ej. se apagaron los cascos Bluetooth).</summary>
     public event Action? DeviceLost;
     /// <summary>Windows cambió la salida predeterminada.</summary>
@@ -118,6 +139,9 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
     /// <summary>Abre un archivo para medirlo (decodificado como al reproducirlo).</summary>
     public static WaveStream OpenForAnalysis(string path) => OpenFile(path);
+
+    /// <summary>Abre un flujo para medirlo (decodificado como al reproducir las de carpetas en línea; lo cierra al terminar).</summary>
+    public static WaveStream OpenForAnalysis(Stream stream) => new OwningStreamReader(stream);
 
     private int _loadTicket;
     private const string Superseded = "sustituida por otra carga";
@@ -283,14 +307,20 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
     /// <summary>
     /// Desde la lectura de audio, con el cerrojo tomado: la que sonaba llegó al final. Si sonó entera desde el principio,
-    /// su medida de volumen se avisa (se guarda para normalizarla la próxima vez).
+    /// su medida de volumen se avisa (se guarda para normalizarla la próxima vez), y su tempo.
     /// </summary>
     private void SourceEnded()
     {
-        if (_meter is { } m && _path is { } path && m.Seconds >= 5)
+        if (_meter is { } m && _path is { } path && m.Loudness.Seconds >= 5)
         {
-            double lufs = m.Integrated(), peak = m.Peak, seconds = m.Seconds;
+            double lufs = m.Loudness.Integrated(), peak = m.Loudness.Peak, seconds = m.Loudness.Seconds;
             if (!double.IsNaN(lufs)) _ui.BeginInvoke(() => Measured?.Invoke(path, lufs, peak, seconds));
+            // el tempo, fuera del hilo de audio
+            if (m.Bpm is { } bpm)
+                _ = Task.Run(() =>
+                {
+                    if (bpm.Estimate() is { } est) _ui.BeginInvoke(() => BpmMeasured?.Invoke(path, est));
+                });
         }
         _meter = null;
     }
@@ -308,7 +338,9 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         _provider?.Eq?.SetGain(_nextGain, immediate: false);
         _currentGain = _nextGain;
         _path = _nextPath;
-        _meter = _provider?.Eq != null ? new LoudnessMeter(_reader.WaveFormat.SampleRate, _reader.WaveFormat.Channels) : null;
+        _meter = _provider?.Eq != null
+            ? new SongMeters(_reader.WaveFormat.SampleRate, _reader.WaveFormat.Channels, _path != null && WantsBpm?.Invoke(_path) == true)
+            : null;
         _nextPath = null;
         _nextReader = null;
         _nextOpen = null;
@@ -347,7 +379,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             _currentGain = exclusive ? 0 : _loadGain;
             _provider.Eq?.SetGain(exclusive ? 0 : _loadGain, immediate: true);
             _path = path;
-            _meter = exclusive ? null : new LoudnessMeter(format.SampleRate, format.Channels);
+            _meter = exclusive ? null : new SongMeters(format.SampleRate, format.Channels, path != null && WantsBpm?.Invoke(path) == true);
         }
         try { _deviceName = device.FriendlyName; } catch { _deviceName = "dispositivo de audio"; }
         return true;
@@ -578,7 +610,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         private readonly bool _toFloat;
         private byte[] _buffer = Array.Empty<byte>();
 
-        private readonly Func<LoudnessMeter?>? _meter;
+        private readonly Func<SongMeters?>? _meter;
         private readonly Action? _ended;
 
         /// <summary>La preparada si hay que fundirse con ella: su lector, las tramas del fundido y la diferencia de normalización.</summary>
@@ -600,7 +632,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
         }
 
         public PcmProvider(WaveStream source, WaveFormat target, object sync, Func<WaveStream?> takeNext, EqualizerProcessor? eq,
-            Func<LoudnessMeter?>? meter = null, Action? ended = null)
+            Func<SongMeters?>? meter = null, Action? ended = null)
         {
             _meter = meter;
             _ended = ended;
@@ -676,7 +708,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
                         n = ReadSource(_source, buffer, offset, count);
                     }
                 }
-                // la medida de volumen, de lo que trae el archivo (antes del ecualizador y la normalización)
+                // la medida de volumen y tempo, de lo que trae el archivo (antes del ecualizador y la normalización)
                 if (n > 0 && _eq != null && _meter?.Invoke() is { } m)
                     m.Add(System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(buffer.AsSpan(offset, n - n % 4)));
                 // con los ajustes que haya justo ahora: el cambio se oye en este mismo bloque, sin transición

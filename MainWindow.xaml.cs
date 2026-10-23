@@ -40,6 +40,9 @@ public partial class MainWindow : Window
         App.ApplyTheme(_vm.ThemeKey);
         // orden y ancho de las columnas de la tabla, antes de que se pinte ninguna fila
         SongColumns.Load(_vm.Settings.ColumnOrder, _vm.Settings.ColumnSizes, _vm.Settings.HiddenColumns);
+        // el BPM solo se busca y se calcula mientras se ve su columna
+        _vm.BpmColumnVisible = SongColumns.IsVisible("bpm");
+        SongColumns.VisibilityChanged += () => _vm.BpmColumnVisible = SongColumns.IsVisible("bpm");
         SongColumns.Committed += () =>
         {
             _vm.Settings.ColumnOrder = SongColumns.Order;
@@ -888,18 +891,23 @@ public partial class MainWindow : Window
         var g = new TransformGroup { Children = { new RotateTransform(), new TranslateTransform() } };
         el.RenderTransform = g;
         el.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(600)));
-        if (el.DataContext is ViewModels.HomePage { IsNight: true })
-            g.Children[1].BeginAnimation(TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(-2, 2, TimeSpan.FromSeconds(3.5))
+        bool night = el.DataContext is ViewModels.HomePage { IsNight: true };
+        var forever = night
+            ? new System.Windows.Media.Animation.DoubleAnimation(-2, 2, TimeSpan.FromSeconds(3.5))
             {
                 AutoReverse = true,
                 RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
                 EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
-            });
-        else
-            g.Children[0].BeginAnimation(RotateTransform.AngleProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(90))
+            }
+            : new System.Windows.Media.Animation.DoubleAnimation(0, 360, TimeSpan.FromSeconds(90))
             {
                 RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
-            });
+            };
+        // movimientos tan lentos (4° o 1 px por segundo) se ven igual a 10 fotogramas por segundo: a 60, sin fin, la
+        // ventana se redibujaba sin parar (5 % de un núcleo en reposo en Inicio)
+        System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(forever, 10);
+        if (night) g.Children[1].BeginAnimation(TranslateTransform.YProperty, forever);
+        else g.Children[0].BeginAnimation(RotateTransform.AngleProperty, forever);
     }
     private void Genres_Click(object sender, RoutedEventArgs e) => _vm.OpenGenres();
 

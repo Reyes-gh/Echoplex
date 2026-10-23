@@ -345,6 +345,7 @@ public sealed partial class LibraryService
         s.AlbumGain = m.RA;
         s.TrackPeak = m.PT;
         s.AlbumPeak = m.PA;
+        s.TagBpm = m.Bpm;
         // leída con una versión anterior: se usa ya, y se vuelve a leer en segundo plano para completar lo nuevo
         s.MetadataLoaded = m.V >= CachedMeta.Current;
     }

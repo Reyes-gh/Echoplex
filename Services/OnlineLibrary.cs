@@ -183,6 +183,12 @@ public static partial class OnlineLibrary
         return new RemoteStream(RemoteFiles.Get(e.Url, System.IO.Path.GetFileName(path)));
     }
 
+    /// <summary>
+    /// Lo ya bajado de la que suena, para analizarla según llega sin pedir nada aparte (null si no está abierta para sonar).
+    /// </summary>
+    public static DownloadedStream? OpenDownloaded(string path, CancellationToken ct) =>
+        Find(path) is { } e && RemoteFiles.Opened(e.Url) is { } file ? new DownloadedStream(file, ct) : null;
+
     /// <summary>Esta es la que suena: el resto de canciones en línea abiertas dejan de descargarse.</summary>
     public static void Focus(string path)
     {

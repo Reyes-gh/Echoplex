@@ -522,6 +522,20 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         remove => _out.Measured -= value;
     }
 
+    /// <summary>¿Medir el tempo de esta canción mientras suena entera? (null = nunca)</summary>
+    public Func<string, bool>? WantsBpm
+    {
+        get => _out.WantsBpm;
+        set => _out.WantsBpm = value;
+    }
+
+    /// <summary>Cuando una canción suena entera, Echoplex calcula su tempo.</summary>
+    public event Action<string, BpmEstimate>? BpmMeasured
+    {
+        add => _out.BpmMeasured += value;
+        remove => _out.BpmMeasured -= value;
+    }
+
     private async Task<string?> TryLoad(string path, string? deviceId, bool exclusive, double gainDb = 0)
     {
         try
@@ -686,6 +700,9 @@ public sealed partial class PlayerService : ObservableObject, IDisposable
         if (Repeat == RepeatMode.All && !Shuffle && _order.Count > 0) return _context[_order[0]];
         return null;
     }
+
+    /// <summary>La que sonará al acabar la actual, si ya se sabe (para adelantar trabajo, como buscar su letra).</summary>
+    public Song? Upcoming => PeekNextAuto();
 
     /// <summary>En los últimos segundos de la canción, deja abierta la siguiente en la salida.</summary>
     private void PrepareGapless()

@@ -736,6 +736,20 @@
                             <WrapPanel x:Name="ColumnSwitches" />
                             <Button Style="{StaticResource SecondaryButton}" FontSize="15" Content="Restablecer columnas" Click="ResetColumns_Click"
                                     HorizontalAlignment="Left" Margin="0,8,0,0" ToolTip="Orden, anchos y columnas visibles de fábrica" />
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding OnlineBpm}" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Buscar el BPM en internet (Deezer)" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Para la columna BPM (solo mientras se ve): si una canción no lo trae en sus etiquetas, se busca en deezer.com, poco a poco y en segundo plano. Solo se envían el artista y el título; lo encontrado se guarda en tu PC para no volver a pedirlo. El de las etiquetas manda siempre." />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding AudioBpm}" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Calcular el BPM escuchando el audio" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Para la columna BPM (solo mientras se ve), en las que no lo traen en sus etiquetas ni lo tiene Deezer. Las de tu PC se analizan en segundo plano, sin prisa y con la prioridad más baja; las de carpetas en línea, nada más darles a play, con la copia que se baja para reproducirlas (sin descargar nada aparte); y las que están solo en OneDrive, cuando suenan enteras, con el mismo audio que se reproduce. Si el cálculo no está seguro, sale con un aviso; alguna puede salir al doble o a la mitad." />
+                                </StackPanel>
+                            </CheckBox>
                         </StackPanel>
                     </Border>
 

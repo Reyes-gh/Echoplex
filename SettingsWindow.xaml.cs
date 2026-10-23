@@ -397,6 +397,7 @@ public partial class SettingsWindow : Window
     private static readonly Dictionary<string, (string glyph, bool iconFont)> ColumnIcons = new()
     {
         [SongColumns.NumberKey] = ("#", false),
+        ["bpm"] = ("♩", false),
         ["title"] = ("Aa", false),
         ["artist"] = ("", true),
         ["album"] = ("", true),

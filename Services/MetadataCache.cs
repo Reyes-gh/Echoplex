@@ -23,12 +23,15 @@ public sealed class CachedMeta
     public double? PT { get; set; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public double? PA { get; set; }
+    // pulsaciones por minuto de las etiquetas (0 = no lo dicen; no se escribe)
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public uint Bpm { get; set; }
     /// <summary>
     /// Con qué versión de la lectura se guardó. Las de antes de <see cref="Current"/> se usan igual (la biblioteca sale al
     /// momento) pero se vuelven a leer en segundo plano para completar lo que no guardaban.
     /// </summary>
     public int V { get; set; }
-    public const int Current = 2;
+    public const int Current = 3; // 3: con el BPM
     public long Len { get; set; }
     public long Ticks { get; set; }
 }

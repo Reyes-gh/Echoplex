@@ -1,6 +1,10 @@
 package io.github.reyesgh.echoplex.playback
 
 import android.app.PendingIntent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.media3.common.util.BitmapLoader
+import androidx.media3.session.CacheBitmapLoader
 import android.content.Intent
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
@@ -114,7 +118,8 @@ class PlaybackService : MediaLibraryService() {
             }
         })
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        session = MediaLibrarySession.Builder(this, player, LibraryCallback()).setSessionActivity(open).build()
+        session = MediaLibrarySession.Builder(this, player, LibraryCallback()).setSessionActivity(open)
+            .setBitmapLoader(CacheBitmapLoader(CoverLoader())).build()
         watch = scope.launch { watchListening(app.api) }
         scope.launch { app.store.normalization.collect { normMode = it; applyGain() } }
         scope.launch { SleepTimer.endOfSong.collect { player.pauseAtEndOfMediaItems = it } }
@@ -225,6 +230,53 @@ class PlaybackService : MediaLibraryService() {
         }
         session = null
         super.onDestroy()
+    }
+
+    // ---------------------------------------------------------------- carátulas de la notificación
+
+    /**
+     * Las carátulas de la notificación, la pantalla de bloqueo y el coche. Las canciones las piden como
+     * echoplex://caratula/<id>, y aquí se resuelven al momento: del móvil si está descargada, y si no del PC por la
+     * dirección que valga ahora y por la misma conexión que todo lo demás (también por el Tailscale de la app).
+     */
+    private inner class CoverLoader : BitmapLoader {
+        override fun supportsMimeType(mimeType: String) = mimeType.startsWith("image/")
+
+        override fun decodeBitmap(data: ByteArray): ListenableFuture<Bitmap> = load { decode(data) }
+
+        override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> = load {
+            val bytes = when {
+                uri.scheme == "file" -> java.io.File(uri.path ?: "").readBytes()
+                uri.scheme == SCHEME && uri.host == "caratula" -> {
+                    val id = uri.lastPathSegment ?: error("sin carátula")
+                    app.downloads.coverFile(id)?.readBytes() ?: fetch(app.api.coverUrl(id, 600) ?: error("sin carátula"))
+                }
+                else -> fetch(uri.toString())
+            }
+            decode(bytes)
+        }
+
+        private fun fetch(url: String): ByteArray =
+            app.connection.transport.client.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { r ->
+                if (!r.isSuccessful) error("HTTP ${r.code}")
+                r.body!!.bytes()
+            }
+
+        // como mucho ~512 px: es lo que pinta la notificación, y así no se gasta memoria de más
+        private fun decode(data: ByteArray): Bitmap {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 512) sample *= 2
+            return BitmapFactory.decodeByteArray(data, 0, data.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                ?: error("no es una imagen")
+        }
+
+        private fun load(block: () -> Bitmap): ListenableFuture<Bitmap> {
+            val f = SettableFuture.create<Bitmap>()
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching(block).onSuccess { f.set(it) }.onFailure { f.setException(it) } }
+            return f
+        }
     }
 
     // ---------------------------------------------------------------- Android Auto (y lo que llega de la pantalla)
@@ -343,12 +395,12 @@ class PlaybackService : MediaLibraryService() {
                 putString(EXTRA_ARTIST, song.artistId)
                 putString(EXTRA_COVER, song.coverArt)
             }
-            val local = EchoplexApp.instance.downloads.coverFile(song.coverArt)
             val meta = MediaMetadata.Builder()
                 .setTitle(song.title)
                 .setArtist(song.artist)
                 .setAlbumTitle(song.album)
-                .setArtworkUri(local?.let { Uri.fromFile(it) } ?: runCatching { api.coverUrl(song.coverArt, 600) }.getOrNull()?.let(Uri::parse))
+                // se resuelve al pintarla (CoverLoader): así vale aunque cambie la red o la dirección del PC
+                .setArtworkUri(song.coverArt?.let { Uri.parse("$SCHEME://caratula/${Uri.encode(it)}") })
                 .setDurationMs(song.duration * 1000L)
                 .setIsPlayable(true)
                 .setIsBrowsable(false)

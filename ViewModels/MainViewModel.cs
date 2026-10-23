@@ -16,6 +16,8 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly Dispatcher _ui;
     private readonly MetadataCache _cache;
     private readonly MetadataWorker _worker;
+    private readonly OnlineBpmService _bpm;
+    private readonly LocalBpmService _localBpm;
     private readonly Stack<PageBase> _back = new();
     private readonly Stack<PageBase> _forward = new();
     private readonly DispatcherTimer _searchTimer;
@@ -75,6 +77,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         _worker = new MetadataWorker(_cache, ui);
         _worker.Updated += () => (CurrentPage as SongListPage)?.RefreshProperties();
+        _bpm = new OnlineBpmService(ui);
+        _worker.Updated += _bpm.Wake; // con etiquetas nuevas puede saberse que alguna no trae el BPM
+        _localBpm = new LocalBpmService(ui);
+        _worker.Updated += _localBpm.Wake;
+        Player.BpmMeasured += (path, estimate) =>
+        {
+            if (Library.Find(path) is { } song) _localBpm.Measured(song, estimate);
+        };
+        Player.SongOpened += _localBpm.Started; // las de carpetas en línea: el BPM según se bajan
         InitRemote(); // después del lector de etiquetas: el servidor rehace su índice cuando llegan
         _cloudTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Background,
             (s, e) => { ((DispatcherTimer)s!).Stop(); UpdateCloudFolders(); }, ui);
@@ -499,7 +510,10 @@ public sealed partial class MainViewModel : ObservableObject
             _worker.Start(Library.Songs);
             _workerStarted = true;
         }
+        _bpm.Start(Library.Songs, Settings.BpmFromDeezer && BpmColumnVisible);
+        _localBpm.Start(Library.Songs, Settings.BpmFromAudio && BpmColumnVisible);
         Player.Remap(Library.Find);
+        _localBpm.Remap(Library.Find);
         UpdateActiveContext();
         StartWatcher();
 
@@ -806,6 +820,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             case SongListPage p:
                 _worker.Prioritize(p.Songs);
+                _bpm.Prioritize(p.Songs);
                 p.RefreshProperties();
                 if (p.FolderPath != null) SyncTree(p.FolderPath); else ClearTreeSelection();
                 if (p.Playlist != null) p.Playlist.IsSelected = true;
@@ -1911,6 +1926,61 @@ public sealed partial class MainViewModel : ObservableObject
         await LoadLyricsAsync(song);
     }
 
+    /// <summary>Buscar en Deezer el BPM de las canciones que no lo traen en sus etiquetas. Activado de serie.</summary>
+    public bool OnlineBpm
+    {
+        get => Settings.BpmFromDeezer;
+        set
+        {
+            if (Settings.BpmFromDeezer == value) return;
+            Settings.BpmFromDeezer = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+            ApplyBpmEnabled();
+        }
+    }
+
+    private bool _bpmColumnVisible;
+
+    /// <summary>
+    /// ¿Se ve la columna BPM? (lo dice la ventana; viene oculta). El BPM solo se usa en ella: oculta, no se pregunta a
+    /// Deezer ni se calcula nada, ni en segundo plano ni mientras suena.
+    /// </summary>
+    public bool BpmColumnVisible
+    {
+        get => _bpmColumnVisible;
+        set
+        {
+            if (_bpmColumnVisible == value) return;
+            _bpmColumnVisible = value;
+            ApplyBpmEnabled();
+        }
+    }
+
+    /// <summary>Enciende o apaga la búsqueda en Deezer y el cálculo (cada uno con su ajuste, y solo con la columna a la vista).</summary>
+    private void ApplyBpmEnabled()
+    {
+        bool deezer = Settings.BpmFromDeezer && BpmColumnVisible, audio = Settings.BpmFromAudio && BpmColumnVisible;
+        if (_bpm.Enabled != deezer) _bpm.Enabled = deezer; // apagado: deja de preguntar y quita lo que vino de Deezer
+        if (_localBpm.Enabled != audio) _localBpm.Enabled = audio; // apagado: deja de analizar y quita lo calculado
+        Player.WantsBpm = audio ? _localBpm.Wants : null;
+        if (deezer && CurrentPage is SongListPage p) _bpm.Prioritize(p.Songs);
+    }
+
+    /// <summary>Calcular el BPM escuchando el audio de las canciones que no lo traen en sus etiquetas. Activado de serie.</summary>
+    public bool AudioBpm
+    {
+        get => Settings.BpmFromAudio;
+        set
+        {
+            if (Settings.BpmFromAudio == value) return;
+            Settings.BpmFromAudio = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+            ApplyBpmEnabled();
+        }
+    }
+
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos. Desactivado de serie.</summary>
     public bool OnlineLyrics
     {
@@ -2090,7 +2160,11 @@ public sealed partial class MainViewModel : ObservableObject
         if (ver != _lyricsVersion) return;
         ShowLyrics(lines, online: false);
         LyricsStatus = null;
-        if (lines is { Count: > 0 } || !Settings.OnlineLyrics) return;
+        if (lines is { Count: > 0 } || !Settings.OnlineLyrics)
+        {
+            PrefetchNextLyrics();
+            return;
+        }
 
         // 3. si el usuario lo permite, LRCLIB (con caché local)
         LyricsStatus = "Buscando la letra en LRCLIB…";
@@ -2100,6 +2174,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             ShowLyrics(LyricsService.Parse(found.Text), online: true);
             LyricsStatus = null;
+            // en LRCLIB hay entradas con la letra de otra versión de la canción: se puede pedir otra vez
+            LyricsRetryInfo = "Si la letra de LRCLIB no es la de esta versión de la canción (la de otro álbum, más corta o más larga), " +
+                              "este botón olvida la guardada y la busca otra vez.";
+            CanRetryLyrics = true;
         }
         else
         {
@@ -2111,6 +2189,27 @@ public sealed partial class MainViewModel : ObservableObject
                               "Con este botón se vuelve a buscar al momento.";
             CanRetryLyrics = found.Error != null || next != null;
         }
+        PrefetchNextLyrics();
+    }
+
+    /// <summary>
+    /// Busca ya en LRCLIB la letra de la siguiente canción, si no trae la suya, y queda guardada: al empezar sale al
+    /// momento en vez de tras los segundos que tarda la búsqueda. Después de la actual, para no quitarle velocidad.
+    /// </summary>
+    private void PrefetchNextLyrics()
+    {
+        if (!Settings.OnlineLyrics || Player.Upcoming is not { } next || next == Player.Current || !next.MetadataLoaded) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (LyricsService.Load(next) is not { Count: > 0 }) await OnlineLyricsService.FindAsync(next);
+            }
+            catch
+            {
+                // se buscará al empezar
+            }
+        });
     }
 
     private void ShowLyrics(List<LyricEntry>? lines, bool online)

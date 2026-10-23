@@ -44,6 +44,53 @@ public sealed partial class Song : ObservableObject
     public double? TrackPeak { get; set; }
     public double? AlbumPeak { get; set; }
 
+    /// <summary>Pulsaciones por minuto de las etiquetas (0 si no lo dicen).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Bpm), nameof(BpmText), nameof(BpmDoubtful), nameof(BpmTip), nameof(BpmLoading))]
+    private uint _tagBpm;
+
+    /// <summary>El de Deezer (si está activado en Ajustes y las etiquetas no lo traen; 0 si no).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Bpm), nameof(BpmText), nameof(BpmDoubtful), nameof(BpmTip), nameof(BpmLoading))]
+    private uint _onlineBpm;
+
+    /// <summary>El que calculó Echoplex escuchando el audio (si está activado en Ajustes; 0 si no).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Bpm), nameof(BpmText), nameof(BpmDoubtful), nameof(BpmTip), nameof(BpmLoading))]
+    private uint _localBpm;
+
+    /// <summary>¿El calculado salió seguro? Si no, se enseña con un aviso.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BpmDoubtful), nameof(BpmTip))]
+    private bool _localBpmSure;
+
+    /// <summary>¿Se está calculando ahora? (la de una carpeta en línea que acaba de empezar a sonar, según se baja)</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BpmTip), nameof(BpmLoading))]
+    private bool _bpmCalculating;
+
+    /// <summary>El BPM: el de las etiquetas manda; si no lo traen, el de Deezer, y si tampoco, el calculado.</summary>
+    public uint Bpm => TagBpm > 0 ? TagBpm : OnlineBpm > 0 ? OnlineBpm : LocalBpm;
+
+    /// <summary>Aún no hay BPM que enseñar y se está calculando (en la tabla, un círculo que gira).</summary>
+    public bool BpmLoading => BpmCalculating && Bpm == 0;
+
+    /// <summary>El que se enseña es el calculado y el cálculo no salió seguro (en la tabla, con un aviso).</summary>
+    public bool BpmDoubtful => TagBpm == 0 && OnlineBpm == 0 && LocalBpm > 0 && !LocalBpmSure;
+
+    /// <summary>De dónde sale el BPM (y, si es dudoso, por qué), para la descripción emergente de la tabla.</summary>
+    public string BpmTip =>
+        BpmLoading ? "Calculando el BPM con el audio que se está bajando para que suene"
+        : TagBpm > 0 ? "Pulsaciones por minuto, de las etiquetas del archivo"
+        : OnlineBpm > 0 ? "Pulsaciones por minuto, de Deezer"
+        : LocalBpm == 0 ? "Pulsaciones por minuto"
+        : LocalBpmSure ? "Pulsaciones por minuto, calculadas por Echoplex escuchando el audio"
+        : "Aproximado: Echoplex lo calculó escuchando el audio, pero el ritmo admite más de una lectura y el cálculo no está seguro. " +
+          "El de verdad puede ser otro: a menudo el doble, la mitad o 2/3 de este.";
+
+    /// <summary>El BPM para la tabla (vacío si no se sabe).</summary>
+    public string BpmText => Bpm > 0 ? Bpm.ToString() : "";
+
     /// <summary>Artista del álbum de las etiquetas (vacío si no lo dicen).</summary>
     public string AlbumArtist { get; set; } = "";
 

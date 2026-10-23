@@ -94,6 +94,9 @@ public sealed class AppSettings
     public bool FolderFavoritesOnly { get; set; }
     /// <summary>Buscar en LRCLIB las letras que no estén en los archivos (desactivado de serie).</summary>
     public bool OnlineLyrics { get; set; }
+    /// <summary>Buscar en Deezer el BPM de las canciones que no lo traen en sus etiquetas. De serie, encendido.</summary>
+    public bool BpmFromDeezer { get; set; } = true;
+    public bool BpmFromAudio { get; set; } = true;
     /// <summary>Enseñar en Discord lo que suena (Rich Presence). Desactivado de serie.</summary>
     public bool DiscordPresence { get; set; }
     /// <summary>Qué sale en la lista de miembros de Discord tras «Escuchando a»: "artist", "title" o "app".</summary>

@@ -11,6 +11,23 @@ public static class MetadataReader
 
     private static double? Finite(double v) => double.IsFinite(v) ? Math.Round(v, 4) : null;
 
+    /// <summary>
+    /// El BPM de las etiquetas. TagLib lo lee de TBPM (MP3) y tmpo (M4A), pero en FLAC/OGG solo mira TEMPO, y la mayoría
+    /// de programas (Mp3tag, Picard, Mixed In Key…) escriben BPM; además a veces viene con decimales («127.98»).
+    /// </summary>
+    private static uint ReadBpm(TagLib.File f)
+    {
+        uint bpm = f.Tag.BeatsPerMinute;
+        if (bpm > 0) return bpm;
+        string? text = null;
+        if (f.GetTag(TagLib.TagTypes.Xiph) is TagLib.Ogg.XiphComment x)
+            text = x.GetFirstField("BPM") ?? x.GetFirstField("TEMPO");
+        else if (f.GetTag(TagLib.TagTypes.Id3v2) is TagLib.Id3v2.Tag id3)
+            text = id3.GetFrames<TagLib.Id3v2.TextInformationFrame>("TBPM").FirstOrDefault()?.Text.FirstOrDefault();
+        return double.TryParse(text?.Trim().Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)
+               && v is > 0 and < 1000 ? (uint)Math.Round(v) : 0;
+    }
+
     public static CachedMeta Read(string path)
     {
         try
@@ -32,6 +49,7 @@ public static class MetadataReader
                 RA = Finite(t.ReplayGainAlbumGain),
                 PT = Finite(t.ReplayGainTrackPeak),
                 PA = Finite(t.ReplayGainAlbumPeak),
+                Bpm = ReadBpm(f),
                 V = CachedMeta.Current,
             };
         }

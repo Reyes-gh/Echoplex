@@ -212,6 +212,7 @@ public sealed partial class SongListPage : PageBase
     public string AlbumSort => SortGlyph("album");
     public string DurationSort => SortGlyph("duration");
     public string FormatSort => SortGlyph("format");
+    public string BpmSort => SortGlyph("bpm");
     public string ExtraSort => SortGlyph("extra");
 
     partial void OnFilterChanged(string value) => Rebuild();
@@ -232,7 +233,7 @@ public sealed partial class SongListPage : PageBase
             SortKey = key;
             SortDescending = false;
         }
-        foreach (var n in new[] { nameof(TitleSort), nameof(ArtistSort), nameof(AlbumSort), nameof(DurationSort), nameof(FormatSort), nameof(ExtraSort) })
+        foreach (var n in new[] { nameof(TitleSort), nameof(ArtistSort), nameof(AlbumSort), nameof(DurationSort), nameof(FormatSort), nameof(BpmSort), nameof(ExtraSort) })
             OnPropertyChanged(n);
         Rebuild();
     }
@@ -260,6 +261,7 @@ public sealed partial class SongListPage : PageBase
                 "album" => x => x.s.Album,
                 "duration" => x => x.s.Duration ?? TimeSpan.Zero,
                 "format" => x => x.s.Format,
+                "bpm" => x => x.s.Bpm,
                 "extra" => x => x.i,
                 _ => x => x.i,
             };

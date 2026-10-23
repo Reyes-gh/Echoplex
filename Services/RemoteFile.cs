@@ -369,10 +369,62 @@ public sealed class RemoteFile : IDisposable
     }
 
     /// <summary>
-    /// Pide el trozo y los siguientes que falten (hasta <paramref name="ahead"/>) en una sola petición. Si alguno ya se
-    /// está pidiendo, espera a esa en vez de repetirla.
+    /// Lee de lo que ya se ha bajado para reproducir, sin mover la descarga de la que suena (para analizarla según llega):
+    /// si el trozo aún no está, espera a que lo traiga la descarga continua o, si se cortó, a que la reproducción la reanude
+    /// al llegar ahí (como hace siempre). Solo si se saltó por delante y quedó atrás un hueco que ya no se va a bajar, pide
+    /// ese hueco (sin conexión, lo reintenta mientras siga sonando). Falla si la canción deja de sonar o se cancela.
     /// </summary>
-    private void Fetch(long index, int ahead, string why = "")
+    public int ReadDownloaded(long position, byte[] buffer, int offset, int count, CancellationToken ct)
+    {
+        if (position >= Length || count <= 0) return 0;
+        long index = position / _block;
+        byte[]? block;
+        int fetched = 0;
+        while (true)
+        {
+            lock (_lock)
+            {
+                while (!_blocks.TryGetValue(index, out block))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    // ya no es la que suena (se soltó o se cerró): lo que falta no va a llegar
+                    if (_cts.IsCancellationRequested || _aheadBlocks > 0) throw new IOException("la canción ya no suena");
+                    if (_stream == null && DownloadedAfter(index)) break; // un hueco
+                    Monitor.Wait(_lock, 250);
+                }
+            }
+            if (block != null) break;
+            if (++fetched > 3) throw new IOException("no se pudo bajar el hueco");
+            try
+            {
+                Fetch(index, ahead: 63, why: "hueco sin bajar, para calcular el BPM", ct); // hasta 4 MB por petición
+            }
+            catch (IOException) when (!ct.IsCancellationRequested)
+            {
+                fetched = 0; // sin conexión: se vuelve a intentar dentro de un poco
+                lock (_lock) Monitor.Wait(_lock, 5000);
+            }
+        }
+        int inBlock = (int)(position - index * _block);
+        int n = Math.Min(count, block.Length - inBlock);
+        Buffer.BlockCopy(block, inBlock, buffer, offset, n);
+        return n;
+    }
+
+    /// <summary>¿Hay algo ya bajado después de este trozo? (sin contar el final del archivo, que se pide aparte)</summary>
+    private bool DownloadedAfter(long index)
+    {
+        for (long b = index + 1; b < BlockCount - TailBlocks; b++)
+            if (_blocks.ContainsKey(b)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Pide el trozo y los siguientes que falten (hasta <paramref name="ahead"/>) en una sola petición. Si alguno ya se
+    /// está pidiendo, espera a esa en vez de repetirla. Con <paramref name="ct"/> cancelado se corta la petición y no se
+    /// guarda nada.
+    /// </summary>
+    private void Fetch(long index, int ahead, string why = "", CancellationToken ct = default)
     {
         Task? running;
         TaskCompletionSource? mine = null;
@@ -395,11 +447,12 @@ public sealed class RemoteFile : IDisposable
                 while (!_blocks.ContainsKey(index) && !running!.IsCompleted)
                 {
                     _cts.Token.ThrowIfCancellationRequested();
+                    ct.ThrowIfCancellationRequested();
                     Monitor.Wait(_lock, 100);
                 }
                 if (_blocks.ContainsKey(index)) return;
             }
-            Fetch(index, ahead, why); // la otra petición falló: se intenta aquí
+            Fetch(index, ahead, why, ct); // la otra petición falló: se intenta aquí
             return;
         }
 
@@ -415,16 +468,19 @@ public sealed class RemoteFile : IDisposable
                     using var req = new HttpRequestMessage(HttpMethod.Get, _fetchUrl);
                     req.Headers.Range = new RangeHeaderValue(from, to);
                     using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token, _cts.Token);
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token, _cts.Token, ct);
                     using var resp = Http.Send(req, HttpCompletionOption.ResponseHeadersRead, linked.Token);
+                    using var cut = ct.Register(() => { try { resp.Dispose(); } catch { } }); // también a media lectura
                     resp.EnsureSuccessStatusCode();
                     using var body = resp.Content.ReadAsStream(linked.Token);
-                    if (resp.StatusCode == HttpStatusCode.PartialContent) Store(from, ReadAll(body, (int)(to - from + 1)));
-                    else Store(0, ReadAll(body, (int)Math.Min(Length, int.MaxValue))); // sin trozos: viene entero
+                    bool partial = resp.StatusCode == HttpStatusCode.PartialContent;
+                    var data = ReadAll(body, partial ? (int)(to - from + 1) : (int)Math.Min(Length, int.MaxValue));
+                    ct.ThrowIfCancellationRequested();
+                    Store(partial ? from : 0, data); // sin trozos: viene entero
                     Trace?.Invoke($"{Name}: {why} {from}-{to} ({(to - from + 1) / 1024} KB) en {started.ElapsedMilliseconds} ms");
                     return;
                 }
-                catch (Exception ex) when (!_cts.IsCancellationRequested)
+                catch (Exception ex) when (!_cts.IsCancellationRequested && !ct.IsCancellationRequested)
                 {
                     error = ex;
                     _fetchUrl = _url; // la dirección final pudo caducar: se vuelve a la original
@@ -521,6 +577,60 @@ public sealed class RemoteStream : Stream
     public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }
 
+/// <summary>
+/// Flujo de solo lectura sobre lo ya bajado de un <see cref="RemoteFile"/> que suena (<see cref="RemoteFile.ReadDownloaded"/>):
+/// para analizar la canción según llega, sin pedir nada aparte.
+/// </summary>
+public sealed class DownloadedStream(RemoteFile file, CancellationToken ct) : Stream
+{
+    private long _position;
+
+    /// <summary>¿Se dejó de leer antes del final? (dejó de sonar o se canceló): lo leído no es la canción entera.</summary>
+    public bool GaveUp { get; private set; }
+
+    public override bool CanRead => true;
+    public override bool CanSeek => true;
+    public override bool CanWrite => false;
+    public override long Length => file.Length;
+
+    public override long Position
+    {
+        get => _position;
+        set => Seek(value, SeekOrigin.Begin);
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        try
+        {
+            int n = file.ReadDownloaded(_position, buffer, offset, count, ct);
+            _position += n;
+            return n;
+        }
+        catch
+        {
+            GaveUp = true;
+            throw;
+        }
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        long target = origin switch
+        {
+            SeekOrigin.Current => _position + offset,
+            SeekOrigin.End => Length + offset,
+            _ => offset,
+        };
+        _position = Math.Clamp(target, 0, Length);
+        return _position;
+    }
+
+    public override void Flush() { }
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+}
+
 /// <summary>Para leer etiquetas con TagLib directamente de la nube (solo pide los trozos que mira).</summary>
 public sealed class RemoteTagFile : TagLib.File.IFileAbstraction
 {
@@ -594,6 +704,12 @@ public static class RemoteFiles
         file.PrefetchTail();
         Remember(file);
         return file;
+    }
+
+    /// <summary>El ya abierto para reproducir, sin tocar su descarga (null si no lo está).</summary>
+    public static RemoteFile? Opened(string url)
+    {
+        lock (Lock) return Open.FirstOrDefault(f => f.Url == url);
     }
 
     /// <summary>Esta es la que suena: las demás dejan de descargarse y se quedan solo con su principio.</summary>

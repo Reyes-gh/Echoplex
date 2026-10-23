@@ -38,6 +38,7 @@ public static class SongColumns
         new("album", true, 3, 80),
         new("extra", false, 130, 70),   // solo en Historial / Añadidas recientemente
         new("format", false, 76, 56),
+        new("bpm", false, 58, 44),
         new("fav", false, 36, 30),
         new("duration", false, 62, 50),
     };
@@ -49,15 +50,21 @@ public static class SongColumns
     public static readonly IReadOnlyList<(string Key, string Name)> Toggleable = new[]
     {
         (NumberKey, "#  Número"), ("title", "Título"), ("artist", "Artista"), ("album", "Álbum"),
-        ("format", "Tipo"), ("fav", "Favorita"), ("duration", "Duración"),
+        ("format", "Tipo"), ("bpm", "BPM"), ("fav", "Favorita"), ("duration", "Duración"),
     };
 
+    /// <summary>Ocultas de fábrica (se muestran desde Ajustes → Columnas).</summary>
+    private static readonly string[] HiddenByDefault = { "bpm" };
+
     private static List<SongColumn> _columns = Clone(Defaults);
-    private static HashSet<string> _hidden = new();
+    private static HashSet<string> _hidden = new(HiddenByDefault);
     private static readonly List<WeakReference<Grid>> Hosts = new();
 
     /// <summary>Tras terminar de arrastrar un borde o de mover una columna: hay que guardar.</summary>
     public static event Action? Committed;
+
+    /// <summary>Se mostró u ocultó alguna columna.</summary>
+    public static event Action? VisibilityChanged;
 
     public static IReadOnlyList<SongColumn> Columns => _columns;
 
@@ -67,13 +74,20 @@ public static class SongColumns
 
     public static void Load(IList<string>? order, IDictionary<string, double>? sizes, IEnumerable<string>? hidden = null)
     {
-        _hidden = new HashSet<string>((hidden ?? Enumerable.Empty<string>()).Where(k => Toggleable.Any(t => t.Key == k)));
+        _hidden = new HashSet<string>((hidden ?? HiddenByDefault).Where(k => Toggleable.Any(t => t.Key == k)));
         var cols = Clone(Defaults);
         if (order is { Count: > 0 })
         {
-            // las que el usuario ordenó, y detrás cualquier columna nueva que no conociera
-            cols = order.Select(k => cols.FirstOrDefault(c => c.Key == k)).Where(c => c != null).Cast<SongColumn>()
-                .Concat(cols.Where(c => !order.Contains(c.Key))).ToList();
+            // las que el usuario ordenó; una columna nueva que no conociera va detrás de la que la precede de fábrica
+            // (el BPM, junto al tipo), y si esa no está, al final
+            var ordered = order.Select(k => cols.FirstOrDefault(c => c.Key == k)).Where(c => c != null).Cast<SongColumn>().ToList();
+            for (int i = 0; i < cols.Count; i++)
+            {
+                if (order.Contains(cols[i].Key)) continue;
+                int after = i > 0 ? ordered.FindIndex(c => c.Key == cols[i - 1].Key) : -1;
+                if (after >= 0) ordered.Insert(after + 1, cols[i]); else ordered.Add(cols[i]);
+            }
+            cols = ordered;
         }
         if (sizes != null)
             foreach (var c in cols)
@@ -98,6 +112,7 @@ public static class SongColumns
         if (visible) _hidden.Remove(key); else _hidden.Add(key);
         ApplyAll();
         Committed?.Invoke();
+        VisibilityChanged?.Invoke();
         return true;
     }
 
@@ -105,9 +120,10 @@ public static class SongColumns
     public static void Reset()
     {
         _columns = Clone(Defaults);
-        _hidden.Clear();
+        _hidden = new HashSet<string>(HiddenByDefault);
         ApplyAll();
         Committed?.Invoke();
+        VisibilityChanged?.Invoke();
     }
 
     // ---------- propiedades adjuntas ----------
