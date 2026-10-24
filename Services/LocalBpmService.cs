@@ -247,6 +247,7 @@ public sealed class LocalBpmService
         while ((n = samples.Read(buf, 0, buf.Length)) > 0)
         {
             ct.ThrowIfCancellationRequested();
+            LightMode.Sync();
             estimator.Add(buf.AsSpan(0, n));
         }
         return estimator.Estimate();

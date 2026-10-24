@@ -665,6 +665,7 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
 
         public int Read(byte[] buffer, int offset, int count)
         {
+            AudioThread.Register();
             lock (_lock)
             {
                 if (_toFloat || _inFloat) StartFadeIfDue();
@@ -775,4 +776,30 @@ public sealed class AudioOutput : IDisposable, IMMNotificationClient
             return got * 4;
         }
     }
+}
+
+/// <summary>
+/// El hilo que entrega el sonido a la tarjeta (el de NAudio, que lee de PcmProvider) se apunta al servicio de audio de
+/// Windows (MMCSS, tarea «Pro Audio»): así va por delante de todo lo demás del equipo y no se queda sin turno aunque el
+/// procesador esté ocupado. NAudio no lo hace por su cuenta.
+/// </summary>
+internal static class AudioThread
+{
+    [ThreadStatic] private static bool _registered;
+
+    public static void Register()
+    {
+        // una vez por hilo, y nunca uno del pool (se quedaría con la prioridad para otras tareas)
+        if (_registered || Thread.CurrentThread.IsThreadPoolThread) return;
+        _registered = true;
+        try
+        {
+            int task = 0;
+            AvSetMmThreadCharacteristics("Pro Audio", ref task);
+        }
+        catch { /* sin el servicio (Windows sin audio): sigue con la prioridad normal */ }
+    }
+
+    [DllImport("avrt.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr AvSetMmThreadCharacteristics(string taskName, ref int taskIndex);
 }

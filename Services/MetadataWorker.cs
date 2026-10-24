@@ -182,6 +182,7 @@ public sealed class MetadataWorker
     {
         while (true)
         {
+            LightMode.Sync(); // sin ventana a la vista, en modo de fondo: la reproducción va antes
             Song? song = null;
             lock (_lock)
             {

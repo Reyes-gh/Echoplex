@@ -308,6 +308,7 @@ public sealed class LoudnessAnalyzer
             while ((n = sample.Read(buf, 0, buf.Length)) > 0)
             {
                 if (ct.IsCancellationRequested) return;
+                LightMode.Sync();
                 meter.Add(buf.AsSpan(0, n));
             }
             LoudnessStore.Put(s, meter.Integrated(), meter.Peak, meter.Seconds);

@@ -76,6 +76,7 @@ public static class WaveformService
         while ((n = samples.Read(buf, 0, buf.Length)) > 0)
         {
             if (ct.IsCancellationRequested) return null;
+            LightMode.Sync();
             for (int i = 0; i + channels <= n; i += channels, frame++)
             {
                 double v = 0;

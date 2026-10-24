@@ -243,6 +243,14 @@
                     </MultiDataTrigger.Conditions>
                     <Setter TargetName="Num" Property="Visibility" Value="Hidden" />
                     <Setter TargetName="Eq" Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+                <!-- las barras bailan solo con la ventana a la vista (en el modo ligero se quedan quietas) -->
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Song.IsCurrent}" Value="True" />
+                        <Condition Binding="{Binding DataContext.Player.IsPlaying, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
+                        <Condition Binding="{Binding DataContext.Away, RelativeSource={RelativeSource AncestorType=Window}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
                     <MultiDataTrigger.EnterActions>
                         <BeginStoryboard x:Name="EqDance">
                             <Storyboard RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
@@ -261,18 +269,24 @@
                 </MultiDataTrigger>
                 <DataTrigger Binding="{Binding Song.BpmLoading}" Value="True">
                     <Setter TargetName="BpmSpinner" Property="Visibility" Value="Visible" />
-                    <DataTrigger.EnterActions>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Song.BpmLoading}" Value="True" />
+                        <Condition Binding="{Binding DataContext.Away, RelativeSource={RelativeSource AncestorType=Window}}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <MultiDataTrigger.EnterActions>
                         <BeginStoryboard x:Name="BpmSpin">
                             <Storyboard RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
                                 <DoubleAnimation Storyboard.TargetName="BpmSpinnerTurn" Storyboard.TargetProperty="Angle"
                                                  From="0" To="360" Duration="0:0:0.9" />
                             </Storyboard>
                         </BeginStoryboard>
-                    </DataTrigger.EnterActions>
-                    <DataTrigger.ExitActions>
+                    </MultiDataTrigger.EnterActions>
+                    <MultiDataTrigger.ExitActions>
                         <StopStoryboard BeginStoryboardName="BpmSpin" />
-                    </DataTrigger.ExitActions>
-                </DataTrigger>
+                    </MultiDataTrigger.ExitActions>
+                </MultiDataTrigger>
                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
                     <Setter TargetName="Num" Property="Visibility" Value="Hidden" />
                     <Setter TargetName="Eq" Property="Visibility" Value="Collapsed" />
@@ -371,6 +385,71 @@
         <ItemsPanelTemplate x:Key="WrapPanelTemplate">
             <WrapPanel />
         </ItemsPanelTemplate>
+
+        <!-- ================= Fila de columnas de la tabla (ordenar, ancho y orden de las columnas) ================= -->
+        <!-- con la cabecera de página o con la de cada disco / carpeta: las dos tienen Page -->
+        <DataTemplate x:Key="ColumnHeaderTemplate">
+            <Border Margin="56,0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,1" Height="34">
+                <Grid x:Name="ColumnHeaderGrid" local:SongColumns.Host="True" Background="Transparent" AllowDrop="True"
+                      DragOver="ColumnHeader_DragOver" DragLeave="ColumnHeader_DragLeave" Drop="ColumnHeader_Drop" MouseRightButtonUp="ColumnHeader_RightClick">
+                    <Border local:SongColumns.Key="number" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="" Click="Sort_Click" HorizontalContentAlignment="Center"
+                                ToolTip="Orden original">
+                            <TextBlock Text="#" />
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="title" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="title" Click="Sort_Click">
+                            <TextBlock><Run Text="Aa" FontWeight="SemiBold" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Título" /><Run Text="{Binding Page.TitleSort, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="artist" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="artist" Click="Sort_Click">
+                            <TextBlock><Run Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Artista" /><Run Text="{Binding Page.ArtistSort, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="album" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="album" Click="Sort_Click">
+                            <TextBlock><Run Text="&#xE93C;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Álbum" /><Run Text="{Binding Page.AlbumSort, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="extra" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0"
+                            Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="extra" Click="Sort_Click">
+                            <TextBlock><Run Text="&#xE787;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  " /><Run Text="{Binding Page.ExtraHeader, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="format" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="format" Click="Sort_Click">
+                            <TextBlock><Run Text="Tipo" /><Run Text="{Binding Page.FormatSort, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="bpm" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <Button Style="{StaticResource ColumnHeaderButton}" Tag="bpm" Click="Sort_Click">
+                            <TextBlock><Run Text="BPM" /><Run Text="{Binding Page.BpmSort, Mode=OneWay}" /></TextBlock>
+                        </Button>
+                    </Border>
+                    <Border local:SongColumns.Key="fav" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
+                        <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource Text3Brush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <Button local:SongColumns.Key="duration" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource ColumnHeaderButton}" Tag="duration" Click="Sort_Click" HorizontalContentAlignment="Right">
+                        <TextBlock><Run Text="{Binding Page.DurationSort, Mode=OneWay}" /><Run Text="&#xE823;" FontFamily="{StaticResource IconFont}" FontSize="12" /></TextBlock>
+                    </Button>
+                    <!-- bordes para cambiar el ancho; arrastrar una cabecera la cambia de sitio -->
+                    <Thumb local:SongColumns.Key="title" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="artist" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="album" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="extra" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}" />
+                    <Thumb local:SongColumns.Key="format" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="bpm" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="fav" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Thumb local:SongColumns.Key="duration" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
+                    <Rectangle x:Name="ColumnDropLine" Grid.ColumnSpan="99" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource AccentBrush}"
+                               Visibility="Collapsed" IsHitTestVisible="False" Panel.ZIndex="3" />
+                </Grid>
+            </Border>
+        </DataTemplate>
 
         <!-- ================= Cabecera de página de canciones ================= -->
         <DataTemplate DataType="{x:Type vm:ListHeader}">
@@ -579,67 +658,9 @@
                 </Grid>
 
 
-                <Border Margin="56,0" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,1" Height="34"
-                        Visibility="{Binding Page.HasRows, Converter={StaticResource BoolVis}}">
-                    <Grid x:Name="ColumnHeaderGrid" local:SongColumns.Host="True" Background="Transparent" AllowDrop="True"
-                          DragOver="ColumnHeader_DragOver" DragLeave="ColumnHeader_DragLeave" Drop="ColumnHeader_Drop" MouseRightButtonUp="ColumnHeader_RightClick">
-                        <Border local:SongColumns.Key="number" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="" Click="Sort_Click" HorizontalContentAlignment="Center"
-                                    ToolTip="Orden original">
-                                <TextBlock Text="#" />
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="title" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="title" Click="Sort_Click">
-                                <TextBlock><Run Text="Aa" FontWeight="SemiBold" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Título" /><Run Text="{Binding Page.TitleSort, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="artist" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="artist" Click="Sort_Click">
-                                <TextBlock><Run Text="&#xE77B;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Artista" /><Run Text="{Binding Page.ArtistSort, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="album" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="album" Click="Sort_Click">
-                                <TextBlock><Run Text="&#xE93C;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  Álbum" /><Run Text="{Binding Page.AlbumSort, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="extra" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0"
-                                Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="extra" Click="Sort_Click">
-                                <TextBlock><Run Text="&#xE787;" FontFamily="{StaticResource IconFont}" FontSize="11" Foreground="{DynamicResource Text3Brush}" /><Run Text="  " /><Run Text="{Binding Page.ExtraHeader, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="format" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="format" Click="Sort_Click">
-                                <TextBlock><Run Text="Tipo" /><Run Text="{Binding Page.FormatSort, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="bpm" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <Button Style="{StaticResource ColumnHeaderButton}" Tag="bpm" Click="Sort_Click">
-                                <TextBlock><Run Text="BPM" /><Run Text="{Binding Page.BpmSort, Mode=OneWay}" /></TextBlock>
-                            </Button>
-                        </Border>
-                        <Border local:SongColumns.Key="fav" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource CellBorder}" Padding="0">
-                            <TextBlock Text="&#xEB51;" FontFamily="{StaticResource IconFont}" FontSize="12" Foreground="{DynamicResource Text3Brush}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <Button local:SongColumns.Key="duration" PreviewMouseLeftButtonDown="ColumnHeader_MouseDown" PreviewMouseMove="ColumnHeader_MouseMove" Style="{StaticResource ColumnHeaderButton}" Tag="duration" Click="Sort_Click" HorizontalContentAlignment="Right">
-                            <TextBlock><Run Text="{Binding Page.DurationSort, Mode=OneWay}" /><Run Text="&#xE823;" FontFamily="{StaticResource IconFont}" FontSize="12" /></TextBlock>
-                        </Button>
-                        <!-- bordes para cambiar el ancho; arrastrar una cabecera la cambia de sitio -->
-                        <Thumb local:SongColumns.Key="title" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="artist" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="album" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="extra" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" Visibility="{Binding Page.ShowExtra, Converter={StaticResource BoolVis}}" />
-                        <Thumb local:SongColumns.Key="format" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="bpm" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="fav" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Thumb local:SongColumns.Key="duration" Style="{StaticResource ColumnGrip}" DragDelta="ColumnGrip_DragDelta" DragCompleted="ColumnGrip_DragCompleted" />
-                        <Rectangle x:Name="ColumnDropLine" Grid.ColumnSpan="99" Width="2" HorizontalAlignment="Left" Fill="{DynamicResource AccentBrush}"
-                                   Visibility="Collapsed" IsHitTestVisible="False" Panel.ZIndex="3" />
-                    </Grid>
-                </Border>
+                <!-- la fila de columnas: aquí solo si hay canciones antes del primer disco o carpeta (si no, va debajo de cada uno) -->
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource ColumnHeaderTemplate}"
+                                  Visibility="{Binding Page.ColumnsOnTop, Converter={StaticResource BoolVis}}" />
 
                 <TextBlock Text="{Binding Page.EmptyText}" Foreground="{DynamicResource Text2Brush}" Margin="56,8,56,24" TextWrapping="Wrap"
                            Visibility="{Binding Page.IsEmpty, Converter={StaticResource BoolVis}}" />
@@ -685,36 +706,40 @@
 
         <!-- ================= Módulo (disco / subcarpeta) en mitad de la lista ================= -->
         <DataTemplate DataType="{x:Type vm:GroupHeader}">
-            <Grid Margin="56,30,56,8" Loaded="Group_Loaded">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="76" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid Width="76" Height="76">
-                    <Border CornerRadius="5" Background="{DynamicResource PlaceholderBrush}">
-                        <TextBlock Text="&#xE93C;" FontFamily="{StaticResource IconFont}" FontSize="26" Foreground="{DynamicResource Text3Brush}"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-                    <Border CornerRadius="5" Visibility="{Binding Cover, Converter={StaticResource NullVis}}" Effect="{StaticResource SoftShadow}"
-                            Style="{StaticResource FadeInOnShow}">
-                        <Border.Background>
-                            <ImageBrush ImageSource="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-                        </Border.Background>
-                    </Border>
+            <StackPanel>
+                <Grid Margin="56,30,56,8" Loaded="Group_Loaded">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="76" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid Width="76" Height="76">
+                        <Border CornerRadius="5" Background="{DynamicResource PlaceholderBrush}">
+                            <TextBlock Text="&#xE93C;" FontFamily="{StaticResource IconFont}" FontSize="26" Foreground="{DynamicResource Text3Brush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <Border CornerRadius="5" Visibility="{Binding Cover, Converter={StaticResource NullVis}}" Effect="{StaticResource SoftShadow}"
+                                Style="{StaticResource FadeInOnShow}">
+                            <Border.Background>
+                                <ImageBrush ImageSource="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                            </Border.Background>
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,12,0">
+                        <TextBlock Text="{Binding Kicker}" FontSize="12" Foreground="{DynamicResource Text3Brush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="20" FontWeight="Bold" Margin="0,2,0,2"
+                                   TextTrimming="CharacterEllipsis" ToolTip="Abrir" HorizontalAlignment="Left"
+                                   Style="{StaticResource LinkText}" MouseLeftButtonUp="GroupTitle_Click" />
+                        <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{DynamicResource Text2Brush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource IconButton}" Content="&#xE8B1;" Click="GroupShuffle_Click" ToolTip="Aleatorio" Margin="0,0,6,0" />
+                        <Button Style="{StaticResource PlayCircleButton}" Content="&#xF5B0;" Click="GroupPlay_Click" ToolTip="Reproducir este disco" />
+                    </StackPanel>
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,12,0">
-                    <TextBlock Text="{Binding Kicker}" FontSize="12" Foreground="{DynamicResource Text3Brush}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DisplayFont}" FontSize="20" FontWeight="Bold" Margin="0,2,0,2"
-                               TextTrimming="CharacterEllipsis" ToolTip="Abrir" HorizontalAlignment="Left"
-                               Style="{StaticResource LinkText}" MouseLeftButtonUp="GroupTitle_Click" />
-                    <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{DynamicResource Text2Brush}" />
-                </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource IconButton}" Content="&#xE8B1;" Click="GroupShuffle_Click" ToolTip="Aleatorio" Margin="0,0,6,0" />
-                    <Button Style="{StaticResource PlayCircleButton}" Content="&#xF5B0;" Click="GroupPlay_Click" ToolTip="Reproducir este disco" />
-                </StackPanel>
-            </Grid>
+                <!-- la fila de columnas encima de su primera canción, en cada disco o carpeta -->
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource ColumnHeaderTemplate}" />
+            </StackPanel>
         </DataTemplate>
 
         <Style x:Key="PageList" TargetType="ListView">

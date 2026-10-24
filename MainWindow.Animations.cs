@@ -47,8 +47,10 @@ public partial class MainWindow
     private bool _crossfadePending;
 
     private readonly List<GradientStop[]> _auroraStops = new();
-    // relojes de la deriva de la aurora: se pausan con la ventana minimizada u oculta (mini reproductor)
-    private readonly List<AnimationClock> _auroraClocks = new();
+    // la deriva de la aurora: se pausa con la ventana minimizada u oculta (mini reproductor) y se congela en el modo ligero
+    private readonly LoopClocks _aurora = new();
+    // otros adornos en bucle (el sol o la luna del saludo): siguen a la aurora
+    private readonly List<LoopClocks> _decor = new();
     // última portada y opacidad aplicadas: si no cambian, no hace falta volver a fundir los colores
     private object? _auroraSource;
     private byte _auroraAlpha;
@@ -56,6 +58,12 @@ public partial class MainWindow
 
     /// <summary>El ajuste del usuario (Ctrl+E) y la opción de Windows "Mostrar animaciones".</summary>
     private bool AnimationsEnabled => _vm.AnimationsOn && SystemParameters.ClientAreaAnimation;
+
+    /// <summary>
+    /// ¿Se anima lo que empieza ahora (transiciones, fundidos, giros)? No en el modo ligero: nadie lo ve, y al volver
+    /// todo está ya en su sitio, como si la animación hubiera terminado.
+    /// </summary>
+    private bool AnimateNow => AnimationsEnabled && !Anim.Away;
 
     /// <summary>
     /// Píxeles reales por unidad de la interfaz (zoom de Echoplex × escala de Windows). Una BitmapCache no tiene en cuenta
@@ -99,8 +107,7 @@ public partial class MainWindow
                 case nameof(MainViewModel.AnimationsOn):
                     // las de XAML leen la propiedad heredada; la aurora se rehace quieta o en movimiento
                     Anim.SetEnabled(this, AnimationsEnabled);
-                    foreach (var c in _auroraClocks) c.Controller?.Remove(); // las de la aurora anterior se paran de verdad
-                    _auroraClocks.Clear();
+                    _aurora.Clear(); // las de la aurora anterior se paran de verdad
                     Aurora.Children.Clear();
                     _auroraStops.Clear();
                     BuildAurora();
@@ -125,11 +132,13 @@ public partial class MainWindow
     {
         // con la vista a pantalla completa delante, la aurora de la app no se ve: también se pausa. Mientras arrastras el
         // borde o mueves la ventana, también: cada paso ya repinta todo y la deriva (lentísima) no se nota que se detenga
+        // en el modo ligero no se ve nada: congeladas, sin que WPF prepare fotogramas (en pausa los seguiría preparando)
         bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility != Visibility.Visible && !_sizingMove;
-        foreach (var c in _auroraClocks)
+        foreach (var loop in _decor.Prepend(_aurora))
         {
-            if (c.Controller == null) continue;
-            if (run) c.Controller.Resume(); else c.Controller.Pause();
+            if (Anim.Away) loop.Freeze();
+            else if (run) loop.Run();
+            else loop.Pause();
         }
     }
 
@@ -140,7 +149,7 @@ public partial class MainWindow
     private void OnPageChanging(PageBase? next, bool refresh)
     {
         _crossfadePending = false;
-        if (refresh || next == null || _vm.CurrentPage == null || !AnimationsEnabled || !IsVisible) return;
+        if (refresh || next == null || _vm.CurrentPage == null || !AnimateNow || !IsVisible) return;
         double w = PageHost.ActualWidth, h = PageHost.ActualHeight;
         if (w < 20 || h < 20) return;
 
@@ -314,6 +323,9 @@ public partial class MainWindow
     private void AnimatePageIn()
     {
         _cardStagger = 0;
+        // sin ventana a la vista (p. ej. al refrescarse la carpeta), la página queda ya asentada; ni se reinicia el reloj,
+        // o la portada de la cabecera haría su entrada al volver
+        if (Anim.Away) return;
         _pageClock.Restart();
         if (!AnimationsEnabled) return;
 
@@ -382,7 +394,7 @@ public partial class MainWindow
     {
         if (e.NewValue is not true || sender is not Border cover) return;
         // solo al abrir la página, no al volver a ella desplazándose
-        if (!AnimationsEnabled || _pageClock.ElapsedMilliseconds > 2500) return;
+        if (!AnimateNow || _pageClock.ElapsedMilliseconds > 2500) return;
 
         var scale = new ScaleTransform(0.35, 0.35);
         var rotate = new RotateTransform((Rnd.Next(2) == 0 ? -1 : 1) * (14 + Rnd.NextDouble() * 16));
@@ -470,7 +482,7 @@ public partial class MainWindow
     /// <summary>Al cambiar de canción, la portada de la barra da la vuelta como una carta y emite un anillo de luz.</summary>
     private void FlipPlayerCover()
     {
-        if (!AnimationsEnabled || !PlayerCover.IsVisible) return;
+        if (!AnimateNow || !PlayerCover.IsVisible) return;
         var flip = new ScaleTransform(0, 1);
         PlayerCover.RenderTransform = flip;
         Animate(flip, ScaleTransform.ScaleXProperty, 0, 1, TimeSpan.FromMilliseconds(520), Pop);
@@ -496,7 +508,7 @@ public partial class MainWindow
         card.RenderTransform = new TransformGroup { Children = { scale, rotate, move } };
         // sin vuelo: las que quedan fuera de la vista (nadie lo vería y son decenas de animaciones) y las que solo se
         // recolocan porque ha cambiado el ancho (al redimensionar, cada cambio de columnas las volvía a lanzar todas)
-        if (!AnimationsEnabled || Reflowing || IsOutOfView(card)) return;
+        if (!AnimateNow || Reflowing || IsOutOfView(card)) return;
 
         // si hace rato que no entra ninguna (p. ej. al desplazar una galería), la cascada vuelve a empezar
         if (_cardClock.ElapsedMilliseconds > 250) _cardStagger = 0;
@@ -542,7 +554,7 @@ public partial class MainWindow
     /// <summary>Al pasar el ratón, la tarjeta se inclina hacia un lado al azar y crece un poco.</summary>
     private void Card_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!AnimationsEnabled || CardTransforms(sender) is not var (scale, rotate)) return;
+        if (!AnimateNow || CardTransforms(sender) is not var (scale, rotate)) return;
         var t = TimeSpan.FromMilliseconds(340);
         double tilt = (Rnd.Next(2) == 0 ? -1 : 1) * (1.5 + Rnd.NextDouble() * 2.5);
         rotate.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(tilt, t) { EasingFunction = Pop });
@@ -569,7 +581,7 @@ public partial class MainWindow
 
     private void GreetChar_Loaded(object sender, RoutedEventArgs e)
     {
-        if (!AnimationsEnabled || sender is not TextBlock letter || letter.DataContext is not GreetChar ch) return;
+        if (!AnimateNow || sender is not TextBlock letter || letter.DataContext is not GreetChar ch) return;
         var scale = new ScaleTransform(1, 1);
         var rotate = new RotateTransform(0);
         var move = new TranslateTransform(0, 0);
@@ -633,9 +645,7 @@ public partial class MainWindow
     /// <summary>Como BeginAnimation, pero guardando el reloj para poder pausarlo.</summary>
     private void Drive(Animatable target, DependencyProperty property, AnimationTimeline animation)
     {
-        var clock = animation.CreateClock();
-        target.ApplyAnimationClock(property, clock);
-        _auroraClocks.Add(clock);
+        _aurora.Add(target, property, animation);
     }
 
     /// <summary>
@@ -674,7 +684,7 @@ public partial class MainWindow
 
     private void AnimateStop(GradientStop stop, Color to)
     {
-        if (!AnimationsEnabled)
+        if (!AnimateNow)
         {
             stop.BeginAnimation(GradientStop.ColorProperty, null);
             stop.Color = to;
@@ -728,6 +738,25 @@ public static class Anim
     public static bool GetEnabled(DependencyObject d) => (bool)d.GetValue(EnabledProperty);
     public static void SetEnabled(DependencyObject d, bool value) => d.SetValue(EnabledProperty, value);
 
+    private static bool _away;
+
+    /// <summary>
+    /// Modo ligero (la ventana no se ve): lo que se anima en bucle se para y lo que cambia llega de golpe a su valor final.
+    /// No toca <see cref="EnabledProperty"/> (el ajuste del usuario), así que al volver todo sigue igual que antes.
+    /// </summary>
+    public static bool Away
+    {
+        get => _away;
+        set
+        {
+            if (_away == value) return;
+            _away = value;
+            AwayChanged?.Invoke();
+        }
+    }
+
+    public static event Action? AwayChanged;
+
     /// <summary>Opacidad que llega con un fundido cada vez que cambia (las líneas de la letra al activarse y pasar).</summary>
     public static readonly DependencyProperty SmoothOpacityProperty = DependencyProperty.RegisterAttached(
         "SmoothOpacity", typeof(double), typeof(Anim), new PropertyMetadata(1.0, OnSmoothOpacityChanged));
@@ -741,7 +770,7 @@ public static class Anim
     {
         if (d is not UIElement el) return;
         var to = (double)e.NewValue;
-        if (!GetEnabled(el) || el is FrameworkElement { IsLoaded: false })
+        if (Away || !GetEnabled(el) || el is FrameworkElement { IsLoaded: false })
         {
             el.BeginAnimation(UIElement.OpacityProperty, null);
             el.Opacity = to;

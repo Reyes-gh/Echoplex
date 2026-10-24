@@ -1828,7 +1828,7 @@ public sealed partial class MainViewModel : ObservableObject
                 UpdateActiveContext();
                 break;
             case nameof(PlayerService.Position):
-                UpdateActiveLyric();
+                if (!Away) UpdateActiveLyric(); // la línea que suena solo sirve para verse: al volver se pone al día
                 PushDiscord();
                 break;
             case nameof(PlayerService.Duration):
@@ -1968,6 +1968,30 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Calcular el BPM escuchando el audio de las canciones que no lo traen en sus etiquetas. Activado de serie.</summary>
+    /// <summary>
+    /// Modo ligero: la ventana no se ve (lo decide MainWindow) y el ajuste está puesto. Lo que solo sirve para verse no se
+    /// calcula (la línea de la letra que suena, las animaciones de las filas); al volver se pone todo al día de golpe.
+    /// </summary>
+    [ObservableProperty] private bool _away;
+
+    partial void OnAwayChanged(bool value)
+    {
+        if (!value) UpdateActiveLyric();
+    }
+
+    /// <summary>Modo ligero con la ventana sin ver (activado de serie).</summary>
+    public bool LightWhenAway
+    {
+        get => Settings.LightWhenAway;
+        set
+        {
+            if (Settings.LightWhenAway == value) return;
+            Settings.LightWhenAway = value;
+            SettingsStore.Save(Settings);
+            OnPropertyChanged();
+        }
+    }
+
     public bool AudioBpm
     {
         get => Settings.BpmFromAudio;

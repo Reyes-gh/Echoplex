@@ -64,8 +64,9 @@ public sealed class SongRow
 /// <summary>Cabecera de módulo en mitad de la lista: un disco / subcarpeta con su portada.</summary>
 public sealed partial class GroupHeader : ObservableObject
 {
-    public GroupHeader(string directory, string kicker, string title, List<Song> songs)
+    public GroupHeader(SongListPage page, string directory, string kicker, string title, List<Song> songs)
     {
+        Page = page;
         Directory = directory;
         Kicker = kicker;
         Title = title;
@@ -83,6 +84,8 @@ public sealed partial class GroupHeader : ObservableObject
         }
     }
 
+    /// <summary>La página en la que está (su fila de columnas va debajo de este módulo).</summary>
+    public SongListPage Page { get; }
     public string Directory { get; }
     public string Kicker { get; }
     public string Title { get; }
@@ -194,6 +197,11 @@ public sealed partial class SongListPage : PageBase
     public ObservableCollection<PropertyItem> Properties { get; } = new();
 
     [ObservableProperty] private IList<object> _items = new List<object>();
+    /// <summary>
+    /// ¿La fila de columnas va en la cabecera de la página? Sí, salvo que la lista empiece por un disco o carpeta: entonces
+    /// va debajo de cada uno, encima de su primera canción.
+    /// </summary>
+    [ObservableProperty] private bool _columnsOnTop;
     [ObservableProperty] private BitmapSource? _cover;
     [ObservableProperty] private string _filter = "";
     [ObservableProperty] private string? _sortKey;
@@ -290,6 +298,7 @@ public sealed partial class SongListPage : PageBase
             inGroup++;
             items.Add(new SongRow(s, k, _extras != null && list[k].i < _extras.Count ? _extras[list[k].i] : null, group ? inGroup : null));
         }
+        ColumnsOnTop = HasRows && !(items.Count > 1 && items[1] is GroupHeader);
         Items = items;
     }
 
@@ -323,7 +332,7 @@ public sealed partial class SongListPage : PageBase
             kicker = string.Equals(dir, GroupRoot, StringComparison.OrdinalIgnoreCase) ? "Canciones sueltas"
                 : rel != null ? "Carpeta · " + rel : "Carpeta";
         }
-        return _groups[dir] = new GroupHeader(dir, kicker, title, songs);
+        return _groups[dir] = new GroupHeader(this, dir, kicker, title, songs);
     }
 
     public void RefreshProperties()

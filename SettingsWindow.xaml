@@ -603,12 +603,21 @@
 
                     <TextBlock x:Name="SubAnimations" Style="{StaticResource SubHeader}" Text="Animaciones" />
                     <Border Style="{StaticResource Group}">
-                        <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Click="Animations_Click">
-                            <StackPanel>
-                                <TextBlock Text="Animaciones (Ctrl+E)" />
-                                <TextBlock Style="{StaticResource Hint}" Text="Transiciones entre páginas, luces de la pantalla completa y fundidos. Apágalas si prefieres que todo cambie al instante." />
-                            </StackPanel>
-                        </CheckBox>
+                        <StackPanel>
+                            <CheckBox x:Name="AnimationsBox" Style="{StaticResource Switch}" Click="Animations_Click">
+                                <StackPanel>
+                                    <TextBlock Text="Animaciones (Ctrl+E)" />
+                                    <TextBlock Style="{StaticResource Hint}" Text="Transiciones entre páginas, luces de la pantalla completa y fundidos. Apágalas si prefieres que todo cambie al instante." />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding LightWhenAway}" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Modo ligero cuando no se ve" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Minimizado, en la bandeja o el mini reproductor, en otro escritorio, con la sesión bloqueada o la pantalla apagada, Echoplex deja de animar y de pintar lo que no se ve, y los análisis en segundo plano (etiquetas, BPM, forma de onda) ceden el paso, para que la música suene sin cortes. Al volver, todo está como si no hubiera parado." />
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
                     </Border>
 
                     <!-- ================= Biblioteca ================= -->

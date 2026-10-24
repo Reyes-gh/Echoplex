@@ -75,6 +75,8 @@ public sealed class AppSettings
     /// <summary>Último tema claro elegido: al que vuelve el interruptor desde uno oscuro.</summary>
     public string LightTheme { get; set; } = "light";
     public bool Animations { get; set; } = true;
+    /// <summary>Modo ligero con la ventana sin ver: ni animaciones ni repintados, y los análisis ceden el paso a la música.</summary>
+    public bool LightWhenAway { get; set; } = true;
     /// <summary>Mostrar y ordenar por el nombre del archivo (sin extensión) en lugar del título de los metadatos.</summary>
     public bool PreferFileName { get; set; }
     /// <summary>

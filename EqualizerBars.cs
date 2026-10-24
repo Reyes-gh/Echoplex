@@ -76,13 +76,15 @@ public sealed class EqualizerBars : StackPanel
         ApplyFill();
         Loaded += (s, e) =>
         {
-            // con la ventana minimizada no se ven: se paran y vuelven a moverse al restaurarla
+            // con la ventana minimizada no se ven: se congelan y siguen al restaurarla
             _window = Window.GetWindow(this);
             if (_window != null) _window.StateChanged += OnWindowStateChanged;
+            Anim.AwayChanged += Update; // ni en el modo ligero (en otro escritorio, sesión bloqueada…)
             Update();
         };
         Unloaded += (s, e) =>
         {
+            Anim.AwayChanged -= Update;
             if (_window != null) _window.StateChanged -= OnWindowStateChanged;
             _window = null;
             Stop();
@@ -91,7 +93,8 @@ public sealed class EqualizerBars : StackPanel
     }
 
     private Window? _window;
-    private bool _running;
+    // las animaciones de estas barras: se congelan con la ventana sin ver y siguen desde el mismo punto
+    private LoopClocks? _loop;
 
     private void OnWindowStateChanged(object? sender, EventArgs e) => Update();
 
@@ -114,24 +117,31 @@ public sealed class EqualizerBars : StackPanel
 
     private void Update()
     {
-        bool minimized = _window?.WindowState == WindowState.Minimized;
-        if (!(IsAnimating && IsVisible && IsLoaded && !minimized && Anim.GetEnabled(this)))
+        // la ventana entera sin ver (minimizada, oculta, modo ligero): se congelan donde están y siguen desde ahí al
+        // volver. Si solo no se ven ellas (su rama del árbol está cerrada), se paran del todo
+        bool windowAway = Anim.Away || _window is { IsVisible: false } || _window?.WindowState == WindowState.Minimized;
+        if (!(IsAnimating && IsLoaded && Anim.GetEnabled(this)) || (!IsVisible && !windowAway))
         {
             Stop();
             return;
         }
-        if (_running) return; // ya se mueven: no se reinician
-        _running = true;
-        for (int i = 0; i < _bars.Count; i++) _bars[i].Scale.BeginAnimation(ScaleTransform.ScaleYProperty, Motions[i]);
+        if (_loop == null)
+        {
+            _loop = new LoopClocks();
+            for (int i = 0; i < _bars.Count; i++) _loop.Add(_bars[i].Scale, ScaleTransform.ScaleYProperty, Motions[i]);
+        }
+        if (windowAway) _loop.Freeze();
+        else _loop.Run();
     }
 
     private void Stop()
     {
-        if (!_running) return; // quietas ya, a su altura de reposo
-        _running = false;
+        if (_loop == null) return; // quietas ya, a su altura de reposo
+        _loop.Clear();
+        _loop = null;
         for (int i = 0; i < _bars.Count; i++)
         {
-            _bars[i].Scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            _bars[i].Scale.ApplyAnimationClock(ScaleTransform.ScaleYProperty, null);
             _bars[i].Scale.ScaleY = Bars[i].Idle;
         }
     }

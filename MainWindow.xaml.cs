@@ -111,6 +111,7 @@ public partial class MainWindow : Window
             ApplyTitleBar();
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(SizeMoveHook);
+            InitAway(new WindowInteropHelper(this).Handle);
             _hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle);
             _hotkeys.Pressed += OnGlobalHotkey;
             _vm.HotkeysChanged += ApplyHotkeys;
@@ -442,24 +443,12 @@ public partial class MainWindow : Window
         switch (e.PropertyName)
         {
             case nameof(p.Position):
-                if (_dragSlider != SeekSlider)
-                {
-                    SeekSlider.Value = p.Position;
-                    // el texto solo cambia una vez por segundo: no se rehace en cada tic (4 por segundo)
-                    long second = double.IsFinite(p.Position) ? (long)Math.Max(0, p.Position) : 0;
-                    if (second != _shownSecond)
-                    {
-                        _shownSecond = second;
-                        PosText.Text = FormatTime(p.Position);
-                    }
-                }
+                // la barra de la tarea sí se ve con la ventana minimizada
                 if (p.Duration > 0) Taskbar.ProgressValue = Math.Clamp(p.Position / p.Duration, 0, 1);
-                if (FullView.IsVisible) SyncFullPosition();
+                if (!Anim.Away) ShowPosition();
                 break;
             case nameof(p.Duration):
-                SeekSlider.Maximum = Math.Max(p.Duration, 0.001);
-                DurText.Text = FormatTime(p.Duration);
-                if (FullView.IsVisible) SyncFullPosition();
+                if (!Anim.Away) ShowDuration();
                 break;
             case nameof(p.IsPlaying):
                 ThumbPlay.ImageSource = p.IsPlaying ? _pauseImage : _playImage;
@@ -474,6 +463,32 @@ public partial class MainWindow : Window
                 FullLyricsScroll.ScrollToTop(); // la letra nueva empieza desde arriba
                 break;
         }
+    }
+
+    /// <summary>La posición en la barra de reproducción (y en la vista completa).</summary>
+    private void ShowPosition()
+    {
+        var p = _vm.Player;
+        if (_dragSlider != SeekSlider)
+        {
+            SeekSlider.Value = p.Position;
+            // el texto solo cambia una vez por segundo: no se rehace en cada tic (4 por segundo)
+            long second = double.IsFinite(p.Position) ? (long)Math.Max(0, p.Position) : 0;
+            if (second != _shownSecond)
+            {
+                _shownSecond = second;
+                PosText.Text = FormatTime(p.Position);
+            }
+        }
+        if (FullView.IsVisible) SyncFullPosition();
+    }
+
+    private void ShowDuration()
+    {
+        var p = _vm.Player;
+        SeekSlider.Maximum = Math.Max(p.Duration, 0.001);
+        DurText.Text = FormatTime(p.Duration);
+        if (FullView.IsVisible) SyncFullPosition();
     }
 
     private void Vm_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -519,8 +534,8 @@ public partial class MainWindow : Window
 
     private void ScrollToActiveLyric(bool smooth)
     {
-        _panelLyrics.Follow(_vm.ActiveLyric, smooth && AnimationsEnabled);
-        _fullLyrics.Follow(_vm.ActiveLyric, smooth && AnimationsEnabled);
+        _panelLyrics.Follow(_vm.ActiveLyric, smooth && AnimateNow);
+        _fullLyrics.Follow(_vm.ActiveLyric, smooth && AnimateNow);
     }
 
     // la letra del panel derecho y la de la vista a pantalla completa siguen a la línea que suena
@@ -906,8 +921,20 @@ public partial class MainWindow : Window
         // movimientos tan lentos (4° o 1 px por segundo) se ven igual a 10 fotogramas por segundo: a 60, sin fin, la
         // ventana se redibujaba sin parar (5 % de un núcleo en reposo en Inicio)
         System.Windows.Media.Animation.Timeline.SetDesiredFrameRate(forever, 10);
-        if (night) g.Children[1].BeginAnimation(TranslateTransform.YProperty, forever);
-        else g.Children[0].BeginAnimation(RotateTransform.AngleProperty, forever);
+        // con la aurora: con la ventana sin ver se para donde esté y sigue desde ahí al volver
+        var loop = new LoopClocks();
+        if (night) loop.Add(g.Children[1], TranslateTransform.YProperty, forever);
+        else loop.Add(g.Children[0], RotateTransform.AngleProperty, forever);
+        _decor.Add(loop);
+        RoutedEventHandler? gone = null;
+        gone = (s, a) =>
+        {
+            el.Unloaded -= gone;
+            loop.Clear();
+            _decor.Remove(loop);
+        };
+        el.Unloaded += gone;
+        UpdateAuroraRunning();
     }
     private void Genres_Click(object sender, RoutedEventArgs e) => _vm.OpenGenres();
 

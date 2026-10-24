@@ -28,7 +28,7 @@ public partial class MainWindow
     private object? _backdropFor;
 
     // luces: como la aurora de la app, pero más vivas; sus relojes se pausan si la vista no se ve
-    private readonly List<AnimationClock> _fullClocks = new();
+    private readonly LoopClocks _fullLoop = new();
     private readonly List<GradientStop[]> _fullStops = new();
     private object? _fullLightsFor;
 
@@ -282,7 +282,7 @@ public partial class MainWindow
             var (show, hide) = _backdropOnA ? (FullBackdropB, FullBackdropA) : (FullBackdropA, FullBackdropB);
             _backdropOnA = !_backdropOnA;
             show.Source = Blurred(cover);
-            var fade = AnimationsEnabled ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
+            var fade = AnimateNow ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
             show.BeginAnimation(OpacityProperty, new DoubleAnimation(cover != null ? 0.8 : 0, fade));
             hide.BeginAnimation(OpacityProperty, new DoubleAnimation(0, fade));
         }
@@ -364,8 +364,7 @@ public partial class MainWindow
 
     private void ClearFullLights()
     {
-        foreach (var c in _fullClocks) c.Controller?.Remove();
-        _fullClocks.Clear();
+        _fullLoop.Clear();
         _fullStops.Clear();
         FullLights.Children.Clear();
         _fullLightsFor = null;
@@ -373,20 +372,16 @@ public partial class MainWindow
 
     private void DriveFull(Animatable target, DependencyProperty property, AnimationTimeline animation)
     {
-        var clock = animation.CreateClock();
-        target.ApplyAnimationClock(property, clock);
-        _fullClocks.Add(clock);
+        _fullLoop.Add(target, property, animation);
     }
 
     /// <summary>Las luces solo se mueven mientras la vista se ve (cerrada o minimizada se pausan donde estaban).</summary>
     private void UpdateFullRunning()
     {
         bool run = IsVisible && WindowState != WindowState.Minimized && FullView.Visibility == Visibility.Visible && !_sizingMove;
-        foreach (var c in _fullClocks)
-        {
-            if (c.Controller == null) continue;
-            if (run) c.Controller.Resume(); else c.Controller.Pause();
-        }
+        if (Anim.Away) _fullLoop.Freeze(); // modo ligero: congeladas, sin fotogramas
+        else if (run) _fullLoop.Run();
+        else _fullLoop.Pause();
     }
 
     // ======================================================================
@@ -416,7 +411,7 @@ public partial class MainWindow
         _fullChromeShown = show;
         FullView.Cursor = show ? null : Cursors.None;
         var to = show ? 1.0 : 0.0;
-        var t = TimeSpan.FromMilliseconds(AnimationsEnabled ? (show ? 160 : 600) : 0);
+        var t = TimeSpan.FromMilliseconds(AnimateNow ? (show ? 160 : 600) : 0);
         FullChrome.BeginAnimation(OpacityProperty, new DoubleAnimation(to, t));
         FullVolume.BeginAnimation(OpacityProperty, new DoubleAnimation(to, t));
         FullChrome.IsHitTestVisible = FullVolume.IsHitTestVisible = show;
