@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 
 namespace Echoplex.Services;
@@ -10,6 +12,22 @@ public static class Palette
     {
         Color.FromRgb(0x23, 0x83, 0xE2), Color.FromRgb(0x9B, 0x5D, 0xE5), Color.FromRgb(0x1F, 0xB5, 0x9A),
     };
+
+    /// <summary>
+    /// La portada difuminada una sola vez, en pequeño: estirada a lo grande queda suave y no cuesta nada (un desenfoque
+    /// en vivo se recalcularía en cada fotograma de lo que se mueva encima). La usan la pantalla completa y la tarjeta del vinilo.
+    /// </summary>
+    public static BitmapSource? Blurred(BitmapSource? cover)
+    {
+        if (cover == null) return null;
+        const int n = 96, bleed = 16; // el borde se estira hacia fuera para que el desenfoque no se aclare en las esquinas
+        var dv = new DrawingVisual { Effect = new BlurEffect { Radius = 14, KernelType = KernelType.Gaussian } };
+        using (var dc = dv.RenderOpen()) dc.DrawImage(cover, new Rect(-bleed, -bleed, n + bleed * 2, n + bleed * 2));
+        var bmp = new RenderTargetBitmap(n, n, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(dv);
+        bmp.Freeze();
+        return bmp;
+    }
 
     /// <summary>Hasta tres colores vivos y distintos entre sí (agrupados por tono).</summary>
     public static Color[] Extract(BitmapSource? image)

@@ -17,6 +17,7 @@
 - **Carpetas en línea**: carpetas compartidas de Google Drive u OneDrive, o de un servidor web, que se escuchan directamente desde la nube sin copiar nada al PC.
 - **En el móvil**: la app Echoplex para Android escucha tu biblioteca del PC en streaming (se conecta con un QR), con tus favoritas, playlists, letras y escuchas compartidas con el PC, en casa y fuera de casa con Tailscale integrado (en el PC, el paquete fuera de casa que se descarga desde Ajustes; en el móvil va dentro de la app), sin instalar nada más. Como Echoplex hace de servidor compatible con Subsonic, también sirven apps como Tempus o Symfonium.
 - **Temas**: Claro, Oscuro, TRUE dark, Neon night y 80's retro, y 79 más en *Más temas*, por claros y oscuros y por familias que se pliegan (Dracula, Nord, Solarized, Gruvbox, Catppuccin, Game Boy, Windows XP, MS-DOS, Matrix…), con animaciones que se pueden desactivar.
+- **Neoplex** (opcional, en *Ajustes → Apariencia*): otra cara de Echoplex, con el menú de la izquierda más grande y con lo que quieras, una barra de arriba con el buscador siempre a mano en lugar de la de Windows, un vinilo con lo que suena en Inicio, y el mini reproductor y Ajustes del tamaño que prefieras. Cada parte se quita por separado.
 - **Discord**: si lo activas, tu perfil muestra lo que escuchas con la carátula, la canción, el artista, el álbum y la barra de progreso. Las carátulas se buscan solas en internet o, si lo prefieres, se suben con tu propio programa, igual que con foo_discord_rich.
 - **Aviso de actualizaciones** desde las releases de este repositorio: tú decides si actualizar, omitir esa versión o dejarlo para luego.
 - **Controles multimedia de Windows** (teclas de medios, panel de volumen), atajos de teclado (F1) y zoom de la interfaz (`Ctrl +` / `Ctrl −`).
@@ -63,6 +64,18 @@ La app de Android (`android/`) sale con la misma versión: tras publicar la rele
 Las instalaciones existentes (desde la 1.0.1) la encontrarán la próxima vez que se abran.
 
 ## Versiones
+
+### 2.0.3
+- **Neoplex** (apagado de serie): en *Ajustes → Apariencia*, entre *Temas de Echoplex* y *Más temas*, un interruptor que le da otra cara a Echoplex. Se aplica al momento, sin reiniciar, y en *Opciones de Neoplex* cada parte se quita o se pone por separado:
+  - **Menú de la izquierda más grande**: iconos y texto de un 100 a un 150 % (120 % de serie).
+  - **Menú de la izquierda sin cortar texto**: se ensancha o se estrecha arrastrando su borde derecho (doble clic: el ancho de siempre), pero nunca tanto que corte el nombre de un acceso, también al cambiar su tamaño.
+  - **Qué sale en el menú de la izquierda**: quita o pon Inicio, Buscar, Favoritas, Historial, Añadidas recientemente, Tu resumen, Artistas, Álbumes y Géneros. Carpetas y tus playlists siempre están.
+  - **Explorar plegable**: un clic en *Explorar* lo pliega o lo despliega, y se queda como lo dejes.
+  - **Vinilo en Inicio**: lo que suena, arriba del todo en Inicio, en una tarjeta como las cabeceras de las páginas (la portada difuminada, con las luces de sus colores): título, artista, álbum, la línea de la letra que va sonando (su hueco está siempre, así que nada se mueve cuando sale, y nunca pasa de una línea), el formato, el botón de reproducir de siempre y un vinilo: la portada hace de funda y el disco asoma por la mitad, girando a 33⅓ rpm con la portada en la etiqueta. En pausa el disco frena y se mete en la funda; al volver a sonar sale y arranca. En una ventana estrecha el vinilo se hace más pequeño, o se quita para dejar sitio al título. Si no suena nada, no sale.
+  - **Barra de arriba con buscador**: sin la barra de título de Windows (ni el título de la canción en ella). Arriba quedan el logo, atrás y adelante, el buscador siempre a la vista (`Ctrl+K` lleva a él; `Esc` lo borra) y minimizar, maximizar y cerrar. La ventana se arrastra desde cualquier hueco de la barra, y en Windows 11, al pasar el ratón por maximizar, salen los diseños para colocar la ventana.
+  - **Mini reproductor de tamaño libre**: más grande o más pequeño (de un 75 a un 200 %) arrastrando una de sus esquinas o con `Ctrl` + rueda encima; doble clic en una esquina lo deja como siempre. Se acuerda del tamaño.
+  - **Ajustes de tamaño libre**: la ventana de Ajustes se hace más ancha o más alta arrastrando sus bordes o sus esquinas, y se acuerda del tamaño.
+- **Sin la miniatura borrosa de Windows**: Windows deja en las carpetas de música una copia de la portada de 75×75 (`AlbumArtSmall.jpg`). En las carpetas de OneDrive en línea le ganaba a la carátula buena que tuviera al lado (`Folder.jpg`, `cover.jpg`…) y se veía borrosa en Echoplex, en Discord y en el móvil; en el disco podía salir si se había copiado sin el atributo de oculta. Ahora no se usa nunca, ni siquiera a falta de otra.
 
 ### 2.0.2
 - **Listas por discos: las columnas encima de cada disco**: en una carpeta con varios discos o subcarpetas, y en las páginas de artista y de género, la fila de columnas (título, artista, álbum…) salía una sola vez, arriba del todo. Ahora sale debajo de la portada y el nombre de cada disco, justo encima de su primera canción, y desde cualquiera de ellas se ordena, se cambia el ancho y se mueven las columnas. Al ordenar por una columna la lista deja de ir por discos y la fila vuelve arriba.

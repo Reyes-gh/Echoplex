@@ -77,6 +77,34 @@ public sealed class AppSettings
     public bool Animations { get; set; } = true;
     /// <summary>Modo ligero con la ventana sin ver: ni animaciones ni repintados, y los análisis ceden el paso a la música.</summary>
     public bool LightWhenAway { get; set; } = true;
+    /// <summary>
+    /// Neoplex: otra cara de Echoplex (Ajustes → Apariencia). De serie, apagado; cada parte (las Neo… de abajo) se puede
+    /// quitar por separado y solo cuenta con Neoplex puesto.
+    /// </summary>
+    public bool Neoplex { get; set; }
+    /// <summary>Neoplex: iconos y texto del menú de la izquierda más grandes, a <see cref="NeoSidebarScale"/>.</summary>
+    public bool NeoBigSidebar { get; set; } = true;
+    /// <summary>Tamaño del menú de la izquierda con <see cref="NeoBigSidebar"/> (1 = 100 %, hasta 1,5).</summary>
+    public double NeoSidebarScale { get; set; } = 1.2;
+    /// <summary>Neoplex: el menú de la izquierda nunca se estrecha tanto que corte los nombres de sus accesos.</summary>
+    public bool NeoSidebarFit { get; set; } = true;
+    /// <summary>Neoplex: los accesos del menú de la izquierda que no se ven (claves de MainViewModel.OptionalNav).</summary>
+    public List<string>? NeoHiddenNav { get; set; }
+    /// <summary>Neoplex: Explorar se pliega y se despliega con un clic en su nombre.</summary>
+    public bool NeoExploreFoldable { get; set; } = true;
+    /// <summary>Explorar plegado (con <see cref="NeoExploreFoldable"/>).</summary>
+    public bool NeoExploreFolded { get; set; }
+    /// <summary>Neoplex: lo que suena, en Inicio, con su vinilo asomando de la funda.</summary>
+    public bool NeoNowPlaying { get; set; } = true;
+    /// <summary>Neoplex: sin la barra de título de Windows; arriba, atrás y adelante, el buscador y los botones de la ventana.</summary>
+    public bool NeoTopBar { get; set; } = true;
+    /// <summary>Neoplex: el mini reproductor cambia de tamaño (esquinas o Ctrl + rueda) a <see cref="MiniScale"/>.</summary>
+    public bool NeoMiniResize { get; set; } = true;
+    public double MiniScale { get; set; } = 1.0;
+    /// <summary>Neoplex: Ajustes cambia de ancho y de alto arrastrando sus bordes; se guarda el último (0 = el de serie).</summary>
+    public bool NeoSettingsResize { get; set; } = true;
+    public double SettingsWidth { get; set; }
+    public double SettingsHeight { get; set; }
     /// <summary>Mostrar y ordenar por el nombre del archivo (sin extensión) en lugar del título de los metadatos.</summary>
     public bool PreferFileName { get; set; }
     /// <summary>

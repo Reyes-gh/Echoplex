@@ -472,8 +472,23 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- borde para cambiar el tamaño (Neoplex): casi transparente (si no, la ventana transparente no recibiría el ratón) -->
+        <Style x:Key="EdgeGrip" TargetType="Thumb">
+            <Setter Property="Focusable" Value="False" />
+            <EventSetter Event="DragStarted" Handler="Grip_DragStarted" />
+            <EventSetter Event="DragDelta" Handler="Grip_DragDelta" />
+            <EventSetter Event="DragCompleted" Handler="Grip_DragCompleted" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="#01FFFFFF" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
+    <Grid>
     <!-- la tarjeta entra y sale con un fundido, creciendo o encogiendo un poco (ver SettingsWindow.xaml.cs) -->
     <!-- la sombra va en una capa aparte: con el efecto sobre el contenido, el texto saldría borroso (sin ClearType) -->
     <Grid x:Name="Card" Margin="24" RenderTransformOrigin="0.5,0.5" UseLayoutRounding="True" SnapsToDevicePixels="True">
@@ -545,6 +560,91 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
+                    </Border>
+
+                    <!-- Neoplex: otra cara de Echoplex, apagada de serie; sus partes se quitan por separado (todo se aplica al momento) -->
+                    <Border x:Name="NeoplexGroup" Style="{StaticResource Group}">
+                        <StackPanel>
+                            <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding Neoplex}">
+                                <StackPanel>
+                                    <TextBlock Text="Neoplex" />
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Otra cara de Echoplex: el menú de la izquierda más grande y con lo que tú quieras, la barra de arriba con el buscador siempre a mano, un vinilo con lo que suena en Inicio, y el mini reproductor y Ajustes del tamaño que prefieras. Cada parte se puede quitar por separado abajo." />
+                                </StackPanel>
+                            </CheckBox>
+                            <ToggleButton x:Name="NeoplexToggle" Style="{StaticResource DisclosureToggle}" Content="Opciones de Neoplex" Margin="-8,14,0,0"
+                                          IsEnabled="{Binding Neoplex}" />
+                            <StackPanel Margin="20,10,0,0" IsEnabled="{Binding Neoplex}"
+                                        Visibility="{Binding IsChecked, ElementName=NeoplexToggle, Converter={StaticResource BoolVis}}">
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoBigSidebar}">
+                                    <StackPanel>
+                                        <TextBlock Text="Menú de la izquierda más grande" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="Iconos y texto más grandes, al tamaño de aquí debajo." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <DockPanel Margin="46,10,0,0" IsEnabled="{Binding NeoBigSidebar}">
+                                    <TextBlock DockPanel.Dock="Left" Text="Tamaño" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center"
+                                               Width="64" />
+                                    <TextBlock DockPanel.Dock="Right" FontSize="13" Foreground="{DynamicResource Text2Brush}" VerticalAlignment="Center" Width="48"
+                                               TextAlignment="Right" Text="{Binding NeoSidebarPercent, StringFormat={}{0:0} %}" />
+                                    <Slider Style="{StaticResource ThinSlider}" Minimum="100" Maximum="150" SmallChange="5" LargeChange="10"
+                                            TickFrequency="5" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True" MaxWidth="320" HorizontalAlignment="Left"
+                                            Width="320" VerticalAlignment="Center" Value="{Binding NeoSidebarPercent}" />
+                                </DockPanel>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoSidebarFit}">
+                                    <StackPanel>
+                                        <TextBlock Text="Menú de la izquierda sin cortar texto" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Arrastra su borde derecho para hacerlo más ancho o más estrecho (doble clic: el ancho de siempre). Nunca se estrecha tanto que corte los nombres de sus accesos, y sigue al tamaño de arriba." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <TextBlock Text="Qué sale en el menú de la izquierda" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,2,0,10"
+                                           Text="Pulsa un acceso para quitarlo o ponerlo. Carpetas y tus playlists siempre están." />
+                                <WrapPanel x:Name="NeoNavChips" />
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoExploreFoldable}">
+                                    <StackPanel>
+                                        <TextBlock Text="Explorar plegable" />
+                                        <TextBlock Style="{StaticResource Hint}" Text="Un clic en Explorar lo pliega o lo despliega; se queda como lo dejes." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoNowPlaying}">
+                                    <StackPanel>
+                                        <TextBlock Text="Vinilo en Inicio" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Lo que suena, arriba del todo en Inicio, con la portada de funda y el disco asomando y girando (en pausa se mete en la funda). Si no suena nada, no sale." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoTopBar}">
+                                    <StackPanel>
+                                        <TextBlock Text="Barra de arriba con buscador" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Sin la barra de título de Windows: arriba quedan atrás y adelante, el buscador siempre a la vista (Ctrl+K) y minimizar, maximizar y cerrar. Se arrastra desde cualquier hueco de la barra." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoMiniResize}">
+                                    <StackPanel>
+                                        <TextBlock Text="Mini reproductor de tamaño libre" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Arrastra una de sus esquinas o usa Ctrl + rueda encima para hacerlo más grande o más pequeño (doble clic en una esquina: el de siempre). Se acuerda del tamaño." />
+                                    </StackPanel>
+                                </CheckBox>
+                                <Border Style="{StaticResource GroupRule}" />
+                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding NeoSettingsResize}">
+                                    <StackPanel>
+                                        <TextBlock Text="Ajustes de tamaño libre" />
+                                        <TextBlock Style="{StaticResource Hint}"
+                                                   Text="Arrastra los bordes o las esquinas de esta ventana para cambiar su ancho y su alto. Se acuerda del tamaño." />
+                                    </StackPanel>
+                                </CheckBox>
+                            </StackPanel>
+                        </StackPanel>
                     </Border>
 
                     <!-- Más temas: desplegable con el resto, en Claros y Oscuros y por familias (que también se pliegan) -->
@@ -1305,5 +1405,17 @@
             </DockPanel>
         </Grid>
         </Border>
+    </Grid>
+    <!-- Neoplex («Ajustes de tamaño libre»): bordes y esquinas para cambiar el ancho y el alto -->
+    <Grid x:Name="Grips" Visibility="{Binding SettingsResizable, Converter={StaticResource BoolVis}}">
+        <Thumb Tag="l" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Left" Width="12" Margin="18,40,0,40" Cursor="SizeWE" />
+        <Thumb Tag="r" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Right" Width="12" Margin="0,40,18,40" Cursor="SizeWE" />
+        <Thumb Tag="t" Style="{StaticResource EdgeGrip}" VerticalAlignment="Top" Height="12" Margin="40,18,40,0" Cursor="SizeNS" />
+        <Thumb Tag="b" Style="{StaticResource EdgeGrip}" VerticalAlignment="Bottom" Height="12" Margin="40,0,40,18" Cursor="SizeNS" />
+        <Thumb Tag="tl" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Left" VerticalAlignment="Top" Width="22" Height="22" Margin="14,14,0,0" Cursor="SizeNWSE" />
+        <Thumb Tag="tr" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Right" VerticalAlignment="Top" Width="22" Height="22" Margin="0,14,14,0" Cursor="SizeNESW" />
+        <Thumb Tag="bl" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="22" Height="22" Margin="14,0,0,14" Cursor="SizeNESW" />
+        <Thumb Tag="br" Style="{StaticResource EdgeGrip}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="22" Height="22" Margin="0,0,14,14" Cursor="SizeNWSE" />
+    </Grid>
     </Grid>
 </Window>

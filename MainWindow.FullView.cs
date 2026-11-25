@@ -191,6 +191,7 @@ public partial class MainWindow
             WindowState = before.State == WindowState.Minimized ? WindowState.Normal : before.State;
             ApplyTitleBar(); // al volver el marco, otra vez con los colores del tema
         }
+        UpdateChromeMetrics(); // Neoplex: a toda la pantalla, sin botones de la ventana ni franja para arrastrarla
         FullScreenButton.Content = on ? "" : "";
         FullScreenButton.ToolTip = on ? "Volver a la ventana (F11)" : "Toda la pantalla (F11)";
     }
@@ -281,7 +282,7 @@ public partial class MainWindow
             _backdropFor = key;
             var (show, hide) = _backdropOnA ? (FullBackdropB, FullBackdropA) : (FullBackdropA, FullBackdropB);
             _backdropOnA = !_backdropOnA;
-            show.Source = Blurred(cover);
+            show.Source = Palette.Blurred(cover);
             var fade = AnimateNow ? TimeSpan.FromMilliseconds(900) : TimeSpan.Zero;
             show.BeginAnimation(OpacityProperty, new DoubleAnimation(cover != null ? 0.8 : 0, fade));
             hide.BeginAnimation(OpacityProperty, new DoubleAnimation(0, fade));
@@ -298,22 +299,6 @@ public partial class MainWindow
             AnimateStop(stops[1], Color.FromArgb(62, c.R, c.G, c.B));
             AnimateStop(stops[2], Color.FromArgb(0, c.R, c.G, c.B));
         }
-    }
-
-    /// <summary>
-    /// La portada difuminada una sola vez, en pequeño: estirada a toda la pantalla queda suave y no cuesta nada
-    /// (un desenfoque en vivo a pantalla completa se recalcularía en cada fotograma de las luces).
-    /// </summary>
-    private static BitmapSource? Blurred(BitmapSource? cover)
-    {
-        if (cover == null) return null;
-        const int n = 96, bleed = 16; // el borde se estira hacia fuera para que el desenfoque no se aclare en las esquinas
-        var dv = new DrawingVisual { Effect = new BlurEffect { Radius = 14, KernelType = KernelType.Gaussian } };
-        using (var dc = dv.RenderOpen()) dc.DrawImage(cover, new Rect(-bleed, -bleed, n + bleed * 2, n + bleed * 2));
-        var bmp = new RenderTargetBitmap(n, n, 96, 96, PixelFormats.Pbgra32);
-        bmp.Render(dv);
-        bmp.Freeze();
-        return bmp;
     }
 
     private void BuildFullLights()

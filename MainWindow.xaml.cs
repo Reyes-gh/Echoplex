@@ -57,7 +57,7 @@ public partial class MainWindow : Window
         Width = Math.Max(MinWidth, s.Width);
         Height = Math.Max(MinHeight, s.Height);
         if (s.Maximized) WindowState = WindowState.Maximized;
-        SidebarCol.Width = new GridLength(Math.Clamp(s.SidebarWidth, SidebarCol.MinWidth, SidebarCol.MaxWidth));
+        InitNeoplex(s.SidebarWidth); // Neoplex: escala y límites del menú antes de su ancho guardado
         RightPanel.Width = Math.Clamp(s.RightPanelWidth, RightMin, RightMax);
         RightPanel.SizeChanged += (o, e) =>
         {
@@ -112,6 +112,7 @@ public partial class MainWindow : Window
             _vm.Player.AttachWindow(new WindowInteropHelper(this).Handle);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(SizeMoveHook);
             InitAway(new WindowInteropHelper(this).Handle);
+            InitNeoplexChrome(new WindowInteropHelper(this).Handle);
             _hotkeys = new GlobalHotkeys(new WindowInteropHelper(this).Handle);
             _hotkeys.Pressed += OnGlobalHotkey;
             _vm.HotkeysChanged += ApplyHotkeys;
@@ -197,13 +198,7 @@ public partial class MainWindow : Window
     private void DismissUpdate_Click(object sender, RoutedEventArgs e) => _vm.DismissUpdate();
 
     /// <summary>Al bajar por el panel lateral, el menú fijo aparece cuando el de navegación sale de la vista.</summary>
-    private void SidebarScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
-    {
-        if (!LastNavButton.IsLoaded) return;
-        double bottom = LastNavButton.TranslatePoint(new Point(0, LastNavButton.ActualHeight), SidebarScroll).Y;
-        var want = bottom <= 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (StickyNav.Visibility != want) StickyNav.Visibility = want;
-    }
+    private void SidebarScroll_ScrollChanged(object sender, ScrollChangedEventArgs e) => UpdateStickyNav();
 
     /// <summary>Interruptor "Nombres fichero" de la página de una carpeta.</summary>
     private void PageFileNames_Click(object sender, RoutedEventArgs e)
@@ -663,7 +658,7 @@ public partial class MainWindow : Window
         bool handled = true;
 
         if (key == Key.Space && !inText) _vm.TogglePlay();
-        else if (ctrl && key == Key.K) _vm.OpenSearch();
+        else if (ctrl && key == Key.K) OpenSearchUi();
         else if (ctrl && key == Key.F) FocusFilterOrSearch();
         else if (ctrl && key == Key.Right) _vm.Player.Next();
         else if (ctrl && key == Key.Left) _vm.Player.Previous();
@@ -843,6 +838,7 @@ public partial class MainWindow : Window
         if (!announce) return;
         bool changed = Math.Abs(zoom - _vm.Settings.Zoom) > 0.001;
         _vm.Settings.Zoom = zoom;
+        UpdateChromeMetrics(); // Neoplex: la franja que arrastra la ventana crece con la barra de arriba
         if (changed) SettingsStore.Save(_vm.Settings);
         _vm.ShowToast($"Zoom {zoom * 100:0} %" + (zoom >= MaxZoom ? " (máximo)" : zoom <= MinZoom ? " (mínimo)" : ""), 1.6);
     }
@@ -856,7 +852,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            _vm.OpenSearch();
+            OpenSearchUi();
         }
     }
 
@@ -887,7 +883,7 @@ public partial class MainWindow : Window
     // ======================================================================
 
     private void Home_Click(object sender, RoutedEventArgs e) => _vm.GoHome();
-    private void Search_Click(object sender, RoutedEventArgs e) => _vm.OpenSearch();
+    private void Search_Click(object sender, RoutedEventArgs e) => OpenSearchUi();
     private void Favorites_Click(object sender, RoutedEventArgs e) => _vm.OpenFavorites();
     private void History_Click(object sender, RoutedEventArgs e) => _vm.OpenHistory();
     private void Recent_Click(object sender, RoutedEventArgs e) => _vm.OpenRecent();

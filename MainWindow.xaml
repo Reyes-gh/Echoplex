@@ -861,6 +861,72 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     </StackPanel>
+                    <!-- Neoplex: lo que suena, con su vinilo asomando de la funda y girando (si no suena nada, no sale). Como las cabeceras de las páginas: la
+                         portada difuminada de fondo, con las luces de sus colores; el texto y el botón, los del tema. El alto no cambia
+                         con la letra ni con la canción (NowPlayingCard_SizeChanged) -->
+                    <Border DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" CornerRadius="10" Height="244"
+                            Margin="0,0,16,28" Background="{DynamicResource BgBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                            Visibility="{Binding ShowNowPlayingCard, Converter={StaticResource BoolVis}}">
+                        <Grid SizeChanged="NowPlayingCardClip_SizeChanged">
+                            <local:BlurredCover Margin="-60" Source="{Binding NowPlayingCover}" Radius="45" />
+                            <!-- para que el texto se lea: el color del fondo del tema, más tupido a la izquierda -->
+                            <Rectangle Fill="{DynamicResource BgBrush}">
+                                <Rectangle.OpacityMask>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#E6000000" Offset="0" />
+                                        <GradientStop Color="#C0000000" Offset="0.5" />
+                                        <GradientStop Color="#80000000" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Rectangle.OpacityMask>
+                            </Rectangle>
+                            <Ellipse Width="560" Height="440" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,-160,-150,-160"
+                                     Fill="{Binding NowPlayingLightA}" IsHitTestVisible="False" />
+                            <Ellipse Width="520" Height="380" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-200,0,0,-250"
+                                     Fill="{Binding NowPlayingLightB}" IsHitTestVisible="False" />
+                            <Grid Margin="28,22,22,22" SizeChanged="NowPlayingCard_SizeChanged">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="0" />
+                                </Grid.ColumnDefinitions>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <local:EqualizerBars Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" IsAnimating="{Binding Player.IsPlaying}" />
+                                        <TextBlock Text="SONANDO AHORA" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="8,0,0,0"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Text="{Binding Player.Current.Album}" FontSize="13" Foreground="{DynamicResource Text2Brush}"
+                                               Margin="0,14,0,0" TextTrimming="CharacterEllipsis" />
+                                    <!-- una línea o dos según el ancho (NowPlayingCard_SizeChanged), nunca más -->
+                                    <TextBlock Grid.Row="2" Tag="title" Text="{Binding Player.Current.Title}" FontFamily="{StaticResource DisplayFont}" FontSize="30"
+                                               FontWeight="Bold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                               LineHeight="36" LineStackingStrategy="BlockLineHeight" MaxHeight="36" Margin="0,2,0,0" />
+                                    <TextBlock Grid.Row="3" Text="{Binding Player.Current.Artist}" FontSize="14" Foreground="{DynamicResource Text2Brush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                    <!-- la línea de la letra: su hueco está siempre (no mueve nada al salir) y nunca pasa de una línea -->
+                                    <TextBlock Grid.Row="4" Text="{Binding ActiveLyric.Text, FallbackValue={x:Null}}" FontSize="15" FontStyle="Italic"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                               Height="22" ClipToBounds="True" Margin="0,10,0,0" />
+                                    <DockPanel Grid.Row="6">
+                                        <Button Style="{StaticResource PlayCircleButton}" Width="46" Height="46" FontSize="16" Content="{Binding Player.PlayGlyph}"
+                                                Click="NowPlayingPlay_Click" ToolTip="Reproducir / pausa (Espacio)" />
+                                        <TextBlock Text="{Binding NowPlayingFormat}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Text2Brush}"
+                                                   Margin="14,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </Grid>
+                                <local:Vinyl Grid.Column="1" MaxWidth="304" MaxHeight="214" Margin="20,0,0,0" VerticalAlignment="Center"
+                                             HorizontalAlignment="Right" Cover="{Binding NowPlayingCover}" IsSpinning="{Binding Player.IsPlaying}" />
+                            </Grid>
+                        </Grid>
+                    </Border>
                     <ItemsControl ItemsSource="{Binding QuickLinks}" ItemTemplate="{StaticResource QuickTileTemplate}" Margin="0,0,6,12">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -924,9 +990,12 @@
         <DataTemplate DataType="{x:Type vm:SearchPage}">
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <StackPanel Margin="56,40,40,48">
-                    <TextBox Style="{StaticResource BigSearchBox}" Tag="Busca canciones, artistas, álbumes, carpetas…" Margin="0,0,16,0"
-                             Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" Loaded="BigSearch_Loaded" />
-                    <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,16,16,0" />
+                    <!-- con la barra de arriba de Neoplex, se busca en la de arriba -->
+                    <StackPanel Visibility="{Binding DataContext.TopBarOn, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InvBoolVis}}">
+                        <TextBox Style="{StaticResource BigSearchBox}" Tag="Busca canciones, artistas, álbumes, carpetas…" Margin="0,0,16,0"
+                                 Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" Loaded="BigSearch_Loaded" />
+                        <Border Height="1" Background="{DynamicResource DividerBrush}" Margin="0,16,16,0" />
+                    </StackPanel>
 
                     <TextBlock Text="Escribe para buscar en toda tu biblioteca. Consejo: Ctrl+K abre la búsqueda desde cualquier sitio."
                                Foreground="{DynamicResource Text2Brush}" Margin="0,20,0,0"
@@ -1242,6 +1311,157 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Neoplex: Explorar plegable; el nombre de la sección con una flecha que gira al plegar -->
+        <Style x:Key="SectionFoldButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource Text3Brush}" />
+            <Setter Property="Margin" Value="10,12,10,0" />
+            <Setter Property="ToolTip" Value="Plegar o desplegar Explorar" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="5" Padding="8,6,8,4">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SidebarHoverBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource SidebarTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- borde del menú de la izquierda: con Neoplex («sin cortar texto») se ve una línea al pasar por él -->
+        <Style x:Key="SidebarSplitterStyle" TargetType="GridSplitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SidebarFit}" Value="True">
+                    <Setter Property="ToolTip" Value="Arrastra para cambiar el ancho (doble clic: el de siempre)" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="GridSplitter">
+                                <Border Background="Transparent">
+                                    <Border x:Name="Bar" Width="2" HorizontalAlignment="Right" Background="Transparent" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bar" Property="Background" Value="{DynamicResource DividerBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsDragging" Value="True">
+                                        <Setter TargetName="Bar" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Neoplex: el buscador de la barra de arriba, siempre a la vista -->
+        <Style x:Key="TopSearchBox" TargetType="TextBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd" Background="{DynamicResource InputBrush}" CornerRadius="18" BorderThickness="1" BorderBrush="Transparent">
+                            <Grid Margin="14,0,6,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="14" Foreground="{DynamicResource Text2Brush}"
+                                           VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock x:Name="Ph" Grid.Column="1" Text="{TemplateBinding Tag}" Foreground="{DynamicResource Text3Brush}"
+                                           VerticalAlignment="Center" Visibility="Collapsed" IsHitTestVisible="False" TextTrimming="CharacterEllipsis" />
+                                <ScrollViewer x:Name="PART_ContentHost" Grid.Column="1" VerticalAlignment="Center" Focusable="False" />
+                                <!-- borrar lo escrito: solo con algo escrito -->
+                                <Button x:Name="Clear" Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" Width="26" Height="26"
+                                        Click="TopSearchClear_Click" ToolTip="Borrar la búsqueda (Esc)" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Text" Value="">
+                                <Setter TargetName="Ph" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Clear" Property="Visibility" Value="Hidden" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource BgBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Neoplex: minimizar, maximizar y cerrar (sin la barra de título de Windows). Tag="hover"/"press": el de maximizar,
+             pintado desde fuera cuando Windows lo trata como suyo (así sale el menú de ajustar ventanas de Windows 11) -->
+        <Style x:Key="CaptionButton" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="hover">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectedBrush}" />
+                            </Trigger>
+                            <Trigger Property="Tag" Value="press">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SelectedBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CaptionCloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#C42B1C" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#B3281A" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SidebarSection" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -1316,24 +1536,71 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="76" />
         </Grid.RowDefinitions>
 
         <Grid>
+            <Grid.RowDefinitions>
+                <!-- la barra de arriba de Neoplex (48 con ella; sin ella, nada) -->
+                <RowDefinition x:Name="TopBarRow" Height="0" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="SidebarCol" Width="260" MinWidth="210" MaxWidth="440" />
                 <ColumnDefinition Width="*" MinWidth="480" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <!-- ======================= PANEL LATERAL ======================= -->
-            <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+            <!-- ======================= BARRA DE ARRIBA (Neoplex) ======================= -->
+            <!-- sin la barra de título de Windows: arrastrar aquí mueve la ventana (doble clic: maximizar); lo que se pulsa lleva
+                 WindowChrome.IsHitTestVisibleInChrome. Minimizar, maximizar y cerrar van aparte (CaptionButtons), encima de todo -->
+            <Border x:Name="TopBar" Grid.ColumnSpan="3" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}"
+                    BorderThickness="0,0,0,1" Visibility="{Binding TopBarOn, Converter={StaticResource BoolVis}}" />
+            <Button x:Name="TopLogo" Style="{StaticResource NavButton}" Height="38" Margin="6,0,6,1" Click="Workspace_Click"
+                    ToolTip="Tema claro/oscuro, atajos y ajustes" WindowChrome.IsHitTestVisibleInChrome="True"
+                    Visibility="{Binding TopBarOn, Converter={StaticResource BoolVis}}">
                 <DockPanel>
-                    <Button DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="50" Margin="6,8,6,4" Click="Workspace_Click"
-                            ToolTip="Tema claro/oscuro, atajos y ajustes">
+                    <Image DockPanel.Dock="Left" Width="26" Height="26" RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Source" Value="pack://application:,,,/Echoplex;component/Assets/echoplex-logo.png" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDark}" Value="True">
+                                        <Setter Property="Source" Value="pack://application:,,,/Echoplex;component/Assets/echoplex-logo-light.png" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+                    <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="10"
+                               Foreground="{DynamicResource Text3Brush}" VerticalAlignment="Center" />
+                    <TextBlock Text="Echoplex" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" Margin="10,0,0,0"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+            </Button>
+            <DockPanel Grid.Column="1" Grid.ColumnSpan="2" Margin="12,0,0,1" Visibility="{Binding TopBarOn, Converter={StaticResource BoolVis}}">
+                <!-- el hueco de minimizar, maximizar y cerrar -->
+                <Border DockPanel.Dock="Right" Width="150" />
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource IconButton}" Content="&#xE72B;" FontSize="13" Click="Back_Click" IsEnabled="{Binding CanGoBack}"
+                            ToolTip="Atrás (Alt+← o botón lateral del ratón)" />
+                    <Button Style="{StaticResource IconButton}" Content="&#xE72A;" FontSize="13" Click="Forward_Click" IsEnabled="{Binding CanGoForward}"
+                            ToolTip="Adelante (Alt+→ o botón lateral del ratón)" Margin="2,0,0,0" />
+                </StackPanel>
+                <TextBox x:Name="TopSearchBox" Style="{StaticResource TopSearchBox}" MaxWidth="520" Margin="24,0" VerticalAlignment="Center"
+                         Tag="Busca canciones, artistas, álbumes, carpetas…" Text="{Binding TopSearch, UpdateSourceTrigger=PropertyChanged}"
+                         WindowChrome.IsHitTestVisibleInChrome="True" PreviewKeyDown="TopSearch_PreviewKeyDown" />
+            </DockPanel>
+
+            <!-- ======================= PANEL LATERAL ======================= -->
+            <Border Grid.Row="1" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+                <!-- con Neoplex, todo el menú (iconos, texto y alturas) a la escala elegida (MainWindow.Neoplex.cs) -->
+                <DockPanel x:Name="SidebarDock">
+                    <Button x:Name="SidebarLogo" DockPanel.Dock="Top" Style="{StaticResource NavButton}" Height="50" Margin="6,8,6,4" Click="Workspace_Click"
+                            ToolTip="Tema claro/oscuro, atajos y ajustes" Visibility="{Binding TopBarOn, Converter={StaticResource InvBoolVis}}">
                         <DockPanel>
                             <!-- logo de Echoplex: invertido (claro) en los temas oscuros, el original en el claro -->
                             <Image DockPanel.Dock="Left" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality">
@@ -1359,17 +1626,17 @@
                     <Border x:Name="StickyNav" DockPanel.Dock="Top" Visibility="Collapsed" Padding="6,2,6,8" ClipToBounds="True"
                             BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Style="{StaticResource FadeInOnShow}">
                         <StackPanel Orientation="Horizontal">
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE80F;" CommandParameter="Inicio" Click="Home_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE80F;" CommandParameter="Inicio" Click="Home_Click" Visibility="{Binding NavShown[home], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=home}" />
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE721;" CommandParameter="Buscar" Click="Search_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE721;" CommandParameter="Buscar" Click="Search_Click" Visibility="{Binding NavShown[search], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=search}" />
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xEB52;" CommandParameter="Favoritas" Click="Favorites_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xEB52;" CommandParameter="Favoritas" Click="Favorites_Click" Visibility="{Binding NavShown[favorites], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=favorites}" />
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE81C;" CommandParameter="Historial" Click="History_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE81C;" CommandParameter="Historial" Click="History_Click" Visibility="{Binding NavShown[history], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=history}" />
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE710;" CommandParameter="Recientes" Click="Recent_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE710;" CommandParameter="Recientes" Click="Recent_Click" Visibility="{Binding NavShown[recent], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=recent}" />
-                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE9D2;" CommandParameter="Resumen" Click="Stats_Click"
+                            <Button Style="{StaticResource StickyNavButton}" Content="&#xE9D2;" CommandParameter="Resumen" Click="Stats_Click" Visibility="{Binding NavShown[stats], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=stats}" />
                         </StackPanel>
                     </Border>
@@ -1414,14 +1681,14 @@
                     <ScrollViewer x:Name="SidebarScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False"
                                   ScrollChanged="SidebarScroll_ScrollChanged">
                         <StackPanel Margin="0,2,0,16">
-                            <Button Style="{StaticResource NavButton}" Click="Home_Click"
+                            <Button x:Name="NavHomeButton" Style="{StaticResource NavButton}" Click="Home_Click" Visibility="{Binding NavShown[home], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=home}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE80F;" />
                                     <TextBlock Text="Inicio" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Search_Click"
+                            <Button x:Name="NavSearchButton" Style="{StaticResource NavButton}" Click="Search_Click" Visibility="{Binding NavShown[search], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=search}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE721;" />
@@ -1429,28 +1696,28 @@
                                     <TextBlock Text="Buscar" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Favorites_Click"
+                            <Button x:Name="NavFavButton" Style="{StaticResource NavButton}" Click="Favorites_Click" Visibility="{Binding NavShown[favorites], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=favorites}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xEB52;" />
                                     <TextBlock Text="Favoritas" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="History_Click"
+                            <Button x:Name="NavHistoryButton" Style="{StaticResource NavButton}" Click="History_Click" Visibility="{Binding NavShown[history], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=history}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE81C;" />
                                     <TextBlock Text="Historial" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Recent_Click"
+                            <Button x:Name="NavRecentButton" Style="{StaticResource NavButton}" Click="Recent_Click" Visibility="{Binding NavShown[recent], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=recent}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE710;" />
                                     <TextBlock Text="Añadidas recientemente" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </Button>
-                            <Button x:Name="LastNavButton" Style="{StaticResource NavButton}" Click="Stats_Click"
+                            <Button x:Name="LastNavButton" Style="{StaticResource NavButton}" Click="Stats_Click" Visibility="{Binding NavShown[stats], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=stats}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE9D2;" />
@@ -1458,35 +1725,61 @@
                                 </DockPanel>
                             </Button>
 
-                            <TextBlock Text="Explorar" Style="{StaticResource SidebarSection}" />
-                            <Button Style="{StaticResource NavButton}" Click="Artists_Click"
+                            <!-- Explorar: con Neoplex, un clic en su nombre lo pliega o lo despliega -->
+                            <TextBlock Text="Explorar" Style="{StaticResource SidebarSection}"
+                                       Visibility="{Binding ExploreFoldable, Converter={StaticResource InvBoolVis}}" />
+                            <Button Style="{StaticResource SectionFoldButton}" Click="ExploreFold_Click"
+                                    Visibility="{Binding ExploreFoldable, Converter={StaticResource BoolVis}}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" VerticalAlignment="Center"
+                                               RenderTransformOrigin="0.5,0.5">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ExploreOpen}" Value="False">
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <RotateTransform Angle="-90" />
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="Explorar" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Button>
+                            <StackPanel Visibility="{Binding ExploreOpen, Converter={StaticResource BoolVis}}">
+                            <Button x:Name="NavArtistsButton" Style="{StaticResource NavButton}" Click="Artists_Click" Visibility="{Binding NavShown[artists], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=artists}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE77B;" />
                                     <TextBlock Text="Artistas" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Albums_Click"
+                            <Button x:Name="NavAlbumsButton" Style="{StaticResource NavButton}" Click="Albums_Click" Visibility="{Binding NavShown[albums], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=albums}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE93C;" />
                                     <TextBlock Text="Álbumes" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Genres_Click"
+                            <Button x:Name="NavGenresButton" Style="{StaticResource NavButton}" Click="Genres_Click" Visibility="{Binding NavShown[genres], Converter={StaticResource BoolVis}}"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=genres}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8D6;" />
                                     <TextBlock Text="Géneros" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
-                            <Button Style="{StaticResource NavButton}" Click="Folders_Click"
+                            <Button x:Name="NavFoldersButton" Style="{StaticResource NavButton}" Click="Folders_Click"
                                     Tag="{Binding ActiveNav, Converter={StaticResource Eq}, ConverterParameter=folders}">
                                 <DockPanel>
                                     <TextBlock Style="{StaticResource NavIcon}" Text="&#xE8B7;" />
                                     <TextBlock Text="Carpetas" VerticalAlignment="Center" />
                                 </DockPanel>
                             </Button>
+                            </StackPanel>
 
                             <DockPanel Margin="0,0,10,0">
                                 <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE710;" FontSize="12" Width="22" Height="22"
@@ -1556,18 +1849,21 @@
                 </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Column="0" Width="5" HorizontalAlignment="Right" Background="Transparent" Focusable="False"
-                          ResizeBehavior="CurrentAndNext" ResizeDirection="Columns" Cursor="SizeWE" />
+            <GridSplitter x:Name="SidebarSplitter" Grid.Row="1" Grid.Column="0" Width="5" HorizontalAlignment="Right" Focusable="False"
+                          Style="{StaticResource SidebarSplitterStyle}" ResizeBehavior="CurrentAndNext" ResizeDirection="Columns" Cursor="SizeWE"
+                          MouseDoubleClick="SidebarSplitter_DoubleClick" />
 
             <!-- ======================= CONTENIDO ======================= -->
-            <Grid x:Name="MainArea" Grid.Column="1" SizeChanged="MainArea_SizeChanged">
+            <Grid x:Name="MainArea" Grid.Row="1" Grid.Column="1" SizeChanged="MainArea_SizeChanged">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="46" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <DockPanel Margin="12,0,16,0">
-                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- con la barra de arriba de Neoplex, atrás y adelante están en ella -->
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center"
+                                Visibility="{Binding TopBarOn, Converter={StaticResource InvBoolVis}}">
                         <Button Style="{StaticResource IconButton}" Content="&#xE72B;" FontSize="13" Click="Back_Click" IsEnabled="{Binding CanGoBack}"
                                 ToolTip="Atrás (Alt+← o botón lateral del ratón)" />
                         <Button Style="{StaticResource IconButton}" Content="&#xE72A;" FontSize="13" Click="Forward_Click" IsEnabled="{Binding CanGoForward}"
@@ -1621,7 +1917,7 @@
 
             <!-- ======================= PANEL DERECHO ======================= -->
             <!-- tirador del panel derecho: arrastrar cambia el ancho, doble clic lo devuelve al de siempre -->
-            <Thumb x:Name="RightResizer" Grid.Column="2" Panel.ZIndex="1" HorizontalAlignment="Left" Width="6" Margin="-3,0,0,0" Cursor="SizeWE"
+            <Thumb x:Name="RightResizer" Grid.Row="1" Grid.Column="2" Panel.ZIndex="1" HorizontalAlignment="Left" Width="6" Margin="-3,0,0,0" Cursor="SizeWE"
                    Focusable="False" DragDelta="RightResizer_DragDelta" MouseDoubleClick="RightResizer_DoubleClick" ToolTip="Arrastra para cambiar el ancho"
                    Visibility="{Binding ShowRightPanel, Converter={StaticResource BoolVis}}">
                 <Thumb.Template>
@@ -1640,7 +1936,7 @@
                     </ControlTemplate>
                 </Thumb.Template>
             </Thumb>
-            <Border x:Name="RightPanel" Grid.Column="2" Width="330" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0"
+            <Border x:Name="RightPanel" Grid.Row="1" Grid.Column="2" Width="330" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0"
                     Visibility="{Binding ShowRightPanel, Converter={StaticResource BoolVis}}">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Height="46" Margin="10,0,8,0">
@@ -1866,6 +2162,14 @@
             </Border>
 
         </Grid>
+
+        <!-- Neoplex (barra de arriba): minimizar, maximizar y cerrar; encima también de la pantalla completa -->
+        <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Panel.ZIndex="95"
+                    WindowChrome.IsHitTestVisibleInChrome="True" Visibility="Collapsed">
+            <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" Click="CaptionMin_Click" ToolTip="Minimizar" />
+            <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" Click="CaptionMax_Click" ToolTip="Maximizar" />
+            <Button x:Name="CloseButton" Style="{StaticResource CaptionCloseButton}" Content="&#xE8BB;" Click="CaptionClose_Click" ToolTip="Cerrar" />
+        </StackPanel>
 
         <!-- avisos: centrados en toda la ventana (como la barra de reproducción), justo encima de ella -->
         <Border VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20" Background="{DynamicResource ToastBrush}"
@@ -2192,7 +2496,8 @@
             </Grid>
 
             <!-- arriba a la derecha: salir (se desvanece si no mueves el ratón) -->
-            <StackPanel x:Name="FullChrome" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,16,0">
+            <StackPanel x:Name="FullChrome" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,16,0"
+                        WindowChrome.IsHitTestVisibleInChrome="True">
                 <Button Style="{StaticResource IconButton}" Content="&#xE711;" Width="36" Height="36" FontSize="16"
                         Click="FullClose_Click" ToolTip="Salir de la pantalla completa (Esc)" />
             </StackPanel>
@@ -2215,6 +2520,7 @@
 
         <!-- con Ajustes abierto: la app se oscurece un poco y un clic aquí cierra Ajustes -->
         <Border x:Name="SettingsDim" Grid.RowSpan="2" Background="#000000" Opacity="0" Visibility="Collapsed" Panel.ZIndex="100"
+                WindowChrome.IsHitTestVisibleInChrome="True"
                 MouseLeftButtonDown="SettingsDim_MouseDown" MouseRightButtonDown="SettingsDim_MouseDown" />
     </Grid>
 </Window>

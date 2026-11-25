@@ -71,6 +71,14 @@ public sealed class CoverService
     }
 
     /// <summary>
+    /// La miniatura de 75×75 que Windows deja en las carpetas de música (AlbumArtSmall.jpg): nunca es la carátula,
+    /// ni siquiera a falta de otra. En el disco suele estar oculta, pero puede haber perdido el atributo al copiarla,
+    /// y en las carpetas de OneDrive en línea no se sabe si lo está (antes ganaba a la buena por llamarse «Album…»).
+    /// </summary>
+    internal static bool IsWindowsThumbnail(string path) =>
+        Path.GetFileNameWithoutExtension(path).Equals("AlbumArtSmall", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Imágenes candidatas de una carpeta y sus subcarpetas de arte, de mejor a peor. Se ignoran las ocultas
     /// o de sistema: Windows deja en cada disco un AlbumArtSmall.jpg (75×75) y un Folder.jpg (200×200) ocultos.
     /// A igual puntuación gana el archivo más grande (más resolución).
@@ -80,6 +88,7 @@ public sealed class CoverService
         // carpeta en línea: las imágenes que dice su índice, las de nombre de portada primero
         if (OnlineLibrary.IsOnline(d))
             return OnlineLibrary.ImagesIn(d)
+                .Where(p => !IsWindowsThumbnail(p))
                 .OrderByDescending(p => Preferred.Any(Path.GetFileNameWithoutExtension(p).ToLowerInvariant().Contains) ? 1 : 0)
                 .ThenBy(p => p, NaturalComparer.Instance).ToArray();
         try
@@ -114,7 +123,7 @@ public sealed class CoverService
         try
         {
             return new DirectoryInfo(dir).EnumerateFiles()
-                .Where(f => ImageExt.ContainsKey(f.Extension) && (f.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0)
+                .Where(f => ImageExt.ContainsKey(f.Extension) && (f.Attributes & (FileAttributes.Hidden | FileAttributes.System)) != 0 && !IsWindowsThumbnail(f.Name))
                 .OrderByDescending(f => f.Length).Select(f => f.FullName).ToList();
         }
         catch
@@ -124,7 +133,7 @@ public sealed class CoverService
     }
 
     private static IEnumerable<FileInfo> Visible(DirectoryInfo dir) =>
-        dir.EnumerateFiles().Where(f => ImageExt.ContainsKey(f.Extension) && (f.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0);
+        dir.EnumerateFiles().Where(f => ImageExt.ContainsKey(f.Extension) && (f.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0 && !IsWindowsThumbnail(f.Name));
 
     /// <summary>Imágenes de la carpeta y luego de sus subcarpetas (primer disco primero).</summary>
     private IEnumerable<string> ImagesUnder(string dir, int depth = 0)

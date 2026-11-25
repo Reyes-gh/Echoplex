@@ -103,8 +103,15 @@ public partial class SettingsWindow : Window
         ReleaseNotesToggle.Content = $"Ver cambios de la versión {v.Major}.{v.Minor}.{v.Build}";
         if (ReleaseNotesView.Current() is { } notes) ReleaseNotesBox.Child = ReleaseNotesView.Render(notes);
         else SubReleaseNotes.Visibility = ReleaseNotesGroup.Visibility = Visibility.Collapsed;
+        // Neoplex («Ajustes de tamaño libre»): con el tamaño que se le dejó la última vez
+        if (vm.SettingsResizable && vm.Settings.SettingsWidth > 0 && vm.Settings.SettingsHeight > 0)
+        {
+            Width = Math.Max(MinSize.Width, vm.Settings.SettingsWidth);
+            Height = Math.Max(MinSize.Height, vm.Settings.SettingsHeight);
+        }
         FitToScreen();
         BuildNav();
+        BuildNeoNavChips();
         AnimationsBox.IsChecked = vm.AnimationsOn;
         (vm.DiscordShow switch
         {
@@ -184,7 +191,7 @@ public partial class SettingsWindow : Window
             return section;
         }
 
-        Section("Apariencia", "", SecAppearance, ("Temas de Echoplex", SubThemes), ("Más temas", SubMoreThemes), ("Barra de progreso", SubSeekBar), ("Animaciones", SubAnimations));
+        Section("Apariencia", "", SecAppearance, ("Temas de Echoplex", SubThemes), ("Neoplex", NeoplexGroup), ("Más temas", SubMoreThemes), ("Barra de progreso", SubSeekBar), ("Animaciones", SubAnimations));
         Section("Biblioteca", "", SecLibrary, ("Carpetas de música", SubFolders), ("Carpetas en línea", SubOnline),
             ("Títulos de las canciones", SubTitles), ("Columnas de las listas", SubColumns), ("Salud de la biblioteca", SubHealth));
         Section("Sonido", "", SecSound, ("Ecualizador", SubEq), ("Fundido entre canciones", SubCrossfade), ("Normalización de volumen", SubNormalization));
@@ -443,6 +450,86 @@ public partial class SettingsWindow : Window
             };
             ColumnSwitches.Children.Add(chip);
         }
+    }
+
+    // ======================================================================
+    // Neoplex
+    // ======================================================================
+
+    /// <summary>Los accesos del menú de la izquierda que se pueden quitar con Neoplex, como las columnas: pulsar quita o pone.</summary>
+    private void BuildNeoNavChips()
+    {
+        NeoNavChips.Children.Clear();
+        foreach (var (key, name, glyph) in MainViewModel.OptionalNav)
+        {
+            var content = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            content.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = glyph, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 7, 0), Opacity = 0.8,
+                FontFamily = (FontFamily)FindResource("IconFont"),
+            });
+            content.Children.Add(new System.Windows.Controls.TextBlock { Text = name, FontSize = 13, VerticalAlignment = VerticalAlignment.Center });
+            var chip = new System.Windows.Controls.Primitives.ToggleButton
+            {
+                Style = (Style)FindResource("ColumnChip"),
+                Content = content,
+                IsChecked = _vm.Settings.NeoHiddenNav?.Contains(key) != true,
+                ToolTip = "Quitar o poner en el menú de la izquierda",
+            };
+            chip.Click += (s, e) => _vm.SetNavShown(key, chip.IsChecked == true);
+            NeoNavChips.Children.Add(chip);
+        }
+    }
+
+    // ---------- tamaño libre: bordes y esquinas ----------
+
+    private static readonly Size MinSize = new(760, 520);
+    private Point _gripStart;
+    private Rect _gripRect;
+
+    private Point CursorDip()
+    {
+        var p = PointToScreen(Mouse.GetPosition(this));
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return new Point(p.X / dpi.DpiScaleX, p.Y / dpi.DpiScaleY);
+    }
+
+    private void Grip_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+    {
+        _gripStart = CursorDip();
+        _gripRect = new Rect(Left, Top, Width, Height);
+    }
+
+    /// <summary>El borde (o la esquina) que se arrastra va con el ratón; el contrario se queda quieto. Nunca más que la pantalla.</summary>
+    private void Grip_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Primitives.Thumb { Tag: string edge }) return;
+        var now = CursorDip();
+        double dx = now.X - _gripStart.X, dy = now.Y - _gripStart.Y;
+        var area = SystemParameters.WorkArea;
+        double maxW = Math.Max(MinSize.Width, area.Width), maxH = Math.Max(MinSize.Height, area.Height);
+        var r = _gripRect;
+        if (edge.Contains('r')) Width = Math.Clamp(r.Width + dx, MinSize.Width, maxW);
+        if (edge.Contains('b')) Height = Math.Clamp(r.Height + dy, MinSize.Height, maxH);
+        if (edge.Contains('l'))
+        {
+            double w = Math.Clamp(r.Width - dx, MinSize.Width, maxW);
+            Left = r.Right - w;
+            Width = w;
+        }
+        if (edge.Contains('t'))
+        {
+            double h = Math.Clamp(r.Height - dy, MinSize.Height, maxH);
+            Top = r.Bottom - h;
+            Height = h;
+        }
+    }
+
+    private void Grip_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _vm.Settings.SettingsWidth = Width;
+        _vm.Settings.SettingsHeight = Height;
+        SettingsStore.Save(_vm.Settings);
     }
 
     // ======================================================================

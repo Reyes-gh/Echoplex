@@ -812,6 +812,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnPageChanged()
     {
+        SyncTopSearch();
         CanGoBack = _back.Count > 0;
         CanGoForward = _forward.Count > 0;
         foreach (var p in Playlists) p.IsSelected = false;
@@ -1814,7 +1815,9 @@ public sealed partial class MainViewModel : ObservableObject
                 else
                 {
                     NowPlayingCover = null;
+                    NowPlayingFormat = null;
                 }
+                OnPropertyChanged(nameof(ShowNowPlayingCard));
                 UpdateActiveContext(); // el camino iluminado en el árbol sigue a la canción
                 WatchDiscordSong(Player.Current);
                 PushDiscord();
@@ -2290,6 +2293,8 @@ public sealed partial class MainViewModel : ObservableObject
         });
         if (ver != _infoVersion) return;
 
+        // para el vinilo de Inicio (Neoplex): formato · bits (o bitrate) · frecuencia
+        NowPlayingFormat = string.Join(" · ", new[] { song.Format, tech?[2] ?? tech?[0], tech?[1] }.Where(t => !string.IsNullOrWhiteSpace(t)));
         InfoItems.Clear();
         void Add(string glyph, string label, string? value)
         {
